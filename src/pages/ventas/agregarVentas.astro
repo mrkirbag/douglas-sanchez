@@ -37,7 +37,7 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                 <select name="producto" id="productoSelect"></select>
 
                 <label for="cantidad">Cantidad:</label>
-                <input type="number" min="1" id="cantidad" placeholder="Ingrese la cantidad"/>
+                <input type="text" id="cantidad" placeholder="Ingrese la cantidad"/>
 
                 <label for="precio">Precio por Unidad:</label>
                 <input type="text" id="precio"/>
@@ -397,8 +397,9 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 
         const productoId = productoSelect.value;
         const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
-        const cantidad = parseInt(cantidadInput.value);
-        const precio = parseFloat(precioInput.value);
+        const cantidad = parseFloat(cantidadInput.value.replace(",", "."));
+        const precio = parseFloat(precioInput.value.replace(",", "."));
+
 
         try {
             const response = await fetch(`/api/productos/${productoId}`);
