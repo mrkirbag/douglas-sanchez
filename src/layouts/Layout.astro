@@ -35,11 +35,19 @@ import Navbar from "../components/Navbar.astro"
 		--primary-color: #002a49;
 		--secondary-color: #003e58;
 		--gray-color: #cccccc;
+		--gray-light: #f4f6f8;
+		--gray-border: #e2e6ea;
 		--table-header-color: #DADADA;
 		--danger-color: #ff4d4d;
 		--danger-hover-color: #a51515;
 		--success-color: #008000;
 		--success-hover-color: #006600;
+		--shadow-sm: 0 1px 3px rgba(0, 42, 73, 0.08);
+		--shadow-md: 0 4px 12px rgba(0, 42, 73, 0.12);
+		--radius-sm: 6px;
+		--radius-md: 10px;
+		--radius-lg: 14px;
+		--transition: 0.2s ease;
 	}
 
 	@font-face {
@@ -58,6 +66,13 @@ import Navbar from "../components/Navbar.astro"
 
 	body {
 		font-family: 'Roboto', sans-serif;
+		overflow-x: hidden;
+		max-width: 100%;
+	}
+
+	html {
+		overflow-x: hidden;
+		max-width: 100%;
 	}
 
 	.navbar {
@@ -66,118 +81,186 @@ import Navbar from "../components/Navbar.astro"
 	}
 
 	.content {
-		max-width: 100%;
+		max-width: 1200px;
+		width: calc(100% - 180px);
+		min-width: 0;
 		height: 100%;
 		min-height: 100vh;
 		margin: 0 auto;
 		margin-left: 180px;
-		padding: 1rem 2rem;
-		background-color: #fff;
+		padding: 1.5rem 2.5rem 2.5rem;
+		background-color: var(--gray-light);
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
+		gap: 1.25rem;
+		box-sizing: border-box;
+		overflow-x: clip;
 	}
 
 	h1 {
 		text-align: center;
-		font-size: 2rem;
-		margin: 1rem 0;
+		font-size: 1.75rem;
+		margin: 0.5rem 0 0.25rem;
 		font-family: 'Archivo Black', sans-serif;
+		color: var(--primary-color);
+		letter-spacing: 0.5px;
+		position: relative;
+		padding-bottom: 0.75rem;
+	}
+
+	h1::after {
+		content: '';
+		display: block;
+		width: 60px;
+		height: 3px;
+		background: var(--primary-color);
+		margin: 0.5rem auto 0;
+		border-radius: 2px;
+		opacity: 0.6;
 	}
 
 	.btn-add_container {
 		background: var(--primary-color);
-		border-radius: 5px;
-		max-width: 150px;
-		display: flex;
+		border-radius: var(--radius-sm);
+		max-width: fit-content;
+		display: inline-flex;
 		justify-content: center;
 		align-items: center;
+		box-shadow: var(--shadow-sm);
+		transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
 
 		& .btn-add {
-			padding: .35rem .75rem;
+			padding: 0.5rem 1.1rem;
 			width: 100%;
 			text-align: center;
 			color: #fff;
 			text-decoration: none;
-			font-size: .9rem;
+			font-size: 0.875rem;
+			font-weight: 600;
+			white-space: nowrap;
 		}
 
 		&:hover {
 			background: var(--secondary-color);
-			scale: 1.05;
+			transform: translateY(-1px);
+			box-shadow: var(--shadow-md);
 			cursor: pointer;
 		}
 
 		&:active {
-			scale: 0.95;
+			transform: translateY(0);
 			cursor: pointer;
-		}	
+		}
 
 	}
 
 	.input-busqueda_container {
 		display: flex;
 		justify-content: center;
-		margin-bottom: 2rem;
+		margin-bottom: 1.25rem;
 
 		& input {
 			width: 100%;
-			max-width: 400px;
-			padding: .5rem;
-			border: 1px solid var(--gray-color);
-			border-radius: 7px;
-			font-size: .9rem;
+			max-width: 280px;
+			padding: 0.65rem 0.85rem;
+			border: 1px solid var(--gray-border);
+			border-radius: var(--radius-sm);
+			font-size: 0.9rem;
+			background: #fff;
+			box-shadow: var(--shadow-sm);
+			transition: border-color var(--transition), box-shadow var(--transition);
 
 			&:focus {
 				outline: none;
-				border: 1.5px solid var(--primary-color);
+				border-color: var(--primary-color);
+				box-shadow: 0 0 0 3px rgba(0, 42, 73, 0.12);
 			}
 		}
 	}
 
 	table {
 		width: 100%;
-		margin-bottom: .5rem;
+		max-width: 100%;
+		margin-bottom: 0.5rem;
+		border-collapse: separate;
+		border-spacing: 0;
+		background: #fff;
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		box-shadow: var(--shadow-sm);
+		border: 1px solid var(--gray-border);
+		table-layout: auto;
 
 		& th {
-			background-color: var(--table-header-color);
-			font-weight: bold;
-			padding: 1rem;
+			background-color: var(--primary-color);
+			color: #fff;
+			font-weight: 600;
+			font-size: 0.8rem;
+			text-transform: uppercase;
+			letter-spacing: 0.4px;
+			padding: 0.85rem 1rem;
 			text-align: left;
+			border-bottom: 2px solid var(--secondary-color);
 		}
 
-		tr {
-			border-bottom: 1px solid var(--gray-color);
+		& th:first-child {
+			border-top-left-radius: var(--radius-md);
+		}
+
+		& th:last-child {
+			border-top-right-radius: var(--radius-md);
+		}
+
+		& tbody tr {
+			border-bottom: 1px solid var(--gray-border);
 			width: 100%;
+			transition: background-color var(--transition);
+
+			&:nth-child(even) {
+				background-color: rgba(0, 42, 73, 0.02);
+			}
 
 			&:last-child {
 				border-bottom: none;
 			}
+
 			&:hover {
-				background-color: var(--table-header-color);
+				background-color: rgba(0, 42, 73, 0.06);
 			}
 		}
 
 		td {
-			padding: .75rem;
+			padding: 0.85rem 1rem;
 			text-align: left;
-			font-size: .85rem;
+			font-size: 0.875rem;
+			color: #333;
+			vertical-align: middle;
+			word-break: break-word;
+			overflow-wrap: break-word;
 		}
 
 		.acciones {
 			display: flex;
-			gap: 10px;
+			flex-wrap: wrap;
+			gap: 0.4rem;
 
 			& button {
-				font-size: .7rem;
+				font-size: 0.7rem;
 				color: #fff;
-				font-weight: 700;
+				font-weight: 600;
 				border: none;
-				padding: .25rem .5rem;
-				border-radius: 5px;
+				padding: 0.35rem 0.65rem;
+				border-radius: var(--radius-sm);
+				transition: background-color var(--transition), transform var(--transition);
+				letter-spacing: 0.3px;
 
 				&:hover {
 					cursor: pointer;
+					transform: translateY(-1px);
+				}
+
+				&:active {
+					transform: translateY(0);
 				}
 			}
 
@@ -205,7 +288,6 @@ import Navbar from "../components/Navbar.astro"
 				}
 			}
 
-			
 		}
 	}
 	
@@ -241,19 +323,26 @@ import Navbar from "../components/Navbar.astro"
 
 	.form-container {
 		margin: 0 auto;
-		width: 400px;
+		width: 100%;
+		max-width: 480px;
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
 		align-items: center;
+		background: #fff;
+		border-radius: var(--radius-lg);
+		padding: 1.75rem;
+		box-shadow: var(--shadow-md);
+		border: 1px solid var(--gray-border);
 	}
 
-		form {
-		width: 400px;
+	form {
+		width: 100%;
+		max-width: 480px;
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		align-items: center;
+		align-items: stretch;
 		gap: 1rem;
 	}
 
@@ -262,20 +351,28 @@ import Navbar from "../components/Navbar.astro"
 	}
 
 	form label {
-		font-size: .75rem;
+		font-size: 0.75rem;
 		font-weight: 700;
+		color: var(--primary-color);
+		text-transform: uppercase;
+		letter-spacing: 0.4px;
+		margin-bottom: 0.35rem;
+		display: block;
 	}
 
 	form input, form select {
 		width: 100%;
-		max-width: 400px;
-		padding: .5rem;
-		border: 1px solid var(--gray-color);
-		border-radius: 7px;
-		font-size: .9rem;
+		padding: 0.65rem 0.85rem;
+		border: 1px solid var(--gray-border);
+		border-radius: var(--radius-sm);
+		font-size: 0.9rem;
+		background: #fff;
+		transition: border-color var(--transition), box-shadow var(--transition);
 
 		&:focus {
-			border: 1.5px solid var(--primary-color);
+			outline: none;
+			border-color: var(--primary-color);
+			box-shadow: 0 0 0 3px rgba(0, 42, 73, 0.12);
 		}
 	}
 
@@ -283,52 +380,100 @@ import Navbar from "../components/Navbar.astro"
 		appearance: none;
 		-moz-appearance: none;
 		-webkit-appearance: none;
-		background: url('/down-arrow.svg') no-repeat right 10px center;
+		background: #fff url('/down-arrow.svg') no-repeat right 12px center;
+		padding-right: 2rem;
+		cursor: pointer;
 	}
 
 	form select option {
-		font-size: .8rem;
-		background: var(--gray-color);
+		font-size: 0.85rem;
+		background: #fff;
 	}
 
 	form button, .button {
 		text-decoration: none;
-		margin-top: 1rem;
+		margin-top: 0.5rem;
 		background-color: var(--primary-color);
 		color: #fff;
-		border-radius: 5px;
-		max-width: 150px;
-		padding: .35rem .75rem;
+		border-radius: var(--radius-sm);
+		align-self: center;
+		min-width: 150px;
+		padding: 0.55rem 1.25rem;
 		text-align: center;
-		font-size: .9rem;
+		font-size: 0.9rem;
+		font-weight: 600;
 		border: none;
 		outline: none;
+		box-shadow: var(--shadow-sm);
+		transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
 
-		&:hover{
+		&:hover {
 			background-color: var(--secondary-color);
 			cursor: pointer;
-			scale: 1.05;
+			transform: translateY(-1px);
+			box-shadow: var(--shadow-md);
 		}
 
 		&:active {
-			scale: 0.95;
+			transform: translateY(0);
 			cursor: pointer;
 		}
 	}
 
 	.password-container {
 		width: 100%;
-        display: flex;
-        gap: 10px;
+		display: flex;
+		align-items: stretch;
+		gap: 0.5rem;
 
-        & span {
-            cursor: pointer;
-            font-size: 1.25rem;
-            border: .5px solid var(--gray-color);
-            border-radius: 5px;
-            background: var(--primary-color);
-        }
-    }
+		& input {
+			flex: 1;
+			min-width: 0;
+		}
+	}
+
+	.btn-toggle-password {
+		flex-shrink: 0;
+		align-self: stretch;
+		padding: 0 0.85rem;
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.5px;
+		color: var(--primary-color);
+		background: var(--gray-light);
+		border: 1px solid var(--gray-border);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: background var(--transition), color var(--transition), border-color var(--transition);
+		white-space: nowrap;
+
+		&:hover {
+			background: var(--primary-color);
+			color: #fff;
+			border-color: var(--primary-color);
+		}
+	}
+
+	.select-container {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
+
+		& select {
+			flex: 1;
+			min-width: 0;
+		}
+	}
+
+	.table-section {
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
 
 	.mensaje-sin-registros {
 		margin: 0 auto;
@@ -336,57 +481,114 @@ import Navbar from "../components/Navbar.astro"
 		color: #fff;
 		background: var(--danger-color);
 		text-align: center;
-		font-size: 1.2rem;
-		padding: .5rem 1rem;
+		font-size: 1rem;
+		padding: 0.75rem 1rem;
+		border-radius: var(--radius-sm);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.empty-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.35rem;
+		width: 100%;
+		padding: 2rem 1.5rem;
+		background: #fff;
+		border: 2px dashed var(--gray-border);
+		border-radius: var(--radius-md);
+		text-align: center;
+		color: #666;
+
+		p {
+			font-size: 0.95rem;
+			font-weight: 600;
+			color: var(--primary-color);
+			margin: 0;
+		}
+
+		span {
+			font-size: 0.8rem;
+			color: #888;
+		}
+	}
+
+	.empty-state.hidden {
+		display: none;
+	}
+
+	.productos-panel.hidden {
+		display: none;
 	}
 
 	@media (max-width: 768px) {
 
 		h1 {
-			text-align: left;
-			font-size: 1.5rem;
+			text-align: center;
+			font-size: 1.35rem;
 		}
+
 		table, tbody, th, td, tr {
 			display: block;
 			width: 100%;
 		}
 
-		thead {
-			display: none !important
+		table {
+			border-radius: var(--radius-sm);
+			overflow: visible;
+			box-shadow: none;
+			border: none;
+			background: transparent;
 		}
 
-		tr {
-			margin-bottom: 0.5rem;
-			border: 1px solid var(--gray-color);
-			border-radius: 6px;
-			padding: .75rem;
-			background-color: var(--gray-color);
+		thead {
+			display: none !important;
+		}
+
+		tbody tr {
+			margin-bottom: 0.75rem;
+			border: 1px solid var(--gray-border);
+			border-radius: var(--radius-md);
+			padding: 0.85rem;
+			background-color: #fff;
+			box-shadow: var(--shadow-sm);
 		}
 
 		td {
 			text-align: left;
-			padding: .2rem;
+			padding: 0.35rem 0;
 			position: relative;
-			font-size: .85rem;
+			font-size: 0.85rem;
+			border: none;
 		}
 
 		td::before {
 			content: attr(data-label);
-			font-weight: bold;
+			font-weight: 700;
 			display: block;
-			margin-bottom: .1rem;
+			margin-bottom: 0.15rem;
 			color: var(--primary-color);
+			font-size: 0.7rem;
+			text-transform: uppercase;
+			letter-spacing: 0.3px;
 		}
 
 		form {
-			max-width: 300px;
+			max-width: 100%;
+		}
+
+		.form-container {
+			padding: 1.25rem;
 		}
 	}
 
 	@media (max-width: 768px) {
 		.content {
 			margin-left: 0;
+			width: 100%;
 			padding: 1rem 1rem;
+			overflow-x: hidden;
 		}
 
 		.navbar {

@@ -62,7 +62,8 @@ if (usuario.rol !== 'admin') {
 <script>
 
     import { noRegistros } from "@/utils/helpers/mensajes.js";
-    import { cambioUSDaCOP, cambioBs } from "@/utils/helpers/cambioMoneda.js";
+    import { obtenerTasasPrecios } from "@/utils/helpers/cambioMoneda.js";
+    import { calcularPreciosProducto } from "@/utils/helpers/precios.js";
 
     document.addEventListener('DOMContentLoaded', async () => {
 
@@ -81,9 +82,8 @@ if (usuario.rol !== 'admin') {
         let paginaActual = 1;
         const porPagina = 10;
 
-        // Obtener tasa de cambio
-        const tasaCambio = await cambioUSDaCOP();
-        const tasaBs = await cambioBs();
+        // Obtener tasas de cambio
+        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
 
         // Mostrar lote de clientes
         async function mostrarPagina(pagina : number) {
@@ -111,10 +111,9 @@ if (usuario.rol !== 'admin') {
             lote.forEach( producto => {
                 const tr = document.createElement('tr');
 
-                let costoPesos = producto.costo / tasaCambio;
-                let ventaPesos = producto.venta / tasaCambio;
-                let costoBs = producto.costo / tasaBs;
-                let ventaBs = producto.venta / tasaBs;
+                const ventaPrecios = calcularPreciosProducto(producto, { tasaCopUsd, tasaBcvUsd, recargoBcv });
+                const costoUsd = tasaCopUsd > 0 ? producto.costo / tasaCopUsd : 0;
+                const costoBs = costoUsd * tasaBcvUsd;
 
                 tr.innerHTML = `    
                                     <td data-label="Código y Nombre">
@@ -126,16 +125,18 @@ if (usuario.rol !== 'admin') {
                                     <td data-label="Precio de Costo">
                                         ${producto.costo.toFixed(2)} COP
                                         <br />
-                                        <span style="font-size: .75rem;">${(costoPesos.toFixed(2))} USD
+                                        <span style="font-size: .75rem;">${costoUsd.toFixed(2)} USD
                                         <br />
-                                        <span style="font-size: .75rem;">${Math.ceil(costoBs)} Bs
+                                        <span style="font-size: .75rem;">${Math.ceil(costoBs)} Bs BCV
                                     </td>
                                     <td data-label="Precio de Venta">
                                         ${producto.venta.toFixed(2)} COP
                                         <br />
-                                        <span style="font-size: .75rem;">${(ventaPesos.toFixed(2))} USD
+                                        <span style="font-size: .75rem;">${ventaPrecios.usdDivisa.toFixed(2)} USD (divisas)
                                         <br />
-                                        <span style="font-size: .75rem;">${Math.ceil(ventaBs)} Bs
+                                        <span style="font-size: .75rem;">${ventaPrecios.pventaBcv.toFixed(2)} USD BCV
+                                        <br />
+                                        <span style="font-size: .75rem;">${Math.ceil(ventaPrecios.bsBcv)} Bs BCV
                                     </td>
                                 `;
 

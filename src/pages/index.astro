@@ -11,7 +11,7 @@ const usuarioNombre = usuario.nombre;
 ---
 
 <Layout>
-    <main>
+    <main class="dashboard">
         <section class="empresa">
             <img src="/logo.webp" alt="Logo de la Empresa" />
             <div>
@@ -43,25 +43,35 @@ const usuarioNombre = usuario.nombre;
 
 <style>
 
-    :global(main) {
+    :global(.content:has(.dashboard)) {
+        min-height: auto;
+        height: auto;
+        overflow-y: visible;
+        padding-bottom: 1.5rem;
+    }
+
+    :global(main.dashboard) {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         grid-template-rows: auto auto;
-        gap: 2rem;
-        padding: 2rem;
+        gap: 1.5rem;
+        padding: 1.5rem;
         background: linear-gradient(to bottom, #f4f4f4, #fff);
-        border-radius: 30px;
+        border-radius: var(--radius-lg);
         width: 100%;
-        height: 93dvh;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
     }
 
     @media (max-width: 768px) {
 
-        :global(main) {
+        :global(main.dashboard) {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 1rem;              
+            align-items: stretch;
+            gap: 1rem;
+            padding: 1rem;
         }
 
         section {
@@ -75,7 +85,7 @@ const usuarioNombre = usuario.nombre;
 
         :global(.noResponsive table) {
             display: table !important;
-            width: auto !important;
+            width: 100% !important;
         }
 
         :global(.noResponsive thead) {
@@ -112,16 +122,36 @@ const usuarioNombre = usuario.nombre;
     /* Secciones */
     section {
         background: #fff;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         padding: 1rem;
-        box-shadow:
-            0 2px 4px rgba(0, 0, 0, 0.1),
-            0 8px 16px rgba(0, 0, 0, 0.15);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--gray-border);
         display: flex;
         flex-direction: column;
-        justify-content: center;
         align-items: center;
         text-align: center;
+        min-width: 0;
+    }
+
+    .agotados,
+    .ventas {
+        align-items: stretch;
+
+        h2 {
+            margin-bottom: 0.75rem;
+        }
+
+        :global(.noResponsive) {
+            width: 100%;
+            overflow-x: auto;
+        }
+    }
+
+    .stock-bajo {
+        :global(#reportes) {
+            width: 100%;
+            min-height: 200px;
+        }
     }
 
     .empresa {
@@ -192,6 +222,14 @@ const usuarioNombre = usuario.nombre;
         font-size: .8rem;
     }
 
+    :global(.empty-msg) {
+        font-size: 0.85rem;
+        color: #888;
+        font-style: italic;
+        padding: 0.5rem 0;
+        margin: 0;
+    }
+
 </style>
 
 <script>
@@ -236,7 +274,7 @@ const usuarioNombre = usuario.nombre;
             tablaHTML += '</tbody></table>';
             tablaAgotados.innerHTML = tablaHTML;
         } else {
-            tablaAgotados.innerHTML = '<p>No hay productos agotados</p>';
+            tablaAgotados.innerHTML = '<p class="empty-msg">No hay productos agotados</p>';
         }
 
         // ultimas tres ventas del día
@@ -257,7 +295,7 @@ const usuarioNombre = usuario.nombre;
             ventasDiaDiv.innerHTML = ventasHTML;
 
         } else {
-            ventasDiaDiv.innerHTML = '<p>No hay ventas hoy</p>';
+            ventasDiaDiv.innerHTML = '<p class="empty-msg">No hay ventas hoy</p>';
         }
 
         // Grafica de productos bajos en stock
@@ -275,7 +313,7 @@ const usuarioNombre = usuario.nombre;
             );
 
         } else {
-            stokBajo.innerHTML = '<p>No hay productos bajos en stock</p>';
+            stokBajo.innerHTML = '<p class="empty-msg">No hay productos bajos en stock</p>';
         }
 
     });

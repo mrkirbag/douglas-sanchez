@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
+import { calcularPventaBcvParaVenta } from '@/utils/db/preciosDb';
 import xlsx from 'xlsx';
 
 export async function POST({ request }) {
@@ -58,18 +59,22 @@ export async function POST({ request }) {
                 ? ((stockViejo * costoViejo) + (stockNuevo * costoNuevo)) / nuevoStock
                 : costoNuevo;
 
+            const pventaBcv = await calcularPventaBcvParaVenta(venta);
+
             await db.execute(
-                'UPDATE productos SET stock = ?, costo = ?, venta = ? WHERE codigo = ?',
-                [nuevoStock, costoPromedio, venta, codigo]
+                'UPDATE productos SET stock = ?, costo = ?, venta = ?, pventa_bcv = ? WHERE codigo = ?',
+                [nuevoStock, costoPromedio, venta, pventaBcv, codigo]
             );
 
             montoTotal += costoNuevo * stockNuevo;
 
             resultados.push({ codigo, nombre, stock: nuevoStock, unidades_nuevas: stockNuevo, costo: costoNuevo, costo_promedio: costoPromedio });
         } else {
+            const pventaBcv = await calcularPventaBcvParaVenta(venta);
+
             await db.execute(
-                'INSERT INTO productos (codigo, nombre, stock, costo, venta, unidad_medida, estatus) VALUES (?, ?, ?, ?, ?, ?, "activo")',
-                [codigo, nombre, stockNuevo, costoNuevo, venta, unidad_medida]
+                'INSERT INTO productos (codigo, nombre, stock, costo, venta, pventa_bcv, unidad_medida, estatus) VALUES (?, ?, ?, ?, ?, ?, ?, "activo")',
+                [codigo, nombre, stockNuevo, costoNuevo, venta, pventaBcv, unidad_medida]
             );
 
             productosAgregados++;

@@ -13,13 +13,18 @@ if (!usuario) {
 
     <section class="form-container">
         <form>
+            <div class="barcode-container">
+                <label for="barcodeInput">Escanear código de barras</label>
+                <input type="text" id="barcodeInput" placeholder="Escanea para seleccionar el producto y luego ajusta cantidad o precio" autocomplete="off" />
+            </div>
+
             <input type="text" id="busquedaProductos" placeholder="Buscar producto por nombre o código..." />
 
             <select name="producto" id="productoSelect"></select>
 
             <div>
                 <label for="cantidad">Cantidad:</label>
-                <input type="number" min="1" id="cantidad" placeholder="Ingrese la cantidad"/>
+                <input type="number" min="1" id="cantidad" placeholder="Ingrese la cantidad" value="1"/>
             </div>
 
             <div>
@@ -34,23 +39,34 @@ if (!usuario) {
     </section>
     
 
-    <table id="contenidoImpresion">
-        <thead id="headerTablaProductos" style="opacity: 0;">
-            <tr>
-                <th>Producto</th>
-                <th>Precio por Unidad</th>
-                <th>Cantidad Seleccionada</th>
-                <th>Subtotal</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="listaProductos">
-        </tbody>
-    </table>
-    
-    <p><span id="total"></span></p>
+    <div class="table-section">
+        <h2 class="section-title">Productos en el presupuesto</h2>
 
-    <div class="btns-container" style="opacity: 0;" id="btns">
+        <div id="emptyProductos" class="empty-state">
+            <p>No se han agregado productos al presupuesto</p>
+            <span>Busca o escanea un producto para comenzar</span>
+        </div>
+
+        <div id="panelProductos" class="productos-panel hidden">
+            <table id="contenidoImpresion">
+                <thead id="headerTablaProductos">
+                    <tr>
+                        <th>Producto</th>
+                        <th>Precio por Unidad</th>
+                        <th>Cantidad Seleccionada</th>
+                        <th>Subtotal</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="listaProductos">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <p id="totalWrapper" class="total-wrapper hidden"><span id="total"></span></p>
+
+    <div class="btns-container hidden" id="btns">
         <button id="imprimir" disabled>Imprimir</button>
         <button id="reiniciar" disabled>Cancelar</button>
     </div>
@@ -63,41 +79,123 @@ if (!usuario) {
 </Layout>
 
 <style>
+    .section-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.75rem;
+    }
+
+    .table-section {
+        width: 100%;
+    }
+
+    .productos-panel {
+        width: 100%;
+    }
+
+    .productos-panel.hidden,
+    .total-wrapper.hidden,
+    .btns-container.hidden {
+        display: none;
+    }
+
     .btns-container {
         display: flex;
         justify-content: center;
-        gap: 3rem;
+        gap: 1.5rem;
         margin-top: 1rem;
 
         & button {
             display: block;
-            background-color: #1f2937;
+            background-color: var(--primary-color);
             color: #fff;
-            border-radius: 5px;
-            padding: .35rem .75rem;
+            border-radius: var(--radius-sm);
+            padding: 0.6rem 1.25rem;
             text-align: center;
-            font-size: .9rem;
+            font-size: 0.875rem;
             font-weight: 600;
             border: none;
             outline: none;
+            box-shadow: var(--shadow-sm);
+            transition: background var(--transition), transform var(--transition);
 
-            &:hover {
-                background: #4b4b8a;
+            &:hover:not(:disabled) {
+                background: var(--secondary-color);
+                transform: translateY(-1px);
                 cursor: pointer;
+            }
+
+            &:disabled {
+                opacity: 0.45;
+                cursor: not-allowed;
             }
         }
     }
 
-    #total {
+    .total-wrapper {
         margin-top: 1rem;
         text-align: center;
+    }
+
+    #total {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--primary-color);
+        padding: 1rem;
+        background: var(--gray-light);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--gray-border);
+        display: inline-block;
+    }
+
+    .barcode-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        padding: 1rem;
+        background: rgba(0, 42, 73, 0.04);
+        border: 2px dashed var(--primary-color);
+        border-radius: var(--radius-sm);
+        margin-bottom: 0.75rem;
+        width: 100%;
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        input {
+            font-size: 0.95rem;
+            letter-spacing: 0.03em;
+        }
+    }
+
+    .barcode-container.barcode-error {
+        border-color: var(--danger-color);
+        border-style: solid;
+        background: rgba(255, 77, 77, 0.06);
+        animation: barcode-shake 0.3s ease;
+    }
+
+    @keyframes barcode-shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-4px); }
+        75% { transform: translateX(4px); }
     }
 </style>
 
 <script >
 
-    import { cambioBs, cambioUSDaCOP } from "@/utils/helpers/cambioMoneda";
+    import { obtenerTasasPrecios } from "@/utils/helpers/cambioMoneda";
+    import { calcularPventaBcv, calcularBsBcv, calcularBsBcvDesdeCop } from "@/utils/helpers/precios";
     import { mostrarError } from "@/utils/helpers/mensajes";
+    import { initBarcodeScanner, buscarProductoPorCodigo } from "@/utils/helpers/barcodeScanner.js";
 
     interface Producto {
         codigo: string;
@@ -193,14 +291,115 @@ if (!usuario) {
         ventana.print();
     });
 
-    document.addEventListener('DOMContentLoaded', rellenarSelectProductos);
+    document.addEventListener('DOMContentLoaded', () => {
+        rellenarSelectProductos();
+        actualizarVisibilidadPresupuesto();
+
+        const barcodeInput = document.getElementById("barcodeInput") as HTMLInputElement;
+        initBarcodeScanner(barcodeInput, async (codigo) => {
+            await seleccionarPorCodigoBarras(codigo);
+        }, { refocusInput: false });
+    });
+
+    function actualizarVisibilidadPresupuesto() {
+        const tbody = document.querySelector('#listaProductos') as HTMLTableSectionElement;
+        const emptyState = document.getElementById('emptyProductos') as HTMLDivElement;
+        const panelProductos = document.getElementById('panelProductos') as HTMLDivElement;
+        const btnsContainer = document.querySelector('#btns') as HTMLDivElement;
+        const totalWrapper = document.getElementById('totalWrapper') as HTMLParagraphElement;
+        const btnImprimir = document.querySelector('#imprimir') as HTMLButtonElement;
+        const btnCancelar = document.querySelector('#reiniciar') as HTMLButtonElement;
+        const hayProductos = tbody.children.length > 0;
+
+        emptyState.classList.toggle('hidden', hayProductos);
+        panelProductos.classList.toggle('hidden', !hayProductos);
+        btnsContainer.classList.toggle('hidden', !hayProductos);
+        totalWrapper.classList.toggle('hidden', !hayProductos);
+        btnImprimir.disabled = !hayProductos;
+        btnCancelar.disabled = !hayProductos;
+    }
+
+    function flashBarcodeError() {
+        const container = document.querySelector('.barcode-container') as HTMLDivElement;
+        container?.classList.add('barcode-error');
+        setTimeout(() => container?.classList.remove('barcode-error'), 400);
+    }
+
+    async function seleccionarPorCodigoBarras(codigo: string) {
+        const producto = await buscarProductoPorCodigo(codigo);
+
+        if (!producto) {
+            mostrarError(`Producto no encontrado: ${codigo}`);
+            flashBarcodeError();
+            document.getElementById("barcodeInput")?.focus();
+            return;
+        }
+
+        const busqueda = document.getElementById("busquedaProductos") as HTMLInputElement;
+        const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
+        const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
+
+        busqueda.value = "";
+        renderOpcionesProductos?.(productosListados);
+
+        productoSelect.value = String(producto.id);
+        productoSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        if (!cantidadInput.value || Number(cantidadInput.value) <= 0) {
+            cantidadInput.value = "1";
+        }
+
+        cantidadInput.focus();
+        cantidadInput.select();
+    }
+
+    async function procesarAgregarProducto(producto: any, cantidad: number, precio: number) {
+        if (!producto || producto.stock === undefined) {
+            mostrarError('Producto no encontrado o sin stock disponible');
+            return;
+        }
+        if (isNaN(cantidad) || Number(cantidad) <= 0) {
+            mostrarError("Ingresa una cantidad válida mayor a cero");
+            return;
+        }
+        if (isNaN(precio) || Number(precio) <= 0) {
+            mostrarError("El precio del producto no es válido");
+            return;
+        }
+
+        const tbody = document.querySelector('#listaProductos') as HTMLTableSectionElement;
+        const filaExistente = tbody.querySelector(`tr[data-codigo="${producto.codigo}"]`) as HTMLTableRowElement;
+        const cantidadActual = filaExistente
+            ? Number(filaExistente.querySelector('[data-label="Cantidad"]')?.textContent) || 0
+            : 0;
+        const cantidadTotal = cantidadActual + cantidad;
+
+        if (Number(cantidadTotal) > producto.stock) {
+            mostrarError(`Cantidad insuficiente en stock. Stock disponible: ${producto.stock}`);
+            return;
+        }
+
+        if (filaExistente) {
+            filaExistente.remove();
+        }
+
+        await mostrarProductosEnTabla({
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            cantidad: cantidadTotal,
+            precio,
+            subtotal: precio * cantidadTotal,
+            pventa_bcv: producto.pventa_bcv,
+        });
+    }
+
+    let productosListados: Producto[] = [];
+    let renderOpcionesProductos: ((productos: Producto[]) => void) | null = null;
 
     async function rellenarSelectProductos() {
 
         const busqueda = document.getElementById("busquedaProductos") as HTMLInputElement;
         const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
-
-        let productosListados: Producto[] = [];
 
         try {
 
@@ -237,6 +436,8 @@ if (!usuario) {
                     productoSelect.appendChild(option);
                 });
             };
+
+            renderOpcionesProductos = renderOpciones;
 
             // Render inicial
             renderOpciones(productosListados);
@@ -320,6 +521,11 @@ if (!usuario) {
         const cantidad = Number(cantidadInput.value);
         const precio = parseFloat(precioInput.value);
 
+        if (!productoId) {
+            mostrarError("Selecciona un producto");
+            return;
+        }
+
         try {
 
             const response = await fetch(`/api/productos/${productoId}`);
@@ -327,63 +533,35 @@ if (!usuario) {
                 throw new Error('Error al obtener el producto: ' + response.status);
             }
             const producto = await response.json();
+            await procesarAgregarProducto(producto, cantidad, precio);
 
-            // Validaciones
-            if (!producto || !producto.stock) {
-                mostrarError('Producto no encontrado o sin stock disponible');
-                return;
-            }
-            if (isNaN(cantidad) || Number(cantidad) <= 0) {
-                mostrarError("Ingresa una cantidad válida mayor a cero");
-                return;
-            }
-            if (isNaN(precio) || Number(precio) <= 0) {
-                mostrarError("El precio del producto no es válido");
-                return;
-            }
-            if (Number(cantidad) > producto.stock) {
-                mostrarError(`Cantidad insuficiente en stock. Stock disponible: ${producto.stock}`);
-                return;
-            }
-
-            //Información necesaria
-            let productoSeleccionado = {
-                codigo: producto.codigo,
-                nombre: producto.nombre,
-                cantidad,
-                precio,
-                subtotal: (precio * cantidad)
-            }
-
-            // Guardar datos del producto en la tabla
-            mostrarProductosEnTabla(productoSeleccionado)
-            
         } catch (error) {
             console.error("Error al obtener el producto:", error);
             return;
         }
     });
 
-    async function mostrarProductosEnTabla(productoSeleccionado : { codigo: string; nombre: string; cantidad: number; precio: number; subtotal: number; }) {
+    async function mostrarProductosEnTabla(productoSeleccionado : { codigo: string; nombre: string; cantidad: number; precio: number; subtotal: number; pventa_bcv?: number; }) {
         
         const tbody = document.querySelector('#listaProductos') as HTMLTableSectionElement;
-        const thead = document.querySelector('#headerTablaProductos') as HTMLTableSectionElement;
         const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
         const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
         const precioInput = document.getElementById("precio") as HTMLInputElement;
 
-        const tasa = await cambioUSDaCOP();
-        const tasaBs = await cambioBs();
+        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
 
-        let precioUsd = (productoSeleccionado.precio / tasa).toFixed(2);
-        let subtotalUsd = ( productoSeleccionado.subtotal / tasa).toFixed(2);
+        const pventaBcv = productoSeleccionado.pventa_bcv != null
+            ? Number(productoSeleccionado.pventa_bcv)
+            : calcularPventaBcv(productoSeleccionado.precio, tasaCopUsd, recargoBcv);
 
-        console.log(precioUsd )
+        let precioUsd = (productoSeleccionado.precio / tasaCopUsd).toFixed(2);
+        let subtotalUsd = (productoSeleccionado.subtotal / tasaCopUsd).toFixed(2);
 
-        let precioBs = (productoSeleccionado.precio / tasaBs).toFixed(2);
-        let subtotalBs = (productoSeleccionado.subtotal / tasaBs).toFixed(2);
+        let precioBs = calcularBsBcv(pventaBcv, tasaBcvUsd).toFixed(2);
+        let subtotalBs = (calcularBsBcv(pventaBcv, tasaBcvUsd) * productoSeleccionado.cantidad).toFixed(2);
 
         const tr = document.createElement('tr');
+        tr.dataset.codigo = productoSeleccionado.codigo;
         tr.innerHTML = `
                         <td data-label="Producto">
                             ${productoSeleccionado.codigo.toUpperCase()}
@@ -394,9 +572,9 @@ if (!usuario) {
                         <td data-label="Precio por Unidad">
                             ${productoSeleccionado.precio.toFixed(2)} COP
                             <br />
-                            <span style="font-size: .75rem;">${precioUsd} USD</span>
+                            <span style="font-size: .75rem;">${precioUsd} USD (divisas)</span>
                             <br />
-                            <span style="font-size: .75rem;">${precioBs} BS</span>
+                            <span style="font-size: .75rem;">${precioBs} Bs BCV</span>
                         </td>
 
                         <td data-label="Cantidad">${productoSeleccionado.cantidad}</td>
@@ -406,7 +584,7 @@ if (!usuario) {
                             <br />    
                             <span style="font-size: .75rem;">${subtotalUsd} USD</span>
                             <br />    
-                            <span style="font-size: .75rem;">${subtotalBs} BS</span>
+                            <span style="font-size: .75rem;">${subtotalBs} Bs BCV</span>
                         </td>
                     `;
 
@@ -421,38 +599,18 @@ if (!usuario) {
         btnEliminar.addEventListener('click', () => {
             tr.remove();
             totalizar();
-            // Si se eliminan todos los registros se desaparece el thead y los btns
-            if (tbody && tbody.querySelectorAll('tr').length <= 0) {
-                thead.style.opacity = "0";
-
-                const btnsContainer = document.querySelector('#btns') as HTMLDivElement;
-                btnsContainer.style.opacity = "0";
-                const btnImprimir = document.querySelector('#imprimir') as HTMLButtonElement;
-                const btnCancelar = document.querySelector('#reiniciar') as HTMLButtonElement;
-                btnImprimir.disabled = true;
-                btnCancelar.disabled = true ;
-            }
+            actualizarVisibilidadPresupuesto();
         });
 
         tdAcciones.appendChild(btnEliminar);
         tr.appendChild(tdAcciones);
         tbody.appendChild(tr);
 
-        // Aparecer el header de la tabla y los btns
-        if (tbody && tbody.querySelectorAll('tr').length > 0) {
-            thead.style.opacity = "1";
-
-            const btnsContainer = document.querySelector('#btns') as HTMLDivElement;
-            btnsContainer.style.opacity = "1";
-            const btnImprimir = document.querySelector('#imprimir') as HTMLButtonElement;
-            const btnCancelar = document.querySelector('#reiniciar') as HTMLButtonElement;
-            btnImprimir.disabled = false;
-            btnCancelar.disabled = false;
-        }
+        actualizarVisibilidadPresupuesto();
 
         // Resetear el formulario
         productoSelect.value = "";
-        cantidadInput.value = "";
+        cantidadInput.value = "1";
         precioInput.value = "";
         
         //Manejo del total
@@ -463,6 +621,11 @@ if (!usuario) {
         const elementosSubtotal = document.querySelectorAll('.subtotal') as NodeListOf<HTMLSpanElement>;
         const total = document.querySelector('#total') as HTMLSpanElement;
 
+        if (elementosSubtotal.length === 0) {
+            total.textContent = '';
+            return;
+        }
+
         total.innerHTML = '';
 
         const valoresSubtotal = Array.from(elementosSubtotal)
@@ -472,16 +635,18 @@ if (!usuario) {
                 return match ? parseFloat(match[0].replace(',', '')) : 0;
             });
 
-        const tasa = await cambioUSDaCOP();
-        const tasaBs = await cambioBs();
+        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
 
         let totalCop = 0;
 
         valoresSubtotal.forEach(subtotal => {
             totalCop += subtotal;
         });
+
+        const totalUsd = tasaCopUsd > 0 ? totalCop / tasaCopUsd : 0;
+        const totalBs = calcularBsBcvDesdeCop(totalCop, tasaCopUsd, tasaBcvUsd, recargoBcv);
         
-        total.textContent =  `Total: ${totalCop.toFixed(2)} COP o ${(totalCop / tasa).toFixed(2)} USD o ${(totalCop / tasaBs).toFixed(2)} BS` ;      
+        total.textContent =  `Total: ${totalCop.toFixed(2)} COP | ${totalUsd.toFixed(2)} USD (divisas) | ${totalBs.toFixed(2)} Bs BCV` ;
     }
 
 

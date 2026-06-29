@@ -26,63 +26,100 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         <a class="btn-add" href="/ventas">Regresar</a>
     </div>
 
-    <section class="form-container">
+    <section class="form-container venta-form">
         <form>
-            <div>
+            <div class="fecha-field">
+                <label for="fecha">Fecha de la venta</label>
                 <input type="date" name="fecha" id="fecha" value={fechaCompleta}/>
             </div>
             
             <div id="productos-container" class="modulo-agregar-producto">
-                <input type="text" id="busquedaProductos" placeholder="Buscar producto por nombre o código" />
-                <select name="producto" id="productoSelect"></select>
+                <h2 class="section-title">Agregar productos</h2>
 
-                <label for="cantidad">Cantidad:</label>
-                <input type="text" id="cantidad" placeholder="Ingrese la cantidad"/>
+                <div class="barcode-container">
+                    <label for="barcodeInput">Escanear código de barras</label>
+                    <input type="text" id="barcodeInput" placeholder="Escanea para seleccionar el producto y luego ajusta cantidad o precio" autocomplete="off" />
+                </div>
 
-                <label for="precio">Precio por Unidad:</label>
-                <input type="text" id="precio"/>
-                <span id="precioPesos"></span>
+                <div class="field-row">
+                    <label for="busquedaProductos">Buscar producto</label>
+                    <input type="text" id="busquedaProductos" placeholder="Buscar por nombre o código" />
+                </div>
+
+                <div class="field-row">
+                    <label for="productoSelect">Producto</label>
+                    <select name="producto" id="productoSelect"></select>
+                </div>
+
+                <div class="field-grid">
+                    <div class="field-row">
+                        <label for="cantidad">Cantidad</label>
+                        <input type="text" id="cantidad" placeholder="Cantidad" value="1"/>
+                    </div>
+                    <div class="field-row">
+                        <label for="precio">Precio por unidad</label>
+                        <input type="text" id="precio"/>
+                        <span id="precioPesos"></span>
+                    </div>
+                </div>
 
                 <div class="btns-container">
-                    <button id="agregarProducto">Agregar</button>
+                    <button id="agregarProducto" type="button">Agregar producto</button>
                 </div>
             </div>
         </form>
     </section>
 
-    <table>
-        <thead id="headerTablaProductos" style="opacity: 0;">
-            <tr>
-                <th>Producto</th>
-                <th>Precio por Unidad</th>
-                <th>Cantidad Seleccionada</th>
-                <th>Subtotal</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="listaProductos">
-        </tbody>
-    </table> 
+    <div class="table-section">
+        <h2 class="section-title table-title">Productos en la venta</h2>
 
-    <div class="btns-container">
-        <button id="btnConfirmacion" disabled style="display: none;">Presione para Concretar la Venta</button>
+        <div id="emptyProductos" class="empty-state">
+            <p>No se han agregado productos a la venta</p>
+            <span>Busca o escanea un producto para comenzar</span>
+        </div>
+
+        <div id="panelProductos" class="productos-panel hidden">
+            <table>
+                <thead id="headerTablaProductos">
+                    <tr>
+                        <th>Producto</th>
+                        <th>Precio por Unidad</th>
+                        <th>Cantidad Seleccionada</th>
+                        <th>Subtotal</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="listaProductos">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="btns-container btns-center">
+        <button id="btnConfirmacion" disabled style="display: none;">Concretar la venta</button>
     </div>  
 
             
-    <section class="form-container" id="moduloDatosCompletar" style="display: none;">
+    <section class="form-container venta-checkout" id="moduloDatosCompletar" style="display: none;">
         <form>
-            <input type="text" id="busquedaClientes" placeholder="Buscar cliente por cédula" />
-            <div class="select-container password-container">
+            <h2 class="section-title">Datos de la venta</h2>
+
+            <div class="field-row">
+                <label for="busquedaClientes">Buscar cliente</label>
+                <input type="text" id="busquedaClientes" placeholder="Buscar cliente por cédula" />
+            </div>
+
+            <div class="select-container">
                 <select name="cliente" id="cliente"></select>
-                <span class="btn-cliente" id="abrirMenuClienteNuevo">+</span>
+                <span class="btn-cliente" id="abrirMenuClienteNuevo" title="Agregar cliente">+</span>
             </div>
 
             <div id="moduloAgregarClienteNuevo" class="modulo-agregar-cliente" style="display: none;">
-                <span>Registrar cliente no existente: </span>
+                <span class="modulo-label">Registrar cliente no existente</span>
                 <input type="text" name="nombre" id="nombre" placeholder="Nombre y Apellido" />
                 <input type="text" name="telefono" id="telefono" placeholder="Número de Teléfono" />
                 <input type="number" name="cedula" id="cedula" placeholder="Cédula del Cliente" min="0"/>
-                <button id="btnAgregarClienteNuevo">Agregar</button>
+                <button id="btnAgregarClienteNuevo" type="button">Agregar cliente</button>
             </div>
 
             <div class="select-container" id="tipoPago-container">
@@ -95,7 +132,7 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 
             <p id="totalDeVenta"></p>
 
-            <div class="btns-container">
+            <div class="btns-container btns-center">
                 <button id="btnFinalizar" type="button">Confirmar Venta</button>
             </div>
         </form>
@@ -108,55 +145,141 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 
 <style>
 
+    .venta-form,
+    .venta-checkout {
+        max-width: 560px;
+    }
+
+    .section-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--gray-border);
+    }
+
+    .table-section {
+        width: 100%;
+    }
+
+    .productos-panel {
+        width: 100%;
+    }
+
+    .productos-panel.hidden {
+        display: none;
+    }
+
+    .table-title {
+        margin-bottom: 0.75rem;
+    }
+
+    .fecha-field {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .field-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        width: 100%;
+    }
+
+    .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        width: 100%;
+    }
+
     .btn-cliente {
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 30px;
-        width: 35px;
-        border-radius: 50%;
+        height: 38px;
+        width: 38px;
+        min-width: 38px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
-        font-weight: bold;
+        font-weight: 700;
+        font-size: 1.1rem;
         color: #fff;
+        background: var(--primary-color);
+        transition: background var(--transition), transform var(--transition);
+        box-shadow: var(--shadow-sm);
 
         &:hover {
-            background-color: #4b4b8a;
+            background-color: var(--secondary-color);
+            transform: translateY(-1px);
         }
     }
 
-    .modulo-agregar-cliente, .modulo-agregar-producto {
+    .modulo-agregar-cliente,
+    .modulo-agregar-producto {
         display: flex;
         flex-direction: column;
-        padding: 1rem;
-        gap: .5rem;
-        background-color: #ffffff;
-        border-radius: 5px;
-        border: 1px solid #e5e7eb;
+        padding: 1.25rem;
+        gap: 0.85rem;
+        background-color: var(--gray-light);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--gray-border);
+        width: 100%;
+    }
+
+    .modulo-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--primary-color);
     }
 
     .btns-container {
         display: flex;
-        justify-content: space-between;
-        margin-top: 1rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+        width: 100%;
     }
 
-    #btnConfirmacion, #imprimirFacturacion, #btnFinalizar {
-        display: block;
-        margin: 1rem auto;
-        background-color: #1f2937;
+    .btns-center {
+        justify-content: center;
+    }
+
+    #btnConfirmacion,
+    #imprimirFacturacion,
+    #btnFinalizar,
+    #agregarProducto,
+    #btnAgregarClienteNuevo {
+        background-color: var(--primary-color);
         color: #fff;
-        border-radius: 5px;
-        padding: .35rem .75rem;
+        border-radius: var(--radius-sm);
+        padding: 0.6rem 1.25rem;
         text-align: center;
-        font-size: .9rem;
+        font-size: 0.875rem;
         font-weight: 600;
         border: none;
         outline: none;
+        cursor: pointer;
+        box-shadow: var(--shadow-sm);
+        transition: background var(--transition), transform var(--transition), box-shadow var(--transition), opacity var(--transition);
 
-        &:hover {
-            background: #4b4b8a;
-            cursor: pointer;
+        &:hover:not(:disabled) {
+            background: var(--secondary-color);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
+
+        &:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+    }
+
+    #btnConfirmacion {
+        display: block;
+        margin: 0.5rem auto;
     }
 
     #mensaje {
@@ -164,15 +287,65 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
     }
 
     #totalDeVenta {
-        margin-top: 1rem;
-        font-weight: bold;
+        margin-top: 0.5rem;
+        font-weight: 700;
+        font-size: 1.05rem;
         text-align: center;
+        color: var(--primary-color);
+        padding: 1rem;
+        background: var(--gray-light);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--gray-border);
     }
 
-    #precioPesos{
-        margin-top: .25rem;
-        font-weight: bold;
-        font-size: .8rem;
+    #precioPesos {
+        margin-top: 0.25rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--secondary-color);
+    }
+
+    .barcode-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        padding: 1rem;
+        background: rgba(0, 42, 73, 0.04);
+        border: 2px dashed var(--primary-color);
+        border-radius: var(--radius-sm);
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        input {
+            font-size: 0.95rem;
+            letter-spacing: 0.03em;
+            background: #fff;
+        }
+    }
+
+    .barcode-container.barcode-error {
+        border-color: var(--danger-color);
+        border-style: solid;
+        background: rgba(255, 77, 77, 0.06);
+        animation: barcode-shake 0.3s ease;
+    }
+
+    @keyframes barcode-shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-4px); }
+        75% { transform: translateX(4px); }
+    }
+
+    @media (max-width: 768px) {
+        .field-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
 </style>
@@ -180,7 +353,9 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 <script>
 
     import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
-    import { cambioBs, cambioUSDaCOP } from '@/utils/helpers/cambioMoneda.js';
+    import { obtenerTasasPrecios } from '@/utils/helpers/cambioMoneda.js';
+    import { calcularPventaBcv, calcularBsBcv, calcularTotalBsBcv } from '@/utils/helpers/precios.js';
+    import { initBarcodeScanner, buscarProductoPorCodigo } from '@/utils/helpers/barcodeScanner.js';
 
     interface Cliente {
         id: number;
@@ -193,13 +368,27 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         codigo: string;
         nombre: string;
         precio: number;
+        pventa_bcv?: number;
         cantidad: number;
         id: number;
 
         stock: number;
         costo: number;
         venta: number;
+        pventa_bcv?: number;
         unidad_medida: string;
+    }
+
+    function lineasPrecio(cop: number, cantidad: number, pventaBcv: number, tasaCopUsd: number, tasaBcvUsd: number) {
+        const subtotalCop = Math.ceil(cop * cantidad);
+        const usdDivisa = tasaCopUsd > 0 ? (cop / tasaCopUsd).toFixed(2) : '0.00';
+        const bsUnit = calcularBsBcv(pventaBcv, tasaBcvUsd).toFixed(2);
+        const subtotalUsd = tasaCopUsd > 0 ? ((cop * cantidad) / tasaCopUsd).toFixed(2) : '0.00';
+        const subtotalBs = (calcularBsBcv(pventaBcv, tasaBcvUsd) * cantidad).toFixed(2);
+        return {
+            unitario: `${cop} COP<br />${usdDivisa} USD (divisas)<br />${bsUnit} Bs`,
+            subtotal: `${subtotalCop} COP<br />${subtotalUsd} USD<br />${subtotalBs} Bs`,
+        };
     }
 
      // Elementos del DOM
@@ -212,6 +401,12 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
     document.addEventListener("DOMContentLoaded", () => {
         rellenarSelectClientes();
         rellenarSelectProductos();
+        actualizarVisibilidadTabla();
+
+        const barcodeInput = document.getElementById("barcodeInput") as HTMLInputElement;
+        initBarcodeScanner(barcodeInput, async (codigo) => {
+            await seleccionarPorCodigoBarras(codigo);
+        }, { refocusInput: false });
     }); 
     
     // cargar clientes y productos al iniciar
@@ -282,12 +477,13 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         }
     }
 
+    let productosListados : Producto[] = [];
+    let renderOpcionesProductos : ((productos: Producto[]) => void) | null = null;
+
     async function rellenarSelectProductos() {
 
         const busqueda = document.getElementById("busquedaProductos") as HTMLInputElement;
         const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
-
-        let productosListados : Producto[] = [];
 
         try {
 
@@ -324,6 +520,8 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                     productoSelect.appendChild(option);
                 });
             };
+
+            renderOpcionesProductos = renderOpciones;
 
             // Render inicial
             renderOpciones(productosListados);
@@ -391,15 +589,162 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
     const btnagregarProducto = document.getElementById("agregarProducto") as HTMLButtonElement;
     let productosSeleccionados : Producto[] = [];
 
+    function flashBarcodeError() {
+        const container = document.querySelector('.barcode-container') as HTMLDivElement;
+        container?.classList.add('barcode-error');
+        setTimeout(() => container?.classList.remove('barcode-error'), 400);
+    }
+
+    function actualizarVisibilidadTabla() {
+        const tablaProductos = document.getElementById("listaProductos") as HTMLTableSectionElement;
+        const emptyState = document.getElementById("emptyProductos") as HTMLDivElement;
+        const panelProductos = document.getElementById("panelProductos") as HTMLDivElement;
+        const btnConfirmacion = document.getElementById("btnConfirmacion") as HTMLButtonElement;
+        const hayProductos = tablaProductos.children.length > 0;
+
+        emptyState.classList.toggle("hidden", hayProductos);
+        panelProductos.classList.toggle("hidden", !hayProductos);
+        btnConfirmacion.style.display = hayProductos ? "inline-block" : "none";
+        btnConfirmacion.disabled = !hayProductos;
+    }
+
+    async function seleccionarPorCodigoBarras(codigo: string) {
+        const producto = await buscarProductoPorCodigo(codigo);
+
+        if (!producto) {
+            mostrarError(`Producto no encontrado: ${codigo}`);
+            flashBarcodeError();
+            document.getElementById("barcodeInput")?.focus();
+            return;
+        }
+
+        const busqueda = document.getElementById("busquedaProductos") as HTMLInputElement;
+        const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
+
+        busqueda.value = "";
+        renderOpcionesProductos?.(productosListados);
+
+        productoSelect.value = String(producto.id);
+        productoSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        if (!cantidadInput.value || Number(cantidadInput.value) <= 0) {
+            cantidadInput.value = "1";
+        }
+
+        cantidadInput.focus();
+        cantidadInput.select();
+    }
+
+    async function agregarProductoAVenta(producto: any, cantidad: number, precio: number) {
+        if (!producto || producto.stock === undefined) {
+            mostrarError('Producto no encontrado o sin stock disponible');
+            return;
+        }
+
+        if (isNaN(cantidad) || Number(cantidad) <= 0) {
+            mostrarError("Ingresa una cantidad válida mayor a cero");
+            return;
+        }
+
+        if (isNaN(precio) || Number(precio) <= 0) {
+            mostrarError("El precio del producto no es válido");
+            return;
+        }
+
+        const existente = productosSeleccionados.find(p => p.codigo === producto.codigo);
+        const cantidadTotal = existente ? existente.cantidad + cantidad : cantidad;
+
+        if (Number(cantidadTotal) > producto.stock) {
+            mostrarError(`Cantidad insuficiente en stock. Stock disponible: ${producto.stock}`);
+            return;
+        }
+
+        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
+        const pventaBcv = producto.pventa_bcv != null
+            ? Number(producto.pventa_bcv)
+            : calcularPventaBcv(precio, tasaCopUsd, recargoBcv);
+        const lineas = lineasPrecio(precio, cantidadTotal, pventaBcv, tasaCopUsd, tasaBcvUsd);
+
+        if (existente) {
+            existente.cantidad = cantidadTotal;
+            existente.precio = precio;
+            existente.pventa_bcv = pventaBcv;
+
+            const fila = document.querySelector(`tr[data-codigo="${producto.codigo}"]`) as HTMLTableRowElement;
+            if (fila) {
+                fila.querySelector('[data-label="Cantidad"]')!.textContent = `${cantidadTotal} U.`;
+                const celdasSubtotal = fila.querySelectorAll('td')[3];
+                const lineasAct = lineasPrecio(precio, cantidadTotal, pventaBcv, tasaCopUsd, tasaBcvUsd);
+                celdasSubtotal.innerHTML = lineasAct.subtotal;
+            }
+        } else {
+            const tablaProductos = document.getElementById("listaProductos") as HTMLTableSectionElement;
+            const fila = document.createElement("tr");
+            fila.dataset.codigo = producto.codigo;
+
+            fila.innerHTML = `
+                <td data-label="Producto">
+                    ${producto.nombre.toUpperCase()}
+                    <br />
+                    ${producto.codigo}
+                </td>
+                <td data-label="P. Unitario">
+                    ${lineas.unitario}
+                </td>
+                <td data-label="Cantidad">${cantidad} U.</td>
+                <td>${lineas.subtotal}</td>
+            `;
+
+            const tdAcciones = document.createElement('td');
+            tdAcciones.classList.add('acciones');
+
+            const btnEliminar = document.createElement('button');
+            btnEliminar.classList.add('btn-eliminar');
+            btnEliminar.textContent = 'DEL';
+            btnEliminar.addEventListener('click', () => {
+                fila.remove();
+                productosSeleccionados = productosSeleccionados.filter(p => p.codigo !== producto.codigo);
+                actualizarVisibilidadTabla();
+            });
+
+            tdAcciones.appendChild(btnEliminar);
+            fila.appendChild(tdAcciones);
+            tablaProductos.appendChild(fila);
+
+            productosSeleccionados.push({
+                id: producto.id,
+                nombre: producto.nombre,
+                codigo: producto.codigo,
+                precio: precio,
+                pventa_bcv: pventaBcv,
+                cantidad: cantidad,
+                stock: producto.stock,
+                costo: producto.costo,
+                venta: producto.venta,
+                unidad_medida: producto.unidad_medida
+            });
+        }
+
+        actualizarVisibilidadTabla();
+
+        productoSelect.value = "";
+        cantidadInput.value = "1";
+        precioInput.value = "";
+    }
+
+    const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
+
     btnagregarProducto.addEventListener("click", async (e : Event) => {
-            
         e.preventDefault();
 
         const productoId = productoSelect.value;
-        const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
         const cantidad = parseFloat(cantidadInput.value.replace(",", "."));
         const precio = parseFloat(precioInput.value.replace(",", "."));
 
+        if (!productoId) {
+            mostrarError("Selecciona un producto");
+            return;
+        }
 
         try {
             const response = await fetch(`/api/productos/${productoId}`);
@@ -407,128 +752,9 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                 throw new Error('Error al obtener el producto: ' + response.status);
             }
             const producto = await response.json();
-
-            if (!producto || !producto.stock) {
-                mostrarError('Producto no encontrado o sin stock disponible');
-                return;
-            }
-
-            // Validaciones
-            if (isNaN(cantidad) || Number(cantidad) <= 0) {
-                mostrarError("Ingresa una cantidad válida mayor a cero");
-                return;
-            }
-
-            if (isNaN(precio) || Number(precio) <= 0) {
-                mostrarError("El precio del producto no es válido");
-                return;
-            }
-
-            // Validacion si la cantidad escogida es mayor al stock
-            if (Number(cantidad) > producto.stock) {
-                mostrarError(`Cantidad insuficiente en stock. Stock disponible: ${producto.stock}`);
-                return;
-            }
-
-            // Obtener tasa de cambio
-            const tasa = await cambioUSDaCOP();
-            const tasaBs = await cambioBs();
-
-            // Theader
-            const theader = document.getElementById("headerTablaProductos") as HTMLTableSectionElement;
-
-            // Btn Confirmacion
-            const btnConfirmacion = document.getElementById("btnConfirmacion") as HTMLButtonElement;
-
-            // Agregar producto a la tabla
-            const tablaProductos = document.getElementById("listaProductos") as HTMLTableSectionElement;
-            const fila = document.createElement("tr");
-            fila.innerHTML = `
-                                <td data-label="Producto">
-                                    ${producto.nombre.toUpperCase()}
-                                    <br />
-                                    ${producto.codigo}
-                                </td>
-                                <td data-label="P. Unitario">
-                                    ${precio} COP
-                                    <br />
-                                    ${(precio / tasa).toFixed(2)} USD
-                                    <br />
-                                    ${(precio / tasaBs).toFixed(2)} BS
-                                </td>
-                                <td data-label="Cantidad">${cantidad} U.</td>
-                                <td>
-                                    ${Math.ceil(cantidad * precio)} COP
-                                    <br />
-                                    ${((cantidad * precio) / tasa).toFixed(2)} USD
-                                    <br />
-                                    ${((cantidad * precio) / tasaBs).toFixed(2)} BS
-                                </td>
-                            `;
-
-            // Botones de acciones
-            const tdAcciones = document.createElement('td');
-            tdAcciones.classList.add('acciones');
-
-            // Boton de eliminar
-            const btnEliminar = document.createElement('button');
-            btnEliminar.classList.add('btn-eliminar');
-            btnEliminar.textContent = 'DEL';
-            btnEliminar.addEventListener('click', () => {
-
-                // Eliminar la fila de la tabla
-                fila.remove();
-
-                // Eliminar el producto del array
-                productosSeleccionados = productosSeleccionados.filter(p => p.codigo !== producto.codigo);
-                
-                if(tablaProductos.innerHTML.trim() === "") {
-                    theader.style.opacity = "0";
-                    btnConfirmacion.style.display = "none";
-                    btnConfirmacion.disabled = true;
-                } else {
-                    theader.style.opacity = "1";
-                    btnConfirmacion.style.display = "inline-block";
-                    btnConfirmacion.disabled = false;
-                }
-            });
-
-            tdAcciones.appendChild(btnEliminar);
-            fila.appendChild(tdAcciones);
-            tablaProductos.appendChild(fila);
-
-            // Actualizar visibilidad del theader
-            if(tablaProductos.innerHTML.trim() === "") {
-                theader.style.opacity = "0";
-                btnConfirmacion.style.display = "none";
-                btnConfirmacion.disabled = true;
-            } else {
-                theader.style.opacity = "1";
-                btnConfirmacion.style.display = "inline-block";
-                btnConfirmacion.disabled = false;
-            }
-
-            // Reiniciar los campos y el select
-            productoSelect.value = "";
-            cantidadInput.value = "";
-            precioInput.value = "";
-
-            //Agregar al array de productos seleccionados
-            productosSeleccionados.push({
-                id: producto.id,
-                nombre: producto.nombre,
-                codigo: producto.codigo,
-                precio: precio,
-                cantidad: cantidad,
-                stock: producto.stock,
-                costo: producto.costo,
-                venta: producto.venta,
-                unidad_medida: producto.unidad_medida
-            });
-
+            await agregarProductoAVenta(producto, cantidad, precio);
         } catch (error) {
             console.error("Error al obtener el producto:", error);
-            return;
         }
     });
 
@@ -547,15 +773,20 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         btnConfirmacion.disabled = true;
         btnConfirmacion.textContent = "Procesando...";
 
-        // Obtener tasa de cambio
-        const tasa = await cambioUSDaCOP();
-        const tasaBs = await cambioBs();
+        const { tasaCopUsd, tasaBcvUsd } = await obtenerTasasPrecios();
 
-        // Calcular el total de la venta aqui mismo
-        const total = productosSeleccionados.map(p => p.precio * p.cantidad).reduce((a, b) => a + b, 0);
+        const totalCop = productosSeleccionados.map(p => p.precio * p.cantidad).reduce((a, b) => a + b, 0);
+        const totalUsd = tasaCopUsd > 0 ? totalCop / tasaCopUsd : 0;
+        const totalBs = calcularTotalBsBcv(productosSeleccionados, tasaBcvUsd);
+
         const totalTexto = document.getElementById("totalDeVenta") as HTMLParagraphElement;
-        totalTexto.textContent = `Total: ${total} COP o ${(total / tasa).toFixed(2)} USD o ${(total / tasaBs).toFixed(2)} BS `;
-        totalDeVenta = total;
+        totalTexto.innerHTML = `
+            <strong>Total de la venta:</strong><br />
+            ${Math.ceil(totalCop)} COP<br />
+            ${totalUsd.toFixed(2)} USD (pago en divisas)<br />
+            ${totalBs.toFixed(2)} Bs (pago en bolívares)
+        `;
+        totalDeVenta = totalCop;
 
     });
 

@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
+import { recalcularPventaBcvTodos } from '@/utils/db/preciosDb';
 
 export async function GET({ request }) {
 
@@ -50,15 +51,18 @@ export async function PUT({ request }) {
             return new Response('Faltan datos de la tasa', { status: 400 });
         }
 
-        // Actualizar el cliente en la base de datos
         const result = await db.execute('UPDATE tasa SET valor = ? WHERE id = 1', [tasa]);
 
-        // Validar si no se encuentra
         if (result.affectedRows === 0) {
             return new Response('Tasa no encontrado', { status: 404 });
         }
 
-        return new Response(JSON.stringify({ message: "Tasa actualizado exitosamente" }), { status: 200 });
+        await recalcularPventaBcvTodos();
+
+        return new Response(
+            JSON.stringify({ message: 'Tasa actualizada y precios BCV recalculados' }),
+            { status: 200 }
+        );
 
     } catch (error) {
         console.error('Error updating tasa:', error);

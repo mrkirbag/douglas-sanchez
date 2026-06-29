@@ -15,7 +15,7 @@ export async function GET({ request }) {
 
     try {
 
-        const result = await db.execute("SELECT codigo, nombre, stock, unidad_medida, costo, venta FROM productos WHERE estatus = 'activo'");
+        const result = await db.execute("SELECT codigo, nombre, stock, unidad_medida, costo, venta, pventa_bcv FROM productos WHERE estatus = 'activo'");
         const productos = result.rows;
 
         const worksheet = xlsx.utils.json_to_sheet(productos);

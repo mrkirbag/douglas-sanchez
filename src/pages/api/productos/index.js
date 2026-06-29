@@ -1,5 +1,11 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
+import { calcularPventaBcvParaVenta } from '@/utils/db/preciosDb';
+import { ensureBcvSchema } from '@/utils/db/ensureBcvSchema';
+
+function normalizarCodigo(codigo) {
+    return String(codigo || '').trim().toUpperCase();
+}
 
 export async function GET({ request }) {
 
@@ -10,6 +16,8 @@ export async function GET({ request }) {
     } 
 
     try {
+
+        await ensureBcvSchema();
 
         const url = new URL(request.url);
         const page = parseInt(url.searchParams.get('page')) || 1;
@@ -73,7 +81,8 @@ export async function POST({ request }) {
     try {
 
         const body = await request.json();
-        const { codigo, nombre, stock, costo, venta, unidad_medida } = body;
+        const { codigo: codigoRaw, nombre, stock, costo, venta, unidad_medida } = body;
+        const codigo = normalizarCodigo(codigoRaw);
 
         // Validaciones
         const esDecimalPositivo = /^\d+(\.\d+)?$/;
@@ -97,9 +106,12 @@ export async function POST({ request }) {
         const stockFinal = parseFloat(stock);
         const costoFinal = parseFloat(costo);
         const ventaFinal = parseFloat(venta);
+        const pventaBcv = await calcularPventaBcvParaVenta(ventaFinal);
 
-        // Insertar el nuevo cliente en la base de datos
-        const result = await db.execute('INSERT INTO productos (codigo, nombre, stock, costo, venta, unidad_medida) VALUES (?, ?, ?, ?, ?, ?)',[codigo, nombre, stockFinal, costoFinal, ventaFinal, unidad_medida]);
+        const result = await db.execute(
+            'INSERT INTO productos (codigo, nombre, stock, costo, venta, pventa_bcv, unidad_medida) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [codigo, nombre, stockFinal, costoFinal, ventaFinal, pventaBcv, unidad_medida]
+        );
 
         return new Response(JSON.stringify({ message: "Producto agregado exitosamente" }), { status: 201 });
 
@@ -155,7 +167,8 @@ export async function PUT({ request }) {
 
     try {
         const body = await request.json();
-        const { id, codigo, nombre, stock, costo, venta, unidad_medida } = body;
+        const { id, codigo: codigoRaw, nombre, stock, costo, venta, unidad_medida } = body;
+        const codigo = normalizarCodigo(codigoRaw);
 
         // Validaciones
         const esDecimalPositivo = /^\d+(\.\d+)?$/;
@@ -180,9 +193,12 @@ export async function PUT({ request }) {
         const stockFinal = parseFloat(stock);
         const costoFinal = parseFloat(costo);
         const ventaFinal = parseFloat(venta);
+        const pventaBcv = await calcularPventaBcvParaVenta(ventaFinal);
 
-        // Actualizar el cliente en la base de datos
-        const result = await db.execute('UPDATE productos SET codigo = ?, nombre = ?, stock = ?, costo = ?, venta = ?, unidad_medida = ? WHERE id = ?', [codigo, nombre, stockFinal, costoFinal, ventaFinal, unidad_medida, id]);
+        const result = await db.execute(
+            'UPDATE productos SET codigo = ?, nombre = ?, stock = ?, costo = ?, venta = ?, pventa_bcv = ?, unidad_medida = ? WHERE id = ?',
+            [codigo, nombre, stockFinal, costoFinal, ventaFinal, pventaBcv, unidad_medida, id]
+        );
 
         // Validar si no se encuentra
         if (result.affectedRows === 0) {

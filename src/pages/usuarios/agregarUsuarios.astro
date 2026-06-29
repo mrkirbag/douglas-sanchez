@@ -35,11 +35,11 @@ if (usuario.rol !== 'admin') {
             </div>
             <div class="password-container">
                 <input type="password" name="contrasena" id="contrasena" placeholder="Contraseña" autocomplete="new-password"/>
-                <img id="img1" src="/ver.png" alt="ver contrasena">
+                <button type="button" class="btn-toggle-password" id="toggle1">MOSTRAR</button>
             </div>
             <div class="password-container">
                 <input type="password" name="contrasena2" id="contrasena2" placeholder="Repetir contraseña" autocomplete="new-password"/>
-                <img id="img2" src="/ver.png" alt="ver contrasena">
+                <button type="button" class="btn-toggle-password" id="toggle2">MOSTRAR</button>
             </div>
             <button type="submit">Agregar</button>
         </form>
@@ -55,26 +55,26 @@ if (usuario.rol !== 'admin') {
 
     import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
 
-    function togglePassword(inputId: string, imgId: string): void {
+    function togglePassword(inputId: string, btnId: string): void {
         const input = document.querySelector(`#${inputId}`) as HTMLInputElement | null;
-        const img = document.getElementById(imgId) as HTMLImageElement | null;
+        const btn = document.getElementById(btnId) as HTMLButtonElement | null;
 
-        if (!input || !img) {
-            console.error("No se encontró el input o la imagen");
+        if (!input || !btn) {
+            console.error("No se encontró el input o el botón");
             return;
         }
 
-        input.type = input.type === "password" ? "text" : "password";
-        img.src = input.type === "text" ? "/ocultar.png" : "/ver.png";
+        const isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+        btn.textContent = isPassword ? "OCULTAR" : "MOSTRAR";
     }
 
-    // Asignar eventos
-    (document.querySelector("#img1") as HTMLImageElement).addEventListener('click', () => {
-        togglePassword("contrasena", "img1");
+    document.getElementById("toggle1")?.addEventListener('click', () => {
+        togglePassword("contrasena", "toggle1");
     });
 
-    (document.querySelector("#img2") as HTMLImageElement).addEventListener('click', () => {
-        togglePassword("contrasena2", "img2");
+    document.getElementById("toggle2")?.addEventListener('click', () => {
+        togglePassword("contrasena2", "toggle2");
     });
 
     const formulario = document.getElementById('formulario') as HTMLFormElement;
@@ -124,16 +124,3 @@ if (usuario.rol !== 'admin') {
     });
 
 </script>
-
-<style>
-
-    #img1, #img2 {
-        width: 32px;
-        height: 32px;
-        cursor: pointer;
-        background: var(--primary-color);
-        padding: 5px;
-        border-radius: 8px;
-    }
-
-</style>

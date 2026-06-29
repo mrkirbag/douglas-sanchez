@@ -50,16 +50,19 @@ const {id} = Astro.params;
             <p>El total de la venta es de</p>
             <p><span id="total"></span> COP</p>
             <p>o</p>
-            <p><span id="totalCOP"></span> USD</p>
+            <p><span id="totalUsd"></span> USD</p>
+            <p>o</p>
+            <p><span id="totalBs"></span> Bs</p>
         </section>
     </main>
 
-    <div class="btn-add_container">
-        <a class="btn-add" id="imprimir">Imprimir en Bs</a>
-    </div>
-
-    <div class="btn-add_container">
-        <a class="btn-add" id="imprimir2">Imprimir en Divisas</a>
+    <div class="btns-imprimir">
+        <div class="btn-add_container">
+            <a class="btn-add" id="imprimirDivisas">Imprimir en Divisas</a>
+        </div>
+        <div class="btn-add_container btn-bcv-wrap">
+            <a class="btn-add" id="imprimirBs">Imprimir en Bs</a>
+        </div>
     </div>
 
     <div id="mensaje"></div>
@@ -109,13 +112,33 @@ const {id} = Astro.params;
         margin-top: 1.5rem;
     }
 
+    .btns-imprimir {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        justify-content: center;
+        align-items: center;
+        margin: 2rem auto 1.5rem;
+        padding: 0 1rem;
+        max-width: 32rem;
+    }
+
+    .btn-bcv-wrap {
+        background: var(--secondary-color, #2c5282);
+    }
+
+    .btn-bcv-wrap:hover {
+        background: var(--primary-color);
+    }
+
 
 </style>
 
 <script>
 
     import { mostrarError } from '@/utils/helpers/mensajes.js';
-    import { cambioUSDaCOP, cambioBs } from '@/utils/helpers/cambioMoneda.js';
+    import { obtenerTasasPrecios } from '@/utils/helpers/cambioMoneda.js';
+    import { calcularPventaBcv, calcularBsBcv, calcularBsBcvDesdeCop } from '@/utils/helpers/precios.js';
     import { formatearFecha } from '@/utils/helpers/formateoFecha.js';
 
     interface Producto {
@@ -124,6 +147,137 @@ const {id} = Astro.params;
         precio_unitario: number;
         cantidad: number;
         subtotal: number;
+    }
+
+    interface DatosVenta {
+        cliente: { nombre: string; cedula: string; telefono: string };
+        venta: { fecha: string; monto_total: number; tipo_pago: string; estado: string };
+        productos: Producto[];
+    }
+
+    let datosVenta: DatosVenta | null = null;
+
+    const estilosImpresion = `
+        @media print {
+            @page { size: 5.5in 8.5in; margin: 0.5in; }
+            body { font-size: 11pt; }
+        }
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+        h1, h3 { margin: 0; padding: 2px 0; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { border: 1px solid #000; padding: 6px; text-align: left; font-size: 11px; }
+        thead { background: #eee; }
+        p { margin: 4px 0; }
+        .total-impresion { margin-top: 1rem; font-size: 13px; }
+        .total-impresion strong { font-size: 14px; }
+        .precio-dual { line-height: 1.35; }
+    `;
+
+    function abrirVentanaImpresion(titulo: string, cuerpo: string) {
+        const ventana = window.open('', '', 'width=800,height=600') as Window;
+        ventana.document.write(`
+            <html>
+                <head><title>${titulo}</title><style>${estilosImpresion}</style></head>
+                <body>${cuerpo}</body>
+            </html>
+        `);
+        ventana.document.close();
+        ventana.focus();
+        ventana.print();
+        ventana.close();
+    }
+
+    function encabezadoImpresion() {
+        const headerImp = document.querySelector('#headerImp');
+        if (!datosVenta) {
+            return `<div>${headerImp?.outerHTML || ''}</div>`;
+        }
+        const { cliente, venta } = datosVenta;
+        return `
+            <div>${headerImp?.outerHTML || ''}</div>
+            <div class="datos-cliente">
+                <p>Nombre: <span>${cliente.nombre.toUpperCase()}</span></p>
+                <p>C.I. <span>${cliente.cedula}</span></p>
+                <p>Telf: <span>${cliente.telefono}</span></p>
+                <p>Fecha de Compra: <span>${formatearFecha(venta.fecha)}</span></p>
+                <p>Tipo de Pago: <span>${venta.tipo_pago.toUpperCase()}</span></p>
+                <p>Estado: <span>${venta.estado.toUpperCase()}</span></p>
+            </div>
+        `;
+    }
+
+    function tablaDivisas(productos: Producto[], tasaCopUsd: number) {
+        const filas = productos.map(p => {
+            const usdUnit = tasaCopUsd > 0 ? p.precio_unitario / tasaCopUsd : 0;
+            const usdSub = tasaCopUsd > 0 ? p.subtotal / tasaCopUsd : 0;
+            return `
+                <tr>
+                    <td>${p.codigo_producto.toUpperCase()}</td>
+                    <td>${p.nombre_producto.toUpperCase()}</td>
+                    <td class="precio-dual">
+                        ${Number(p.precio_unitario).toFixed(2)} COP<br />
+                        ${usdUnit.toFixed(2)} USD
+                    </td>
+                    <td>${p.cantidad}</td>
+                    <td class="precio-dual">
+                        ${Number(p.subtotal).toFixed(2)} COP<br />
+                        ${usdSub.toFixed(2)} USD
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>P. Unitario</th>
+                        <th>Cantidad</th>
+                        <th>Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+            </table>
+        `;
+    }
+
+    function tablaBsBcv(
+        productos: Producto[],
+        tasaCopUsd: number,
+        tasaBcvUsd: number,
+        recargoBcv: number
+    ) {
+        const filas = productos.map(p => {
+            const pventaBcv = calcularPventaBcv(p.precio_unitario, tasaCopUsd, recargoBcv);
+            const precioBs = calcularBsBcv(pventaBcv, tasaBcvUsd);
+            const subtotalBs = precioBs * Number(p.cantidad);
+            return `
+                <tr>
+                    <td>${p.codigo_producto.toUpperCase()}</td>
+                    <td>${p.nombre_producto.toUpperCase()}</td>
+                    <td>${precioBs.toFixed(2)} Bs</td>
+                    <td>${p.cantidad}</td>
+                    <td>${subtotalBs.toFixed(2)} Bs</td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>P. Unitario (Bs)</th>
+                        <th>Cantidad</th>
+                        <th>Subtotal (Bs)</th>
+                    </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+            </table>
+        `;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -139,7 +293,8 @@ const {id} = Astro.params;
         const estado = document.querySelector('#estado') as HTMLElement;
         const total = document.querySelector('#total') as HTMLElement;
 
-        const totalCOP = document.querySelector('#totalCOP') as HTMLElement;
+        const totalUsdEl = document.querySelector('#totalUsd') as HTMLElement;
+        const totalBsEl = document.querySelector('#totalBs') as HTMLElement;
         const listaProductos = document.querySelector('#listaProductos') as HTMLElement;
 
         try {
@@ -152,7 +307,8 @@ const {id} = Astro.params;
                 throw new Error(`Status ${res.status} Mensaje ${errorText}`);
             }
 
-            const data : any = await res.json();
+            const data = await res.json() as DatosVenta;
+            datosVenta = data;
 
             // Cliente
             clienteNombre.textContent = data.cliente.nombre.toUpperCase();
@@ -168,10 +324,16 @@ const {id} = Astro.params;
             estado.textContent = data.venta.estado.toUpperCase();
             total.textContent = data.venta.monto_total.toFixed(2);
 
-            //Traer la tasa para los precios:
-            const tasa = await cambioUSDaCOP();
+            //Traer las tasas para los precios:
+            const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
 
-            totalCOP.textContent = (Number(data.venta.monto_total) / Number(tasa)).toFixed(2).toString();
+            totalUsdEl.textContent = (tasaCopUsd > 0 ? Number(data.venta.monto_total) / Number(tasaCopUsd) : 0).toFixed(2);
+            totalBsEl.textContent = calcularBsBcvDesdeCop(
+                data.venta.monto_total,
+                tasaCopUsd,
+                tasaBcvUsd,
+                recargoBcv
+            ).toFixed(2);
 
             // Productos
             listaProductos.innerHTML = '';
@@ -180,22 +342,28 @@ const {id} = Astro.params;
 
             dataProductos.forEach(p => {
                 const row = document.createElement('tr');
-                const pUnitarioPesos = p.precio_unitario / tasa;
-                const subtotalPesos = p.subtotal / tasa
+                const pventaBcv = calcularPventaBcv(p.precio_unitario, tasaCopUsd, recargoBcv);
+                const pUnitarioUsd = tasaCopUsd > 0 ? p.precio_unitario / tasaCopUsd : 0;
+                const pUnitarioBs = calcularBsBcv(pventaBcv, tasaBcvUsd);
+                const subtotalUsd = tasaCopUsd > 0 ? p.subtotal / tasaCopUsd : 0;
+                const subtotalBs = calcularBsBcv(pventaBcv, tasaBcvUsd) * p.cantidad;
                 row.innerHTML = `
                                     <td data-label="Código">${p.codigo_producto.toUpperCase()}</td>
                                     <td data-label="Producto">${p.nombre_producto.toUpperCase()}</td>
                                     <td data-label="P. Unitario">
                                         ${p.precio_unitario} COP
                                         <br />
-                                        ${pUnitarioPesos.toFixed(2)} USD
-                                        
+                                        ${pUnitarioUsd.toFixed(2)} USD
+                                        <br />
+                                        ${pUnitarioBs.toFixed(2)} Bs
                                     </td>
                                     <td data-label="Cantidad">${p.cantidad}</td>
                                     <td data-label="Subtotal">
                                         ${p.subtotal} COP
                                         <br />
-                                        ${subtotalPesos.toFixed(2)} USD
+                                        ${subtotalUsd.toFixed(2)} USD
+                                        <br />
+                                        ${subtotalBs.toFixed(2)} Bs
                                     </td>
                                 `;
                 listaProductos.appendChild(row);
@@ -206,217 +374,52 @@ const {id} = Astro.params;
         }
     });
 
-    const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
+    const btnImprimirBs = document.querySelector('#imprimirBs') as HTMLAnchorElement;
 
-    btnImprimir.addEventListener('click', async () => {
-        const headerImp = document.querySelector('#headerImp');
-        const datosClienteImp = document.querySelector('#datosClienteImp');
-        const table = document.querySelector('#table');
-        const totalImp = document.querySelector('#total');
-
-        // Traer tasa en Bs
-        const tasaBs = await cambioBs();
-
-        // Clonar tabla y recalcular precios en Bs
-        let tablaHTML = '<p>Tabla no disponible</p>';
-        if (table) {
-            const filas = table.querySelectorAll("tbody tr");
-            const filasConvertidas = Array.from(filas).map(fila => {
-                const celdas = fila.querySelectorAll("td");
-                const precioUnitarioCOP = parseFloat(celdas[2]?.textContent || "0");
-                const cantidad = parseFloat(celdas[3]?.textContent || "0");
-                const subtotalCOP = precioUnitarioCOP * cantidad;
-
-                const precioUnitarioBs = (precioUnitarioCOP / tasaBs).toFixed(2);
-                const subtotalBs = (subtotalCOP / tasaBs).toFixed(2);
-
-                return `
-                    <tr>
-                        <td>${celdas[0]?.textContent}</td>
-                        <td>${celdas[1]?.textContent}</td>
-                        <td>${precioUnitarioBs} Bs</td>
-                        <td>${cantidad}</td>
-                        <td>${subtotalBs} Bs</td>
-                    </tr>
-                `;
-            }).join("");
-
-            tablaHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Producto</th>
-                            <th>P. Unitario (Bs)</th>
-                            <th>Cantidad</th>
-                            <th>Subtotal (Bs)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${filasConvertidas}
-                    </tbody>
-                </table>
-            `;
+    btnImprimirBs.addEventListener('click', async () => {
+        if (!datosVenta) {
+            mostrarError('Los datos de la venta aún no están disponibles');
+            return;
         }
 
-        // Recalcular total en Bs
-        let totalHTML = '<p>Total no disponible</p>';
+        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
+        const totalBs = calcularBsBcvDesdeCop(
+            datosVenta.venta.monto_total,
+            tasaCopUsd,
+            tasaBcvUsd,
+            recargoBcv
+        );
 
-        if (totalImp) {
-            console.log(totalImp)
-            const totalCOP = parseFloat(totalImp.textContent || "0");
-            const totalBs = (totalCOP / tasaBs).toFixed(2);
-            totalHTML = `<p><strong>Total de la Venta:</strong> ${totalBs} Bs</p>`;
-        }
-
-        // Ventana temporal para imprimir
-        const ventana = window.open('', '', 'width=800,height=600') as Window;
-        ventana.document.write(`
-            <html>
-                <head>
-                    <title>Impresion de Venta</title>
-                    <style>
-                        @media print {
-                            @page {
-                                size: 5.5in 8.5in;
-                                margin: 0.5in;
-                            }
-                            body { font-size: 11pt; }
-                        }
-                        body {
-                            font-family: Arial, sans-serif;
-                            margin: 20px;
-                            font-size: 12px;
-                        }
-                        h1, h3 {
-                            margin: 0;
-                            padding: 2px 0;
-                            text-align: center;
-                        }
-                        table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            margin-top: 1rem;
-                            margin-bottom: 1rem;
-                        }
-                        th, td {
-                            border: 1px solid #000;
-                            padding: 6px;
-                            text-align: left;
-                            font-size: 11px;
-                        }
-                        thead { background: #eee; }
-                        p { margin: 4px 0; }
-                    </style>
-                </head>
-                <body>
-                    <div class="seccion centrado">
-                        ${headerImp?.outerHTML || '<h2>Encabezado no disponible</h2>'}
-                    </div>
-                    <div class="seccion izquierda">
-                        ${datosClienteImp?.outerHTML || '<p>Datos del cliente no disponibles</p>'}
-                    </div>
-                    <div class="seccion centrado">
-                        ${tablaHTML}
-                    </div>
-                    <div class="seccion izquierda">
-                        ${totalHTML}
-                    </div>
-                </body>
-            </html>
+        abrirVentanaImpresion('Comprobante en Bs', `
+            ${encabezadoImpresion()}
+            ${tablaBsBcv(datosVenta.productos, tasaCopUsd, tasaBcvUsd, recargoBcv)}
+            <div class="total-impresion">
+                <p><strong>Total de la venta:</strong> ${totalBs.toFixed(2)} Bs</p>
+            </div>
         `);
-
-        ventana.document.close();
-        ventana.focus();
-        ventana.print();
-        ventana.close();
     });
 
-    const btnImprimirDivisas = document.querySelector('#imprimir2') as HTMLAnchorElement;
+    const btnImprimirDivisas = document.querySelector('#imprimirDivisas') as HTMLAnchorElement;
 
-    btnImprimirDivisas.addEventListener('click', () => {
+    btnImprimirDivisas.addEventListener('click', async () => {
+        if (!datosVenta) {
+            mostrarError('Los datos de la venta aún no están disponibles');
+            return;
+        }
 
-        const headerImp = document.querySelector('#headerImp');
-        const datosClienteImp = document.querySelector('#datosClienteImp');
-        const table = document.querySelector('#table');
-        const totalImp = document.querySelector('#totalImp');
+        const { tasaCopUsd } = await obtenerTasasPrecios();
+        const totalCop = datosVenta.venta.monto_total;
+        const totalUsd = tasaCopUsd > 0 ? totalCop / tasaCopUsd : 0;
 
-        // Creamos una ventana temporal para imprimir
-        const ventana = window.open('', '', 'width=800,height=600') as Window;
-        ventana.document.write(`
-                                    <html>
-                                        <head>
-                                            <title>Impresion de Venta</title>
-                                            <style>
-                                                @media print {
-                                                    @page {
-                                                        size: 5.5in 8.5in;
-                                                        margin: 0.5in;
-                                                    }
-                                                    body {
-                                                        font-size: 11pt;
-                                                    }
-                                                }
-
-                                                body {
-                                                    font-family: Arial, sans-serif;
-                                                    margin: 20px;
-                                                    font-size: 12px;
-                                                }
-
-                                                h1, h3{
-                                                    margin: 0;
-                                                    padding: 2px 0;
-                                                    text-align: center;
-                                                }
-
-                                                table {
-                                                    width: 100%;
-                                                    border-collapse: collapse;
-                                                    margin-top: 1rem;
-                                                    margin-bottom: 1rem;
-                                                }
-
-                                                th, td {
-                                                    border: 1px solid #000;
-                                                    padding: 6px;
-                                                    text-align: left;
-                                                    font-size: 11px;
-                                                }
-
-                                                thead {
-                                                    background: #eee;
-                                                }
-
-                                                p {
-                                                    margin: 4px 0;
-                                                }
-                                            </style>
-                                        </head>
-                                        <body>
-                                            <div class="seccion centrado">
-                                                ${headerImp?.outerHTML || '<h2>Encabezado no disponible</h2>'}
-                                            </div>
-
-                                            <div class="seccion izquierda">
-                                                ${datosClienteImp?.outerHTML || '<p>Datos del cliente no disponibles</p>'}
-                                            </div>
-
-                                            <div class="seccion centrado">
-                                                ${table?.outerHTML || '<p>Tabla no disponible</p>'}
-                                            </div>
-
-                                            <div class="seccion izquierda">
-                                                ${totalImp?.outerHTML || '<p>Total no disponible</p>'}
-                                            </div>
-                                        </body>
-                                    </html>
-                                    `);
-
-        ventana.document.close();
-        ventana.focus();
-        ventana.print();
-        ventana.close();
+        abrirVentanaImpresion('Comprobante Divisas', `
+            ${encabezadoImpresion()}
+            ${tablaDivisas(datosVenta.productos, tasaCopUsd)}
+            <div class="total-impresion">
+                <p><strong>Total de la venta:</strong></p>
+                <p>${Number(totalCop).toFixed(2)} COP</p>
+                <p>${totalUsd.toFixed(2)} USD</p>
+            </div>
+        `);
     });
 
 </script> 

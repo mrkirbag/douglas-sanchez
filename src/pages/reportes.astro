@@ -169,7 +169,6 @@ if (usuario.rol !== 'admin') {
     import { cambioUSDaCOP } from '@/utils/helpers/cambioMoneda.js';
     import { formatearFecha } from '@/utils/helpers/formateoFecha';
     import { renderChart } from '@/utils/helpers/chart.js';
-    import { toPng } from "html-to-image";
 
     const masVendidoBtn = document.querySelector('#masVendido');
     const stockBtn = document.querySelector('#stock');
@@ -692,37 +691,44 @@ if (usuario.rol !== 'admin') {
         const contenido = document.getElementById("reportes") as HTMLDivElement;
         if (!contenido) return console.error("No se encontró el reporte");
 
-        // Captura literal del div como imagen
-        const imgData = await toPng(contenido, { cacheBust: true });
+        try {
+            const { toPng } = await import("html-to-image");
 
-        const ventana = window.open("", "", "width=800,height=600");
-        if (!ventana) return;
+            // Captura literal del div como imagen
+            const imgData = await toPng(contenido, { cacheBust: true });
 
-        // Crear estructura básica
-        ventana.document.write(`
-            <html>
-            <head>
-                <title>Impresion</title>
-                <style>
-                body { font-family: sans-serif; padding: 20px; text-align: center; }
-                img { max-width: 100%; height: auto; }
-                </style>
-            </head>
-            <body>
-            </body>
-            </html>
-        `);
-        ventana.document.close();
+            const ventana = window.open("", "", "width=800,height=600");
+            if (!ventana) return;
 
-        // Crear imagen y añadirla al body
-        const img = ventana.document.createElement("img");
-        img.src = imgData;
-        img.onload = () => {
-            ventana.focus();
-            ventana.print();
-            ventana.close();
-        };
-        ventana.document.body.appendChild(img);
+            // Crear estructura básica
+            ventana.document.write(`
+                <html>
+                <head>
+                    <title>Impresion</title>
+                    <style>
+                    body { font-family: sans-serif; padding: 20px; text-align: center; }
+                    img { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                </body>
+                </html>
+            `);
+            ventana.document.close();
+
+            // Crear imagen y añadirla al body
+            const img = ventana.document.createElement("img");
+            img.src = imgData;
+            img.onload = () => {
+                ventana.focus();
+                ventana.print();
+                ventana.close();
+            };
+            ventana.document.body.appendChild(img);
+        } catch (error) {
+            console.error("Error al imprimir reporte:", error);
+            mostrarError("No se pudo generar la impresión. Reinicia el servidor e intenta de nuevo.");
+        }
     });
 
 </script>

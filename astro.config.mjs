@@ -16,6 +16,9 @@ export default defineConfig({
             alias: {
                 '@': '/src'
             }
+        },
+        optimizeDeps: {
+            include: ['html-to-image', 'chart.js', 'chartjs-plugin-datalabels']
         }
     }
 

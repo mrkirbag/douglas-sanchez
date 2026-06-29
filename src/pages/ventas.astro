@@ -23,15 +23,13 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
     </div>
 
 
-    <p>Selecciona una fecha para ver las ventas de ese día</p>
+    <p class="page-description">Selecciona una fecha para ver las ventas de ese día</p>
     <div class="input-busqueda_container">
         <input type="date" id="inputBusqueda" value={fechaActual} />
     </div>
 
-    <div class="btn-add_container">
-        <a class="btn-add" id="imprimir" style="display: none;">Imprimir</a>
-    </div>
-    <table id="tabla">
+    <div class="table-section">
+        <table id="tabla">
         <thead id="tablaVentasHead" style="display: none;">
             <tr>
                 <th>Fecha</th>
@@ -44,7 +42,12 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         </thead>
         <tbody id="listaVentas">
         </tbody>
-    </table>
+        </table>
+    </div>
+
+    <div class="btn-add_container">
+        <a class="btn-add" id="imprimir" style="display: none;">Imprimir</a>
+    </div>
 
     <div id="mensaje"></div>
     <div id="overlay" class="overlay oculto"> 
@@ -55,11 +58,16 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
 <style>
 
-    p {
-        font-size: 1rem;
-        margin-bottom: 1rem;
+    .page-description {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
         text-align: center;
-        font-weight: 700;
+        font-weight: 500;
+        color: #555;
+    }
+
+    .table-section {
+        width: 100%;
     }
 
 </style>
@@ -68,7 +76,8 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
     import { noRegistros } from "@/utils/helpers/mensajes.js";
     import { mostrarMensaje, mostrarError } from "@/utils/helpers/mensajes.js";
-    import { cambioBs, cambioUSDaCOP } from "@/utils/helpers/cambioMoneda.js";
+    import { cambioUSDaCOP, obtenerTasasPrecios } from "@/utils/helpers/cambioMoneda.js";
+    import { calcularBsBcvDesdeCop } from "@/utils/helpers/precios.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
 
     interface Venta {
@@ -116,14 +125,13 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             btnImprimir.style.display = 'block'
 
             // Obtener tasa de cambio
-            const tasa = await cambioUSDaCOP();
-            const tasaBs = await cambioBs();
+            const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
 
             ventas.forEach(ventas => {
 
                 const fechaFormateada = formatearFecha(ventas.fecha);
-                const totalUsd = (ventas.total / tasa).toFixed(2);
-                const totalBs = (ventas.total / tasaBs).toFixed(2);
+                const totalUsd = tasaCopUsd > 0 ? (ventas.total / tasaCopUsd).toFixed(2) : '0.00';
+                const totalBs = calcularBsBcvDesdeCop(ventas.total, tasaCopUsd, tasaBcvUsd, recargoBcv).toFixed(2);
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `    
@@ -135,9 +143,9 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                     <td data-label="Monto Total">
                                         ${ventas.total} COP
                                         <br />
-                                        ${totalUsd} USD
+                                        ${totalUsd} USD (divisas)
                                         <br />
-                                        ${totalBs} BS
+                                        ${totalBs} Bs BCV
                                     </td>
                                     <td data-label="Tipo Pago">${ventas.tipo_pago.toUpperCase()}</td>
                                     <td data-label="Estado">${ventas.estado.toUpperCase()}</td>

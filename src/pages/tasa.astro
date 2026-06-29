@@ -11,167 +11,189 @@ if (!usuario) {
 <Layout>
     <h1>TASAS MULTIMONEDA</h1>
 
-    <p>Tasa del día a USD: <span id="tasaTextoContainer"></span> COP</p>
+    <p class="tasa-info">
+        Tasa COP → USD: <span id="tasaTextoContainer"></span> COP por 1 USD
+    </p>
 
     <section class="form-container">
         <form id="formulario">
             <div>
-                <label for="tasa">Cambio de COP a USD</label>
+                <label for="tasa">COP por 1 USD</label>
                 <input type="text" id="tasa" name="tasa" required />
             </div>
-            <button type="submit">Actualizar Tasa</button>
+            <button type="submit">Actualizar Tasa USD</button>
         </form>
     </section>
 
-    <p>Tasa del día a BS: <span id="tasaTextoContainer2"></span> COP</p>
+    <p class="tasa-info">
+        Tasa BCV (Bs por 1 USD): <span id="tasaBcvTexto"></span> Bs
+    </p>
 
     <section class="form-container">
-        <form id="formulario2">
+        <form id="formularioBcv">
             <div>
-                <label for="tasa2">Cambio de COP a BS</label>
-                <input type="text" id="tasa2" name="tasa2" required />
+                <label for="tasaBcv">Bs por 1 USD (BCV)</label>
+                <input type="text" id="tasaBcv" name="tasaBcv" required />
             </div>
-            <button type="submit">Actualizar Tasa</button>
+            <button type="submit">Actualizar Tasa BCV</button>
         </form>
     </section>
-        
+
+    <p class="tasa-info">
+        Recargo al pagar en bolívares (BCV): <span id="recargoTexto"></span>%
+    </p>
+    <p class="tasa-hint">
+        Aplica cuando el cliente paga en <strong>bolívares a tasa BCV</strong>. Si paga en
+        <strong>divisas</strong>, se cobra el precio base en dólares; si paga en Bs, el precio
+        referencial en dólares sube según este recargo y luego se convierte con la tasa BCV del día.
+        <br /><br />
+        <strong>Ejemplo para el cliente:</strong> un producto sale a <strong>$10 en divisas</strong>.
+        Con recargo del 35%, quien pague en bolívares verá el equivalente de
+        <strong>$13,50</strong>. Si la tasa BCV es 36,50 Bs/USD, pagaría
+        <strong>492,75 Bs</strong> — más que quien cancela los $10 en efectivo divisas.
+    </p>
+
+    <section class="form-container">
+        <form id="formularioRecargo">
+            <div>
+                <label for="recargoBcv">Recargo BCV (%)</label>
+                <input type="text" id="recargoBcv" name="recargoBcv" required />
+            </div>
+            <button type="submit">Actualizar Recargo</button>
+        </form>
+    </section>
+
     <div id="mensaje"></div>
-    <div id="overlay" class="overlay oculto"> 
+    <div id="overlay" class="overlay oculto">
         <div id="modal" class="modal"></div>
     </div>
 </Layout>
 
 <script>
-
     import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
 
-    // Tasa a USD
     document.addEventListener('DOMContentLoaded', async () => {
         const tasaTextoContainer = document.getElementById('tasaTextoContainer') as HTMLElement;
         const inputTasa = document.getElementById('tasa') as HTMLInputElement;
+        const tasaBcvTexto = document.getElementById('tasaBcvTexto') as HTMLElement;
+        const inputTasaBcv = document.getElementById('tasaBcv') as HTMLInputElement;
+        const recargoTexto = document.getElementById('recargoTexto') as HTMLElement;
+        const inputRecargo = document.getElementById('recargoBcv') as HTMLInputElement;
 
         try {
-            const response = await fetch('/api/tasa');
-            const data = await response.json();
+            const [resTasa, resBcv, resRecargo] = await Promise.all([
+                fetch('/api/tasa'),
+                fetch('/api/tasaBcv'),
+                fetch('/api/configPrecios'),
+            ]);
 
-            // Verificar si no hay registros
-            if(response.status === 204) {
-                mostrarMensaje(data.message);
-                tasaTextoContainer.textContent = '';
-                return;
+            if (resTasa.status === 204) {
+                mostrarMensaje('Configure la tasa COP/USD');
+            } else if (resTasa.ok) {
+                const data = await resTasa.json();
+                tasaTextoContainer.textContent = data.valor;
+                inputTasa.value = data.valor;
             }
 
-            // Verificar si la respuesta es exitosa
-            if (!response.ok) mostrarError(data.error || 'Error al cargar la tasa del día');
+            if (resBcv.status === 204) {
+                mostrarMensaje('Configure la tasa BCV');
+            } else if (resBcv.ok) {
+                const data = await resBcv.json();
+                tasaBcvTexto.textContent = data.valor;
+                inputTasaBcv.value = data.valor;
+            }
 
-            tasaTextoContainer.textContent = data.valor;
-            inputTasa.value = data.valor;
-
-        } catch (error : any) {
+            if (resRecargo.ok) {
+                const data = await resRecargo.json();
+                recargoTexto.textContent = data.recargo_bcv ?? '35';
+                inputRecargo.value = String(data.recargo_bcv ?? 35);
+            }
+        } catch (error: any) {
             mostrarError(error.message);
         }
-
-        
     });
 
-    const formulario = document.getElementById('formulario') as HTMLFormElement;
-    formulario?.addEventListener('submit', async (event : SubmitEvent) => { 
-        
+    document.getElementById('formulario')?.addEventListener('submit', async (event) => {
         event.preventDefault();
-
-        const tasaInput = (document.getElementById('tasa') as HTMLInputElement).value;
-        let tasa = parseFloat(tasaInput);
+        const tasa = parseFloat((document.getElementById('tasa') as HTMLInputElement).value);
 
         try {
             const response = await fetch('/api/tasa', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ tasa })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tasa }),
             });
-
             const data = await response.json();
-
             if (!response.ok) mostrarError(data.error || 'Error al actualizar la tasa');
-
-            mostrarMensaje('Tasa actualizada correctamente');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-
-        } catch (error : any) {
-            mostrarError(error.message);
-        }
-    });
-
-    // Tasa a BS
-    document.addEventListener('DOMContentLoaded', async () => {
-        const tasaTextoContainer2 = document.getElementById('tasaTextoContainer2') as HTMLElement;
-        const inputTasa = document.getElementById('tasa2') as HTMLInputElement;
-
-        try {
-            const response = await fetch('/api/tasaBs');
-            const data = await response.json();
-
-            // Verificar si no hay registros
-            if(response.status === 204) {
-                mostrarMensaje(data.message);
-                tasaTextoContainer2.textContent = '';
-                return;
+            else {
+                mostrarMensaje('Tasa USD actualizada. Precios recalculados.');
+                setTimeout(() => window.location.reload(), 1000);
             }
-
-            // Verificar si la respuesta es exitosa
-            if (!response.ok) mostrarError(data.error || 'Error al cargar la tasa del día');
-
-            tasaTextoContainer2.textContent = data.valor;
-            inputTasa.value = data.valor;
-
-        } catch (error : any) {
+        } catch (error: any) {
             mostrarError(error.message);
         }
-
-        
     });
-    const formulario2 = document.getElementById('formulario2') as HTMLFormElement;
 
-    formulario2?.addEventListener('submit', async (event : SubmitEvent) => { 
-        
+    document.getElementById('formularioBcv')?.addEventListener('submit', async (event) => {
         event.preventDefault();
-
-        const tasaInput = (document.getElementById('tasa2') as HTMLInputElement).value;
-        let tasa2 = parseFloat(tasaInput);
+        const tasaBcv = parseFloat((document.getElementById('tasaBcv') as HTMLInputElement).value);
 
         try {
-            const response = await fetch('/api/tasaBs', {
+            const response = await fetch('/api/tasaBcv', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ tasa2 })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tasaBcv }),
             });
-
             const data = await response.json();
-
-            if (!response.ok) mostrarError(data.error || 'Error al actualizar la tasa');
-
-            mostrarMensaje('Tasa actualizada correctamente');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-
-        } catch (error : any) {
+            if (!response.ok) mostrarError(data.error || 'Error al actualizar tasa BCV');
+            else {
+                mostrarMensaje('Tasa BCV actualizada correctamente');
+                setTimeout(() => window.location.reload(), 1000);
+            }
+        } catch (error: any) {
             mostrarError(error.message);
         }
     });
 
+    document.getElementById('formularioRecargo')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const recargo_bcv = parseFloat((document.getElementById('recargoBcv') as HTMLInputElement).value);
+
+        try {
+            const response = await fetch('/api/configPrecios', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recargo_bcv }),
+            });
+            const data = await response.json();
+            if (!response.ok) mostrarError(data.error || 'Error al actualizar recargo');
+            else {
+                mostrarMensaje('Recargo actualizado. Precios en bolívares recalculados.');
+                setTimeout(() => window.location.reload(), 1000);
+            }
+        } catch (error: any) {
+            mostrarError(error.message);
+        }
+    });
 </script>
 
 <style>
-
-    #tasaTextoContainer, #tasaTextoContainer2 {
+    #tasaTextoContainer,
+    #tasaBcvTexto,
+    #recargoTexto {
         font-weight: 700;
         color: var(--primary-color);
     }
 
+    .tasa-info {
+        margin: 1.25rem 0 0.5rem;
+    }
+
+    .tasa-hint {
+        font-size: 0.85rem;
+        color: #666;
+        max-width: 36rem;
+        margin-bottom: 0.75rem;
+        line-height: 1.45;
+    }
 </style>
