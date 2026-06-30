@@ -2,10 +2,7 @@ import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
 import { calcularPventaBcvParaVenta } from '@/utils/db/preciosDb';
 import { ensureBcvSchema } from '@/utils/db/ensureBcvSchema';
-
-function normalizarCodigo(codigo) {
-    return String(codigo || '').trim().toUpperCase();
-}
+import { normalizarCodigo } from '@/utils/helpers/barcodeScanner';
 
 export async function GET({ request }) {
 

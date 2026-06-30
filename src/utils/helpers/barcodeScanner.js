@@ -1,5 +1,9 @@
 export function normalizarCodigo(codigo) {
-    return String(codigo || '').trim().toUpperCase();
+    return String(codigo || '')
+        .trim()
+        .toUpperCase()
+        // Algunos lectores envían ' en lugar de - (layout de teclado)
+        .replace(/[''`´]/g, '-');
 }
 
 export async function buscarProductoPorCodigo(codigo) {

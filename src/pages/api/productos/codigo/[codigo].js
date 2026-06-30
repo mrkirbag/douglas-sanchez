@@ -1,9 +1,6 @@
 import { db } from '../../db';
 import { verificarToken } from '@/utils/auth';
-
-function normalizarCodigo(codigo) {
-    return String(codigo || '').trim().toUpperCase();
-}
+import { normalizarCodigo } from '@/utils/helpers/barcodeScanner';
 
 export async function GET({ request, params }) {
 
