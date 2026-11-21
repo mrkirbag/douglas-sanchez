@@ -54,7 +54,7 @@ export async function GET({ request }) {
         });
 
     } catch (err) {
-        console.error('Error en ventas Anuladas:', err);
+        console.error('Error en ventasAnuladas:', err);
         return new Response(JSON.stringify({ error: 'Error interno del servidor' }), { status: 500 });
     }
 }

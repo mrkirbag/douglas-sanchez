@@ -1,0 +1,168 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { verificarToken } from "../utils/auth.js";
+import { Content as ManualContent } from "../../manual-usuario.md";
+
+const usuario = verificarToken(Astro.request);
+if (!usuario) {
+    return Astro.redirect("/login");
+}
+---
+
+<Layout>
+    <header class="page-header manual-header">
+        <div>
+            <p class="eyebrow">Guía Operativa</p>
+            <h1>Manual de Usuario</h1>
+            <p class="page-intro">
+                Consulta paso a paso todas las funciones del sistema: facturación fiscal, notas de entrega, compras, créditos, abonos y más.
+            </p>
+        </div>
+        <button type="button" class="button" id="btnImprimirManual">
+            Imprimir / Guardar PDF
+        </button>
+    </header>
+
+    <article class="manual-card">
+        <div class="manual-prose">
+            <ManualContent />
+        </div>
+    </article>
+</Layout>
+
+<script>
+    document.getElementById("btnImprimirManual")?.addEventListener("click", () => {
+        window.print();
+    });
+</script>
+
+<style>
+    .manual-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .manual-header .eyebrow {
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-brand);
+        margin-bottom: 0.35rem;
+    }
+
+    .manual-header .page-intro {
+        margin-top: 0.35rem;
+        max-width: 65ch;
+    }
+
+    .manual-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        padding: clamp(1.25rem, 2.5vw, 2.5rem);
+    }
+
+    .manual-prose {
+        max-width: 900px;
+        color: #111827;
+        line-height: 1.7;
+    }
+
+    .manual-prose :global(h1) {
+        font-size: clamp(1.4rem, 2.2vw, 1.9rem);
+        max-width: none;
+        margin-bottom: 0.35rem;
+        color: #111827;
+    }
+
+    .manual-prose :global(h2) {
+        margin-top: 2rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.45rem;
+        border-bottom: 2px solid rgba(var(--accent-rgb), 0.2);
+        font-size: 1.28rem;
+        color: #111827;
+    }
+
+    .manual-prose :global(h3) {
+        margin-top: 1.35rem;
+        margin-bottom: 0.5rem;
+        font-size: 1.06rem;
+        color: var(--accent-brand);
+    }
+
+    .manual-prose :global(h4) {
+        margin-top: 1.1rem;
+        margin-bottom: 0.4rem;
+        font-size: 0.98rem;
+        color: #111827;
+    }
+
+    .manual-prose :global(p) {
+        margin-bottom: 0.8rem;
+        color: #1f2937;
+    }
+
+    .manual-prose :global(ul),
+    .manual-prose :global(ol) {
+        margin: 0.5rem 0 1rem 1.35rem;
+        display: grid;
+        gap: 0.4rem;
+        color: #1f2937;
+    }
+
+    .manual-prose :global(li strong) {
+        color: #111827;
+    }
+
+    .manual-prose :global(hr) {
+        border: none;
+        border-top: 1px solid #e5e7eb;
+        margin: 1.5rem 0;
+    }
+
+    .manual-prose :global(blockquote) {
+        margin: 1rem 0;
+        padding: 0.85rem 1.1rem;
+        border-left: 4px solid var(--accent-brand);
+        background: #ebf5fc;
+        border-radius: 0 12px 12px 0;
+        color: #111827;
+    }
+
+    .manual-prose :global(blockquote p) {
+        margin: 0;
+        color: #111827;
+    }
+
+    .manual-prose :global(code) {
+        padding: 0.12rem 0.4rem;
+        border-radius: 6px;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        font-size: 0.88em;
+        color: var(--accent-brand);
+        font-weight: 600;
+    }
+
+    @media print {
+        :global(.navbar),
+        .manual-header button {
+            display: none !important;
+        }
+        :global(.content) {
+            margin-left: 0 !important;
+            padding: 0 !important;
+        }
+        .manual-card {
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+    }
+</style>

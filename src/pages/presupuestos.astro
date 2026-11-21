@@ -9,7 +9,7 @@ if (!usuario) {
 ---
 
 <Layout>
-    <h1>PRESUPUESTO</h1>
+    <h1>COTIZACIONES</h1>
 
     <section class="form-container">
         <form>
@@ -296,7 +296,7 @@ if (!usuario) {
         actualizarVisibilidadPresupuesto();
 
         const barcodeInput = document.getElementById("barcodeInput") as HTMLInputElement;
-        initBarcodeScanner(barcodeInput, async (codigo) => {
+        initBarcodeScanner(barcodeInput, async (codigo: string) => {
             await seleccionarPorCodigoBarras(codigo);
         }, { refocusInput: false });
     });

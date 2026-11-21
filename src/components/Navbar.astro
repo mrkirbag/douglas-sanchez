@@ -1,151 +1,433 @@
 ---
 import { verificarToken } from '../utils/auth.js';
-
-const usuario = verificarToken(Astro.request);
+import empresa from '../data/empresa.json';
 
 import Inicio from '../assets/icons/inicio.svg';
 import Tasa from '../assets/icons/tasa.svg';
 import Clientes from '../assets/icons/clientes.svg';
 import Ventas from '../assets/icons/ventas.svg';
-import Cargas from '../assets/icons/cargas.svg';
+import Compras from '../assets/icons/cargas.svg';
 import Creditos from '../assets/icons/creditos.svg';
-import Presupuestos from '../assets/icons/presupuestos.svg';
+import Cotizaciones from '../assets/icons/cotizaciones.svg';
 import Productos from '../assets/icons/productos.svg';
 import Reportes from '../assets/icons/reportes.svg';
 import Usuarios from '../assets/icons/usuarios.svg';
+import Bitacora from '../assets/icons/bitacora.svg';
+import Manual from '../assets/icons/manual.svg';
 
+const usuario = verificarToken(Astro.request);
+const pathname = Astro.url.pathname;
+
+const menuStructure = [
+    {
+        title: 'Panel',
+        adminOnly: false,
+        links: [
+            { href: '/dashboard', label: 'Inicio', Icon: Inicio, adminOnly: false },
+            { href: '/tasa', label: 'Tasas y Retenciones', Icon: Tasa, adminOnly: false },
+        ]
+    },
+    {
+        title: 'Gestión',
+        adminOnly: false,
+        links: [
+            { href: '/clientes', label: 'Clientes', Icon: Clientes, adminOnly: false },
+            { href: '/productos', label: 'Inventario', Icon: Productos, adminOnly: true },
+            { href: '/cotizaciones', label: 'Cotizaciones', Icon: Cotizaciones, adminOnly: false },
+            { href: '/compras', label: 'Compras', Icon: Compras, adminOnly: true },
+            { href: '/proveedores', label: 'Proveedores', Icon: Clientes, adminOnly: true },
+            { href: '/cuentas-por-pagar', label: 'Cuentas por Pagar', Icon: Creditos, adminOnly: true },
+            { href: '/ventas', label: 'Ventas', Icon: Ventas, adminOnly: false },
+            { href: '/devoluciones', label: 'Devoluciones', Icon: Ventas, adminOnly: false },
+            { href: '/creditos', label: 'Cuentas por Cobrar', Icon: Creditos, adminOnly: false },
+        ]
+    },
+    {
+        title: 'Detalle',
+        adminOnly: true,
+        links: [
+            { href: '/reportes', label: 'Reportes y Estadísticas', Icon: Reportes, adminOnly: true },
+        ]
+    },
+    {
+        title: 'Configuraciones',
+        adminOnly: true,
+        links: [
+            { href: '/usuarios', label: 'Usuarios', Icon: Usuarios, adminOnly: true },
+            { href: '/bitacora', label: 'Bitácoras', Icon: Bitacora, adminOnly: true },
+        ]
+    },
+    {
+        title: 'Ayuda',
+        adminOnly: false,
+        links: [
+            { href: '/manual', label: 'Manual de Usuario', Icon: Manual, adminOnly: false },
+        ]
+    }
+];
 ---
 
 <div class="navbar-wrapper">
-    <button class="toggle-btn" id="toggleMenu">☰</button>
+    <button class="toggle-btn" id="toggleMenu" type="button" aria-label="Abrir menú" aria-expanded="false">☰</button>
+    <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Cerrar menú"></button>
+
     <nav class="sidebar" id="sidebar">
-        <a href="/"><Inicio />Inicio</a>
-        <a href="/tasa"><Tasa />Tasa del Día</a>
-        <a href="/clientes"><Clientes />Clientes</a>
-        <a href="/ventas"><Ventas />Ventas</a>
-        <a href="/creditos"><Creditos />Créditos</a>
-        <a href="/presupuestos"><Presupuestos />Presupuestos</a>
-        {usuario?.rol === 'admin' && (
-            <>
-                <a href="/productos"><Productos /> Productos</a>
-                <a href="/cargas"><Cargas /> Cargas</a>
-                <a href="/reportes"><Reportes /> Reportes</a>
-                <a href="/usuarios"><Usuarios /> Usuarios</a>
-            </>
-        )}
-        <button id="logoutBtn" class="logout-btn">Cerrar sesión</button>
+        <div class="sidebar-panel">
+            <div class="brand-block">
+                <p class="eyebrow">{empresa.etiquetaMarca || 'Sistema comercial'}</p>
+                <h2 title={empresa.nombre}>{empresa.nombre}</h2>
+                {empresa.subtitulo && <p class="brand-copy" title={empresa.subtitulo}>{empresa.subtitulo}</p>}
+            </div>
+
+            <div class="sidebar-body">
+                {menuStructure.map((section) => {
+                    // Si la seccion es adminOnly y el usuario no es admin, no renderizarla
+                    if (section.adminOnly && usuario?.rol !== 'admin') return null;
+
+                    // Filtrar links internos por permisos
+                    const visibleLinks = section.links.filter(link => !link.adminOnly || usuario?.rol === 'admin');
+
+                    if (visibleLinks.length === 0) return null;
+
+                    return (
+                        <div class="sidebar-section">
+                            <p class="sidebar-title">{section.title}</p>
+                            <div class="sidebar-links">
+                                {visibleLinks.map(({ href, label, Icon }) => (
+                                    <a href={href} class={pathname === href || (href !== '/' && pathname.startsWith(href)) ? 'active' : ''}>
+                                        <Icon />
+                                        <span>{label}</span>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="logout-btn" type="button">Cerrar sesión</button>
+            </div>
+        </div>
     </nav>
 </div>
 
 <style>
-    
     .navbar-wrapper {
-        display: flex;
-        flex-direction: column;
+        height: 100%;
+        min-height: 100vh;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .toggle-btn {
-        display: none; 
-        color: var(--primary-color);
-        background: transparent;
-        font-size: 3rem;
-        padding: .5rem;
-        border: none;
-        cursor: pointer;
+        display: none;
         position: fixed;
-        top: 0;
-        right: 0;
-        z-index: 1000;
-        border-radius: 8px;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1002;
+        width: 52px;
+        height: 52px;
+        border: 1px solid rgba(var(--accent-rgb), 0.28);
+        border-radius: 16px;
+        background: #ebf5fc;
+        color: #111827;
+        font-size: 1.8rem;
+        box-shadow: 0 12px 24px rgba(var(--accent-rgb), 0.16);
+        backdrop-filter: blur(12px);
+        cursor: pointer;
+    }
+
+    .sidebar-backdrop {
+        display: none;
     }
 
     .sidebar {
-        width: 180px;
-        min-height: 100vh;
-        background-color: var(--primary-color);
-        color: white;
-        padding: 2rem 1rem;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: .7rem;
-        transition: transform 0.3s ease;
+        width: 100%;
+        height: 100vh;
+        min-width: 0;
+        max-width: 100%;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    .sidebar-panel {
+        height: 100%;
+        max-height: 100vh;
+        min-width: 0;
+        max-width: 100%;
+        padding: 1.1rem 0.95rem 1.15rem;
+        border-radius: 0 28px 28px 0;
+        background: linear-gradient(180deg, #ebf5fc 0%, #dceefa 100%);
+        color: #111827;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 0.85rem;
+        box-shadow: 12px 0 32px rgba(var(--accent-rgb), 0.12);
+        border: 1px solid rgba(var(--accent-rgb), 0.22);
+        overflow: hidden;
+    }
+
+    .sidebar-body {
+        min-height: 0;
+        min-width: 0;
+        display: grid;
+        align-content: start;
+        gap: 1rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 0.15rem;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(var(--accent-rgb), 0.55) transparent;
+    }
+
+    .sidebar-body::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .sidebar-body::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .sidebar-body::-webkit-scrollbar-thumb {
+        background: rgba(var(--accent-rgb), 0.5);
+        border-radius: 999px;
+    }
+
+    .brand-block {
+        min-width: 0;
+        max-width: 100%;
+        padding: 0.25rem 0.1rem 0.85rem;
+        border-bottom: 1px solid rgba(var(--accent-rgb), 0.18);
+        overflow: hidden;
+    }
+
+    .eyebrow,
+    .sidebar-title,
+    .sidebar-user small {
+        margin: 0;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #6b7280;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .brand-block .eyebrow {
+        color: var(--accent-brand);
+        font-weight: 700;
+    }
+
+    .brand-block h2 {
+        margin: 0.4rem 0 0.4rem;
+        font-family: 'Archivo Black', sans-serif;
+        font-size: clamp(0.98rem, 1.05rem + 0.2vw, 1.28rem);
+        line-height: 1.18;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #111827;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .brand-copy {
+        margin: 0;
+        color: #4b5563;
+        font-size: 0.78rem;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .sidebar-section {
+        display: grid;
+        gap: 0.65rem;
+        min-width: 0;
+    }
+
+    .sidebar-links {
+        display: grid;
+        gap: 0.3rem;
+        min-width: 0;
     }
 
     .sidebar a {
-        color: white;
         text-decoration: none;
-        font-weight: 500;
-        font-size: .85rem;
-        padding: 0.4rem 1rem;
-        border-radius: 6px;
-        transition: background-color 0.2s ease;
         display: flex;
-        gap: .5rem;
-        justify-content: flex-start;
         align-items: center;
+        gap: 0.7rem;
+        min-width: 0;
+        max-width: 100%;
+        min-height: 44px;
+        padding: 0.72rem 0.8rem 0.72rem 0.9rem;
+        border-radius: 14px;
+        color: #1f2937;
+        font-size: 0.86rem;
+        font-weight: 600;
+        overflow: hidden;
+        transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
     }
 
-    .sidebar a:hover {
-        background-color: var(--secondary-color);
+    .sidebar a span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sidebar a :global(svg) {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        color: #4b5563;
+    }
+
+    .sidebar a :global(svg path),
+    .sidebar a :global(svg [fill]:not([fill='none'])) {
+        fill: currentColor;
+    }
+
+    .sidebar a:hover,
+    .sidebar a.active {
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--accent-brand);
+        box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
+    }
+
+    .sidebar a:hover :global(svg),
+    .sidebar a.active :global(svg) {
+        color: var(--accent-brand);
+    }
+
+    .sidebar a.active {
+        position: relative;
+        padding-left: 1.05rem;
+    }
+
+    .sidebar a.active::before {
+        content: '';
+        position: absolute;
+        left: 0.35rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 5px;
+        height: 22px;
+        border-radius: 999px;
+        background: var(--accent-brand);
+    }
+
+    .sidebar-footer {
+        min-width: 0;
+        padding-top: 0.65rem;
+        border-top: 1px solid rgba(var(--accent-rgb), 0.18);
+    }
+
+    .logout-btn {
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+        background: linear-gradient(135deg, var(--danger-color), var(--danger-hover-color));
+        color: #fff8f7;
+        box-shadow: 0 12px 24px rgba(165, 21, 21, 0.24);
     }
 
     @media (max-width: 768px) {
+        .navbar-wrapper {
+            min-height: 0;
+            height: auto;
+            pointer-events: none;
+        }
+
         .toggle-btn {
+            display: grid;
+            place-items: center;
+            pointer-events: auto;
+        }
+
+        .sidebar-backdrop {
             display: block;
+            position: fixed;
+            inset: 0;
+            border: none;
+            background: rgba(var(--primary-rgb), 0.48);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 180ms ease, visibility 180ms ease;
+            z-index: 1000;
         }
 
         .sidebar {
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
             position: fixed;
             top: 0;
             left: 0;
-            width: 220px;
+            width: min(86vw, 310px);
             height: 100vh;
-            z-index: 999;
-            background-color: var(--primary-color);
-            gap: .7rem;
+            transform: translateX(-100%);
+            transition: transform 200ms ease;
+            z-index: 1001;
+            padding: 0;
+            pointer-events: auto;
+        }
+
+        .sidebar-panel {
+            border-radius: 0 24px 24px 0;
+            max-height: 100vh;
         }
 
         .sidebar.active {
             transform: translateX(0);
         }
-    }
 
-    .logout-btn {
-        margin-top: .3rem;
-        background: var(--danger-color);
-        color: #fff;
-        border: none;
-        border-radius: 6px;
-        padding: .5rem 1rem;
-        font-size: .75;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.1s;
+        .sidebar-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
     }
-
-    .logout-btn:hover {
-        background: var(--danger-hover-color);
-        scale: 1.05;
-    }
-
-    .logout-btn:active {
-        scale: 0.95;
-    }
-
 </style>
 
 <script type="module" is:inline>
     const toggleBtn = document.getElementById('toggleMenu');
     const sidebar = document.getElementById('sidebar');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const mobileLinks = sidebar?.querySelectorAll('a');
 
-    toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('active');
+    const syncMenuState = (isOpen) => {
+        sidebar?.classList.toggle('active', isOpen);
+        sidebarBackdrop?.classList.toggle('active', isOpen);
+        toggleBtn?.setAttribute('aria-expanded', String(isOpen));
+    };
+
+    toggleBtn?.addEventListener('click', () => {
+        const isOpen = !sidebar?.classList.contains('active');
+        syncMenuState(isOpen);
     });
 
-    logoutBtn.addEventListener('click', async () => {
+    sidebarBackdrop?.addEventListener('click', () => {
+        syncMenuState(false);
+    });
+
+    mobileLinks?.forEach((link) => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                syncMenuState(false);
+            }
+        });
+    });
+
+    logoutBtn?.addEventListener('click', async () => {
         try {
             const res = await fetch('/api/logout', { method: 'POST' });
             if (res.ok) {

@@ -1,17 +1,32 @@
 {
   "name": "sistema-demo-inventario",
   "type": "module",
-  "version": "0.0.1",
+  "version": "1.0.3",
+  "description": "Sistema Administrativo de Ventas e Inventario - Comercializadora e Importadora AG",
+  "author": "Fadi Kirbag",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "astro dev",
+    "dev:force": "astro dev --force",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro",
-    "migrate:bcv": "node scripts/migrate-bcv.mjs"
+    "electron:dev": "astro build && electron .",
+    "electron:build": "astro build && electron-builder --win",
+    "seed": "node --experimental-strip-types scripts/seed.ts",
+    "migrate:cotizaciones": "node scripts/migrate-cotizaciones.js",
+    "migrate:tasas": "node scripts/migrate-tasas.js",
+    "migrate:movimientos": "node scripts/migrate-movimientos-inventario.js",
+    "migrate:pagos": "node scripts/migrate-pagos-venta.js",
+    "migrate:abonos": "node scripts/migrate-abonos-pago.js",
+    "migrate:compras": "node scripts/migrate-compras.js",
+    "migrate:devoluciones": "node scripts/migrate-devoluciones.js",
+    "astro": "astro"
   },
   "dependencies": {
     "@astrojs/netlify": "^6.6.3",
+    "@astrojs/node": "9.5.5",
     "@libsql/client": "^0.15.15",
+    "@tailwindcss/vite": "^4.3.3",
     "astro": "^5.16.4",
     "bcrypt": "^6.0.0",
     "chart.js": "^4.5.1",
@@ -20,13 +35,48 @@
     "dotenv": "^17.2.3",
     "html-to-image": "^1.11.13",
     "jsonwebtoken": "^9.0.3",
+    "tailwindcss": "^4.3.3",
     "xlsx": "^0.18.5"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "@parcel/watcher"
-    ]
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2"
+  },
+  "build": {
+    "appId": "com.savi.andresgamboa",
+    "productName": "Comercializadora AG",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "savi.db",
+        "to": "savi.db"
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

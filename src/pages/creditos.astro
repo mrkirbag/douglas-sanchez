@@ -1,112 +1,620 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { verificarToken } from '@/utils/auth.js';
+import Layout from "../layouts/Layout.astro";
+import { verificarToken } from "../utils/auth.js";
 
 const usuario = verificarToken(Astro.request);
 if (!usuario) {
-    return Astro.redirect('/login');
+    return Astro.redirect("/login");
 }
+
+const fechaHoy = new Date()
+    .toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 ---
 
 <Layout>
-    <h1>CRÉDITOS PENDIENTES DE PAGO</h1>
+    <header class="page-header">
+        <p class="eyebrow">Gestión de Clientes</p>
+        <h1>Cuentas por Cobrar</h1>
+        <p class="page-intro">
+            Visualiza las deudas consolidadas por cliente, revisa todas sus ventas a crédito y registra abonos en un solo lugar.
+        </p>
+    </header>
 
-    <table>
-        <thead id="thead">
-            <tr>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Monto a Pagar</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="listaCreditos">
-        </tbody>
-    </table>
+    <section class="cxc-resumen">
+        <article class="cxc-stat">
+            <p class="eyebrow">Total por Cobrar</p>
+            <strong id="statPorCobrar">$0.00</strong>
+            <small id="statPorCobrarSec">—</small>
+        </article>
+        <article class="cxc-stat">
+            <p class="eyebrow">Clientes con Deuda</p>
+            <strong id="statClientes">0</strong>
+            <small>Con saldo pendiente</small>
+        </article>
+        <article class="cxc-stat">
+            <p class="eyebrow">Total Abonado</p>
+            <strong id="statAbonado">$0.00</strong>
+            <small>Histórico en ventas a crédito</small>
+        </article>
+    </section>
+
+    <div class="cxc-toolbar">
+        <div class="input-busqueda_container" style="flex:1; max-width:440px;">
+            <input
+                type="text"
+                id="busquedaCliente"
+                placeholder="Buscar cliente por nombre o cédula/RIF..."
+                autocomplete="off"
+            />
+        </div>
+        <select id="filtroEstado" style="max-width:240px;">
+            <option value="pendientes">Con deuda pendiente</option>
+            <option value="todos">Todos los clientes</option>
+        </select>
+        <div class="btn-add_container">
+            <a class="btn-add" href="/ventas/agregarVentas">Nueva venta</a>
+        </div>
+    </div>
 
     <div id="mensaje"></div>
+
+    <div class="table-wrap">
+        <table>
+            <thead id="theadCxc">
+                <tr>
+                    <th>Cliente</th>
+                    <th>Ventas a Crédito</th>
+                    <th>Total Deuda</th>
+                    <th>Abonado</th>
+                    <th>Saldo Pendiente</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyCxc"></tbody>
+        </table>
+    </div>
+
+    <!-- Modal Detalle Cliente + Abonos -->
+    <div id="overlayCxc" class="overlay oculto" style="z-index: 1100;">
+        <div class="modal cxc-modal">
+            <div class="cxc-modal__head">
+                <div>
+                    <p class="eyebrow" style="color: var(--accent-brand); margin-bottom:0.2rem;">Cuenta por Cobrar</p>
+                    <h2 id="modalCliNombre" style="margin:0;">Cliente</h2>
+                    <small id="modalCliDoc" style="color: var(--text-muted);"></small>
+                </div>
+                <button type="button" id="btnCerrarModalCxc" class="cxc-close">&times;</button>
+            </div>
+
+            <div class="cxc-modal__kpis">
+                <div>
+                    <span>Deuda Total</span>
+                    <strong id="modalDeudaTotal">$0.00</strong>
+                </div>
+                <div>
+                    <span>Total Abonado</span>
+                    <strong id="modalAbonado">$0.00</strong>
+                </div>
+                <div>
+                    <span>Saldo Pendiente</span>
+                    <strong id="modalSaldo" style="color: #dc2626;">$0.00</strong>
+                </div>
+            </div>
+
+            <div class="cxc-modal__grid">
+                <div class="cxc-box">
+                    <h3>Ventas a Crédito del Cliente</h3>
+                    <div class="table-wrap" style="max-height: 230px; overflow-y: auto;">
+                        <table class="cxc-subtable">
+                            <thead>
+                                <tr>
+                                    <th>Fecha / Doc</th>
+                                    <th>Total</th>
+                                    <th>Abonado</th>
+                                    <th>Saldo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalListaVentas"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="cxc-box">
+                    <h3>Registrar Abono</h3>
+                    <form id="formAbonoCxc" class="cxc-form">
+                        <div class="form-field" style="grid-column: 1 / -1;">
+                            <label for="abonoCreditoId">Aplicar a</label>
+                            <select id="abonoCreditoId"></select>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoMoneda">Moneda</label>
+                            <select id="abonoMoneda">
+                                <option value="USD">Dólares (USD)</option>
+                                <option value="BS">Bolívares (Bs BCV)</option>
+                                <option value="COP">Pesos (COP)</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoMonto">Monto</label>
+                            <input type="text" id="abonoMonto" placeholder="0.00" required />
+                            <small id="abonoEquiv" style="color: var(--accent-brand); font-weight:600;"></small>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoMetodo">Método</label>
+                            <select id="abonoMetodo"></select>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoFecha">Fecha</label>
+                            <input type="date" id="abonoFecha" value={fechaHoy} required />
+                        </div>
+                        <button type="submit" id="btnGuardarAbono" style="grid-column: 1 / -1;">
+                            Registrar Abono
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="cxc-box">
+                <h3>Historial de Abonos</h3>
+                <div class="table-wrap" style="max-height: 190px; overflow-y: auto;">
+                    <table class="cxc-subtable">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Venta / Doc</th>
+                                <th>Método</th>
+                                <th>Monto (USD)</th>
+                                <th>Recibido</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalListaAbonos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </Layout>
 
 <script>
-
-    import { noRegistros } from "@/utils/helpers/mensajes.js";
-    import { cambioUSDaCOP } from "@/utils/helpers/cambioMoneda.js";
+    // @ts-nocheck
+    import { noRegistros, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
+    import { metodosDeMoneda, etiquetaMetodo } from "@/utils/helpers/metodosPago.js";
 
-    interface Credito {
-        id_credito: number;
-        fecha: string;
-        nombre: string;
-        cedula: string;
-        saldo_pendiente: number;
-        estado: string;
-    }
+    document.addEventListener("DOMContentLoaded", async () => {
+        const tbody = document.getElementById("tbodyCxc");
+        const thead = document.getElementById("theadCxc");
+        const busqueda = document.getElementById("busquedaCliente");
+        const filtroEstado = document.getElementById("filtroEstado");
 
-    document.addEventListener('DOMContentLoaded', async () => {
+        const statPorCobrar = document.getElementById("statPorCobrar");
+        const statPorCobrarSec = document.getElementById("statPorCobrarSec");
+        const statClientes = document.getElementById("statClientes");
+        const statAbonado = document.getElementById("statAbonado");
 
-        const tbody = document.getElementById('listaCreditos') as HTMLTableSectionElement;
-        const thead = document.getElementById('thead') as HTMLTableSectionElement;
+        const overlayCxc = document.getElementById("overlayCxc");
+        const btnCerrarModalCxc = document.getElementById("btnCerrarModalCxc");
+        const formAbonoCxc = document.getElementById("formAbonoCxc");
+        const abonoCreditoId = document.getElementById("abonoCreditoId");
+        const abonoMoneda = document.getElementById("abonoMoneda");
+        const abonoMonto = document.getElementById("abonoMonto");
+        const abonoEquiv = document.getElementById("abonoEquiv");
+        const abonoMetodo = document.getElementById("abonoMetodo");
+        const abonoFecha = document.getElementById("abonoFecha");
+        const btnGuardarAbono = document.getElementById("btnGuardarAbono");
 
-        try {
-            const res = await fetch('/api/creditos');
-            const creditos :Credito[] = await res.json();
+        let clientes = [];
+        let clienteActual = null;
+        const tasas = await obtenerTasas();
 
-            if (res.status === 202) {
-                tbody.innerHTML = "";
-                thead.style.display = 'none';
-                noRegistros("No hay ventas a crédito pendientes");
+        function actualizarResumenGlobal() {
+            const totalPendiente = clientes.reduce((acc, c) => acc + c.saldo_pendiente_usd, 0);
+            const totalAbonado = clientes.reduce((acc, c) => acc + c.total_abonado_usd, 0);
+            const conDeuda = clientes.filter((c) => c.saldo_pendiente_usd > 0.01).length;
+
+            statPorCobrar.textContent = `$${totalPendiente.toFixed(4)}`;
+            statClientes.textContent = String(conDeuda);
+            statAbonado.textContent = `$${totalAbonado.toFixed(4)}`;
+
+            const partes = [];
+            if (tasas.bs > 0) partes.push(`${(totalPendiente * tasas.bs).toFixed(4)} Bs`);
+            if (tasas.cop > 0) partes.push(`${Math.ceil(totalPendiente * tasas.cop).toLocaleString("es-CO")} COP`);
+            statPorCobrarSec.textContent = partes.join(" · ") || "USD";
+        }
+
+        function renderTabla() {
+            const term = (busqueda.value || "").trim().toLowerCase();
+            const soloPendientes = filtroEstado.value === "pendientes";
+
+            const filtrados = clientes.filter((c) => {
+                if (soloPendientes && c.saldo_pendiente_usd <= 0.01) return false;
+                if (!term) return true;
+                return (
+                    c.nombre.toLowerCase().includes(term) ||
+                    c.cedula.toLowerCase().includes(term)
+                );
+            });
+
+            tbody.innerHTML = "";
+            if (filtrados.length === 0) {
+                thead.style.display = "none";
+                noRegistros("No hay cuentas por cobrar para mostrar");
                 return;
             }
 
-            thead.style.display = 'table-header-group';
+            noRegistros("");
+            thead.style.display = "table-header-group";
 
-            // Obtener tasa de cambio
-            const tasa = await cambioUSDaCOP();
+            filtrados.forEach((c) => {
+                const tr = document.createElement("tr");
+                const tieneDeuda = c.saldo_pendiente_usd > 0.01;
+                const badge = tieneDeuda
+                    ? `<span class="badge-pendiente">PENDIENTE</span>`
+                    : `<span class="badge-pagada">SALDADA</span>`;
 
-            creditos.forEach(credito => {
+                tr.innerHTML = `
+                    <td data-label="Cliente">
+                        <strong>${c.nombre.toUpperCase()}</strong>
+                        ${c.cedula ? `<br/><small style="color:var(--text-muted);">${c.cedula}</small>` : ""}
+                    </td>
+                    <td data-label="Ventas a Crédito">
+                        <strong>${c.total_ventas}</strong> venta(s)
+                        ${c.ventas_pendientes > 0 ? `<br/><small style="color:#b45309;">${c.ventas_pendientes} pendiente(s)</small>` : ""}
+                    </td>
+                    <td data-label="Total Deuda">$${c.total_deuda_usd.toFixed(4)}</td>
+                    <td data-label="Abonado">$${c.total_abonado_usd.toFixed(4)}</td>
+                    <td data-label="Saldo Pendiente">
+                        <strong style="color:${tieneDeuda ? "#dc2626" : "#15803d"};">$${c.saldo_pendiente_usd.toFixed(4)}</strong>
+                    </td>
+                    <td data-label="Estado">${badge}</td>
+                `;
 
-                // Formatear fecha
-                const fechaFormateada = formatearFecha(credito.fecha);
-
-                const tr = document.createElement('tr');
-                const montoUsd = (credito.saldo_pendiente / tasa).toFixed(2);
-
-                tr.innerHTML = `    
-                                    <td data-label="Fecha">${fechaFormateada}</td>
-                                    <td data-label="Cliente">
-                                        ${credito.nombre.toUpperCase()}
-                                        <br />
-                                        C.I. ${credito.cedula}
-                                    </td>
-                                    <td data-label="Monto a Pagar">
-                                        ${credito.saldo_pendiente} COP
-                                        <br />    
-                                        ${montoUsd} USD
-                                    </td>
-                                    <td data-label="Estado">${credito.estado.toUpperCase()}</td>
-                                `;
-
-                // Botones de acciones
-                const tdAcciones = document.createElement('td');
-                tdAcciones.classList.add('acciones');
-
-                // Boton de abonos
-                const btnAbonos = document.createElement('button');
-                btnAbonos.classList.add('btn-editar');
-                btnAbonos.textContent = 'ABONOS';
-                btnAbonos.onclick = () => {
-                    window.location.href = `/creditos/${credito.id_credito}`;
-                };
-                tdAcciones.appendChild(btnAbonos);
-
+                const tdAcciones = document.createElement("td");
+                tdAcciones.className = "acciones";
+                const btnVer = document.createElement("button");
+                btnVer.type = "button";
+                btnVer.className = "btn-detalles";
+                btnVer.textContent = tieneDeuda ? "Ver / Abonar" : "Ver Historial";
+                btnVer.onclick = () => abrirModalCliente(c.id_cliente);
+                tdAcciones.appendChild(btnVer);
                 tr.appendChild(tdAcciones);
+
                 tbody.appendChild(tr);
             });
-            
-        } catch (err) {
-            console.error('Error al cargar creditos:', err);
         }
-    });
 
+        function rellenarMetodosAbono() {
+            const lista = metodosDeMoneda(abonoMoneda.value);
+            abonoMetodo.innerHTML = "";
+            lista.forEach((m) => {
+                const opt = document.createElement("option");
+                opt.value = m.id;
+                opt.textContent = m.etiqueta;
+                abonoMetodo.appendChild(opt);
+            });
+        }
+
+        rellenarMetodosAbono();
+
+        function actualizarEquivAbono() {
+            const val = parseFloat((abonoMonto.value || "").replace(",", "."));
+            const mon = abonoMoneda.value;
+            if (!Number.isFinite(val) || val <= 0 || mon === "USD") {
+                abonoEquiv.textContent = "";
+                return;
+            }
+            if (mon === "BS" && tasas.bs > 0) {
+                abonoEquiv.textContent = `Equivale a $${(val / tasas.bs).toFixed(4)} USD (Tasa ${tasas.bs})`;
+            } else if (mon === "COP" && tasas.cop > 0) {
+                abonoEquiv.textContent = `Equivale a $${(val / tasas.cop).toFixed(4)} USD (Tasa ${tasas.cop})`;
+            } else {
+                abonoEquiv.textContent = "";
+            }
+        }
+
+        function abrirModalCliente(idCliente) {
+            const c = clientes.find((x) => x.id_cliente === idCliente);
+            if (!c) return;
+            clienteActual = c;
+
+            document.getElementById("modalCliNombre").textContent = c.nombre.toUpperCase();
+            document.getElementById("modalCliDoc").textContent = [c.cedula, c.telefono].filter(Boolean).join(" · ") || "Sin documento";
+            document.getElementById("modalDeudaTotal").textContent = `$${c.total_deuda_usd.toFixed(4)}`;
+            document.getElementById("modalAbonado").textContent = `$${c.total_abonado_usd.toFixed(4)}`;
+            document.getElementById("modalSaldo").textContent = `$${c.saldo_pendiente_usd.toFixed(4)}`;
+
+            const tbVentas = document.getElementById("modalListaVentas");
+            tbVentas.innerHTML = "";
+            abonoCreditoId.innerHTML = `<option value="">Aplicar automáticamente (más antiguas primero)</option>`;
+
+            c.ventas.forEach((v) => {
+                const docLabel = v.tipo_documento === "nota_entrega"
+                    ? `Nota #${v.nro_nota_entrega || ""}`
+                    : `Factura #${v.nro_factura || ""}`;
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><strong>${docLabel}</strong><br/><small>${formatearFecha(v.fecha)}</small></td>
+                    <td>$${v.total.toFixed(4)}</td>
+                    <td>$${v.abonado.toFixed(4)}</td>
+                    <td><strong style="color:${v.saldo_pendiente > 0.01 ? "#dc2626" : "#15803d"};">$${v.saldo_pendiente.toFixed(4)}</strong></td>
+                    <td><a href="/ventas/${v.id_venta}" style="color:var(--accent-brand); font-weight:700;">Ver</a></td>
+                `;
+                tbVentas.appendChild(tr);
+
+                if (v.saldo_pendiente > 0.01) {
+                    const opt = document.createElement("option");
+                    opt.value = v.id_credito;
+                    opt.textContent = `${docLabel} (${formatearFecha(v.fecha)}) — Debe $${v.saldo_pendiente.toFixed(4)}`;
+                    abonoCreditoId.appendChild(opt);
+                }
+            });
+
+            const tbAbonos = document.getElementById("modalListaAbonos");
+            tbAbonos.innerHTML = "";
+            if (c.abonos.length === 0) {
+                tbAbonos.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No hay abonos registrados todavía.</td></tr>`;
+            } else {
+                c.abonos.forEach((a) => {
+                    const doc = a.tipo_documento === "nota_entrega"
+                        ? `Nota #${a.nro_nota_entrega || ""}`
+                        : `Fact. #${a.nro_factura || ""}`;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${formatearFecha(a.fecha)}</td>
+                        <td>${doc}</td>
+                        <td>${etiquetaMetodo(a.moneda, a.metodo) || "—"}</td>
+                        <td><strong>$${a.monto.toFixed(4)}</strong></td>
+                        <td>${a.monto_recibido > 0 ? `${a.monto_recibido.toFixed(4)} ${a.moneda}` : "—"}</td>
+                    `;
+                    tbAbonos.appendChild(tr);
+                });
+            }
+
+            const tienePendiente = c.saldo_pendiente_usd > 0.01;
+            btnGuardarAbono.disabled = !tienePendiente;
+            abonoMonto.value = "";
+            actualizarEquivAbono();
+
+            overlayCxc.classList.remove("oculto");
+            overlayCxc.classList.add("visible");
+        }
+
+        function cerrarModal() {
+            overlayCxc.classList.remove("visible");
+            overlayCxc.classList.add("oculto");
+        }
+
+        async function cargarDatos(mantenerId = null) {
+            try {
+                const res = await fetch("/api/cuentas-por-cobrar");
+                if (!res.ok) throw new Error("No se pudieron cargar las cuentas por cobrar");
+                clientes = await res.json();
+                actualizarResumenGlobal();
+                renderTabla();
+                if (mantenerId) {
+                    abrirModalCliente(mantenerId);
+                }
+            } catch (err) {
+                console.error(err);
+                mostrarError("Error cargando cuentas por cobrar");
+            }
+        }
+
+        busqueda.addEventListener("input", renderTabla);
+        filtroEstado.addEventListener("change", renderTabla);
+        abonoMonto.addEventListener("input", actualizarEquivAbono);
+        abonoMoneda.addEventListener("change", () => {
+            rellenarMetodosAbono();
+            actualizarEquivAbono();
+        });
+        btnCerrarModalCxc.addEventListener("click", cerrarModal);
+        overlayCxc.addEventListener("click", (e) => {
+            if (e.target === overlayCxc) cerrarModal();
+        });
+
+        formAbonoCxc.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!clienteActual) return;
+
+            btnGuardarAbono.disabled = true;
+            try {
+                const res = await fetch("/api/cuentas-por-cobrar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id_cliente: clienteActual.id_cliente,
+                        id_credito: abonoCreditoId.value,
+                        monto: abonoMonto.value,
+                        moneda: abonoMoneda.value,
+                        metodo: abonoMetodo.value,
+                        fecha: abonoFecha.value,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    mostrarError(data.error || "No se pudo registrar el abono");
+                    btnGuardarAbono.disabled = false;
+                    return;
+                }
+                mostrarMensaje("Abono registrado correctamente");
+                await cargarDatos(clienteActual.id_cliente);
+            } catch (err) {
+                console.error(err);
+                mostrarError("Error al registrar el abono");
+                btnGuardarAbono.disabled = false;
+            }
+        });
+
+        await cargarDatos();
+    });
 </script>
+
+<style>
+    .cxc-resumen {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .cxc-stat {
+        padding: 1.15rem 1.25rem;
+        border-radius: var(--radius-md);
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        box-shadow: var(--shadow-card);
+        display: grid;
+        gap: 0.25rem;
+    }
+
+    .cxc-stat .eyebrow {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent-brand);
+    }
+
+    .cxc-stat strong {
+        font-size: 1.65rem;
+        color: #111827;
+    }
+
+    .cxc-stat small {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+    }
+
+    .cxc-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    :global(.badge-pendiente) {
+        display: inline-block;
+        padding: 0.22rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        background: rgba(220, 38, 38, 0.12);
+        color: #dc2626;
+    }
+
+    :global(.badge-pagada) {
+        display: inline-block;
+        padding: 0.22rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        background: rgba(22, 163, 74, 0.12);
+        color: #15803d;
+    }
+
+    .cxc-modal {
+        width: min(96%, 980px);
+        max-height: 92vh;
+        overflow-y: auto;
+        text-align: left;
+        padding: 1.5rem;
+        gap: 1.15rem;
+    }
+
+    .cxc-modal__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .cxc-close {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 1.4rem;
+        cursor: pointer;
+        color: #111827;
+    }
+
+    .cxc-modal__kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.85rem;
+    }
+
+    .cxc-modal__kpis > div {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        display: grid;
+        gap: 0.2rem;
+    }
+
+    .cxc-modal__kpis span {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        font-weight: 700;
+    }
+
+    .cxc-modal__kpis strong {
+        font-size: 1.35rem;
+        color: #111827;
+    }
+
+    .cxc-modal__grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .cxc-box {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 1rem;
+        display: grid;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+
+    .cxc-box h3 {
+        font-size: 0.95rem;
+        margin: 0;
+    }
+
+    .cxc-subtable th,
+    .cxc-subtable td {
+        padding: 0.55rem 0.65rem;
+        font-size: 0.82rem;
+    }
+
+    .cxc-subtable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .cxc-form {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+    }
+
+    @media (max-width: 860px) {
+        .cxc-resumen,
+        .cxc-modal__kpis,
+        .cxc-modal__grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

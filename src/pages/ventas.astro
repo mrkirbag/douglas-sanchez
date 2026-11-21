@@ -1,11 +1,15 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ModalDevolucion from '../components/ModalDevolucion.astro';
+import empresa from '../data/empresa.json';
 import { verificarToken } from '@/utils/auth.js';
 
 const usuario = verificarToken(Astro.request);
 if (!usuario) {
     return Astro.redirect('/login');
 }
+
+const esAdmin = usuario.rol === 'admin';
 
 const fechaActual = new Date().toLocaleDateString("es-VE", {
     timeZone: "America/Caracas",
@@ -16,37 +20,111 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 ---
 
 <Layout>
-    <h1>VENTAS</h1>
+    <header class="page-header">
+        <p class="eyebrow">Gestión comercial y fiscal</p>
+        <h1>Ventas y Caja Fiscal</h1>
+        <p class="page-intro">Gestiona la apertura y cierre de caja con emisión de Reporte Diario Z, consulta la facturación legal con Base Imponible BCV + IVA y referencia en Divisas/COP.</p>
+    </header>
 
-    <div class="btn-add_container">
-        <a class="btn-add" href="/ventas/agregarVentas">Agregar Venta</a>
+    <!-- Panel de Control de Caja Fiscal -->
+    <section class="caja-banner" id="cajaBanner" data-empresa-nombre={empresa.nombre} data-empresa-rif={empresa.rif} data-empresa-dir={empresa.direccion}>
+        <div class="caja-banner__status">
+            <span class="caja-indicator" id="cajaIndicator"></span>
+            <div>
+                <p class="caja-eyebrow" id="cajaEstadoLabel">Verificando estado de caja...</p>
+                <h2 class="caja-title" id="cajaTitulo">Cargando turno...</h2>
+                <p class="caja-meta" id="cajaMeta">Consultando información de apertura y facturación del turno.</p>
+            </div>
+        </div>
+
+        <div class="caja-banner__metrics" id="cajaMetricas" hidden>
+            <div class="caja-metric">
+                <span>Facturas turno</span>
+                <strong id="cajaFacturasCount">0</strong>
+            </div>
+            <div class="caja-metric">
+                <span>Base Imponible (Bs)</span>
+                <strong id="cajaBaseBs">0.00 Bs</strong>
+            </div>
+            <div class="caja-metric">
+                <span>IVA Fiscal (Bs)</span>
+                <strong id="cajaIvaBs">0.00 Bs</strong>
+            </div>
+            <div class="caja-metric caja-metric--highlight">
+                <span>Total Facturado (Bs / BCV)</span>
+                <strong id="cajaTotalBs">0.00 Bs</strong>
+                <small id="cajaTotalUsd">$0.00 USD</small>
+            </div>
+        </div>
+
+        <div class="caja-banner__actions">
+            <button type="button" class="btn-caja btn-caja--open" id="btnAbrirCaja" hidden>
+                Abrir Caja
+            </button>
+            <button type="button" class="btn-caja btn-caja--x" id="btnCorteX" hidden>
+                Ver Corte X
+            </button>
+            <button type="button" class="btn-caja btn-caja--close" id="btnCerrarCaja" hidden>
+                Cerrar Caja (Reporte Z)
+            </button>
+            <button type="button" class="btn-caja btn-caja--history" id="btnHistorialZ">
+                Reportes Z
+            </button>
+        </div>
+    </section>
+
+    <div class="page-toolbar ventas-toolbar">
+        <div class="toolbar-actions">
+            <div class="btn-add_container">
+                <a class="btn-add" href="/ventas/agregarVentas" id="btnNuevaVenta">Agregar venta / Facturar</a>
+            </div>
+
+            <div class="btn-add_container imprimir-container" id="imprimirContainer" style="display: none;">
+                <a class="btn-add" id="imprimir">Imprimir relación del día</a>
+            </div>
+
+            <div class="btn-add_container" id="excelVentasContainer" style="display: none; background: linear-gradient(135deg, #15803d, #166534);">
+                <a class="btn-add" id="btnExportarExcelVentas">Exportar a Excel</a>
+            </div>
+        </div>
+
+        <div class="filtro-fecha">
+            <label class="filtro-fecha_label" for="inputBusqueda">Fecha de consulta</label>
+            <div class="input-busqueda_container fecha-filtro">
+                <input type="date" id="inputBusqueda" value={fechaActual} />
+            </div>
+        </div>
     </div>
 
+    <section class="ventas-summary-card" data-es-admin={esAdmin} aria-live="polite">
+        <div class="summary-icon" aria-hidden="true">$</div>
+        <div>
+            <p class="summary-eyebrow">Facturación Fiscal (Bs) y Notas de Entrega (Divisas)</p>
+            <p class="summary-text" id="resumenVentas">Selecciona una fecha para ver los documentos registrados.</p>
+            <p style="margin: 0.25rem 0 0; font-size: 0.78rem; color: #1e40af; font-weight: 600;">
+                🔒 Normativa SENIAT: Las facturas están numeradas correlativamente y no pueden ser canceladas ni eliminadas (solo admiten Nota de Crédito / Devolución).
+            </p>
+        </div>
+    </section>
 
-    <p class="page-description">Selecciona una fecha para ver las ventas de ese día</p>
-    <div class="input-busqueda_container">
-        <input type="date" id="inputBusqueda" value={fechaActual} />
-    </div>
-
-    <div class="table-section">
+    <div class="table-wrap">
         <table id="tabla">
-        <thead id="tablaVentasHead" style="display: none;">
-            <tr>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Total</th>
-                <th>Tipo Pago</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="listaVentas">
-        </tbody>
+            <thead id="tablaVentasHead" style="display: none;">
+                <tr>
+                    <th>Documento / Fecha</th>
+                    <th>Cliente</th>
+                    <th>Modalidad / Impuesto</th>
+                    <th>Total Factura (Bs / BCV)</th>
+                    <th>Total Divisas (USD / COP)</th>
+                    <th>Ganancia Aproximada</th>
+                    <th>Tipo pago</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="listaVentas">
+            </tbody>
         </table>
-    </div>
-
-    <div class="btn-add_container">
-        <a class="btn-add" id="imprimir" style="display: none;">Imprimir</a>
     </div>
 
     <div id="mensaje"></div>
@@ -54,66 +132,876 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         <div id="modal" class="modal"></div>
     </div>
 
+    <!-- Modal de Caja / Reporte Z -->
+    <div id="overlayCaja" class="overlay oculto">
+        <div id="modalCaja" class="modal modal-caja"></div>
+    </div>
+
+    <ModalDevolucion />
 </Layout>
 
 <style>
-
-    .page-description {
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-        text-align: center;
-        font-weight: 500;
-        color: #555;
+    .caja-banner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.15rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1.2rem;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(var(--secondary-rgb), 0.12);
+        box-shadow: 0 18px 32px rgba(var(--primary-rgb), 0.08);
     }
 
-    .table-section {
-        width: 100%;
+    .caja-banner.is-open {
+        border-left: 6px solid #16a34a;
     }
 
+    .caja-banner.is-closed {
+        border-left: 6px solid #dc2626;
+    }
+
+    .caja-banner__status {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1 1 280px;
+    }
+
+    .caja-indicator {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #94a3b8;
+        flex-shrink: 0;
+    }
+
+    .caja-banner.is-open .caja-indicator {
+        background: #16a34a;
+        box-shadow: 0 0 0 6px rgba(22, 163, 74, 0.16);
+    }
+
+    .caja-banner.is-closed .caja-indicator {
+        background: #dc2626;
+        box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.16);
+    }
+
+    .caja-eyebrow {
+        margin: 0;
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--secondary-color);
+    }
+
+    .caja-title {
+        margin: 0.15rem 0;
+        font-size: 1.2rem;
+        color: var(--primary-strong);
+    }
+
+    .caja-meta {
+        margin: 0;
+        font-size: 0.84rem;
+        color: var(--text-muted);
+    }
+
+    .caja-banner__metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        flex: 2 1 380px;
+        justify-content: center;
+    }
+
+    .caja-banner__metrics[hidden],
+    .btn-caja[hidden] {
+        display: none !important;
+    }
+
+    .caja-metric {
+        padding: 0.65rem 0.95rem;
+        border-radius: 14px;
+        background: rgba(var(--secondary-rgb), 0.05);
+        border: 1px solid rgba(var(--secondary-rgb), 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 130px;
+    }
+
+    .caja-metric span {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .caja-metric strong {
+        font-size: 1rem;
+        color: var(--primary-strong);
+    }
+
+    .caja-metric small {
+        font-size: 0.74rem;
+        color: var(--secondary-color);
+        font-weight: 600;
+    }
+
+    .caja-metric--highlight {
+        background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.1), rgba(var(--secondary-rgb), 0.15));
+        border-color: rgba(var(--primary-rgb), 0.25);
+    }
+
+    .caja-banner__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+
+    .btn-caja,
+    .modal-caja :global(.btn-caja) {
+        appearance: none;
+        border: none;
+        border-radius: 14px;
+        padding: 0.68rem 1.15rem;
+        font-size: 0.84rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        line-height: 1.2;
+        transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, border-color 150ms ease;
+    }
+
+    .btn-caja:hover,
+    .modal-caja :global(.btn-caja:hover) {
+        transform: translateY(-1px);
+    }
+
+    .btn-caja--open,
+    .modal-caja :global(.btn-caja--open) {
+        background: linear-gradient(135deg, #16a34a, #15803d);
+        color: #fff;
+        box-shadow: 0 8px 20px rgba(22, 163, 74, 0.25);
+    }
+
+    .btn-caja--x,
+    .modal-caja :global(.btn-caja--x) {
+        background: rgba(var(--secondary-rgb), 0.1);
+        color: var(--primary-strong);
+        border: 1px solid rgba(var(--secondary-rgb), 0.22);
+    }
+
+    .btn-caja--x:hover,
+    .modal-caja :global(.btn-caja--x:hover) {
+        background: rgba(var(--secondary-rgb), 0.18);
+        border-color: rgba(var(--secondary-rgb), 0.35);
+    }
+
+    .btn-caja--close,
+    .modal-caja :global(.btn-caja--close) {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        color: #fff;
+        box-shadow: 0 8px 20px rgba(220, 38, 38, 0.25);
+    }
+
+    .btn-caja--history,
+    .modal-caja :global(.btn-caja--history) {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: #fff;
+        box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.22);
+    }
+
+    .btn-caja--history:hover,
+    .modal-caja :global(.btn-caja--history:hover) {
+        box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.3);
+    }
+
+    .modal-caja {
+        width: min(100%, 720px);
+        max-height: 90vh;
+        overflow-y: auto;
+        text-align: left;
+        padding: 1.6rem;
+    }
+
+    .modal-caja :global(.modal-caja__actions) {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(var(--secondary-rgb), 0.14);
+    }
+
+    .modal-caja :global(.modal-caja__close) {
+        background: rgba(var(--secondary-rgb), 0.08);
+        border: 1px solid rgba(var(--secondary-rgb), 0.16);
+        color: var(--primary-strong);
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 150ms ease, transform 150ms ease;
+    }
+
+    .modal-caja :global(.modal-caja__close:hover) {
+        background: rgba(var(--secondary-rgb), 0.16);
+        transform: translateY(-1px);
+    }
+
+    .modal-caja :global(.btn-ver-z) {
+        padding: 0.5rem 0.9rem;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        border-radius: 10px;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 540px) {
+        .modal-caja :global(.modal-caja__actions) {
+            flex-direction: column-reverse;
+            align-items: stretch;
+        }
+
+        .modal-caja :global(.modal-caja__actions .btn-caja) {
+            width: 100%;
+        }
+    }
+
+    .filtro-fecha {
+        display: grid;
+        gap: 0.35rem;
+        flex: 0 0 auto;
+        min-width: min(100%, 220px);
+        justify-items: end;
+        margin-left: auto;
+        align-self: center;
+    }
+
+    .filtro-fecha_label {
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--secondary-color);
+    }
+
+    .fecha-filtro {
+        margin: 0;
+        padding: 0;
+        justify-content: flex-end;
+        height: auto;
+        min-height: 0;
+        align-items: stretch;
+    }
+
+    .fecha-filtro input {
+        max-width: 220px;
+        margin: 0;
+    }
+
+    .imprimir-container {
+        min-width: 0;
+    }
+
+    .ventas-summary-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.15rem;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(135deg, rgba(var(--secondary-rgb), 0.06), rgba(217, 209, 236, 0.42));
+        border: 1px solid rgba(var(--secondary-rgb), 0.1);
+        box-shadow: var(--shadow-card);
+    }
+
+    .summary-icon {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: #fff;
+        font-family: "Archivo Black", sans-serif;
+        font-size: 1.35rem;
+        flex-shrink: 0;
+        box-shadow: 0 10px 22px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .summary-eyebrow {
+        margin: 0 0 0.2rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--secondary-color);
+    }
+
+    .summary-text {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--primary-strong);
+        line-height: 1.5;
+    }
+
+    :global(.status-badge) {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.32rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border: 1px solid transparent;
+    }
+
+    :global(.status-badge--activa) {
+        background: rgba(0, 128, 0, 0.12);
+        color: #0b5f2b;
+        border-color: rgba(0, 128, 0, 0.2);
+    }
+
+    :global(.status-badge--anulada) {
+        background: rgba(255, 77, 77, 0.12);
+        color: #9f1f1f;
+        border-color: rgba(255, 77, 77, 0.22);
+    }
+
+    :global(.status-badge--devuelta) {
+        background: rgba(234, 179, 8, 0.12);
+        color: #854d0e;
+        border-color: rgba(234, 179, 8, 0.22);
+    }
+
+    :global(.pago-badge) {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.32rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: rgba(var(--secondary-rgb), 0.08);
+        color: var(--primary-strong);
+        border: 1px solid rgba(var(--secondary-rgb), 0.12);
+    }
+
+    :global(.monto-usd) {
+        font-weight: 700;
+        color: var(--primary-strong);
+    }
+
+    :global(.monto-cop) {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+        .ventas-toolbar .filtro-fecha {
+            order: -1;
+            width: 100%;
+            margin-left: 0;
+            justify-items: stretch;
+        }
+
+        .ventas-toolbar .fecha-filtro input {
+            width: 100%;
+            max-width: none;
+        }
+    }
 </style>
 
 <script>
-
-    import { noRegistros } from "@/utils/helpers/mensajes.js";
-    import { mostrarMensaje, mostrarError } from "@/utils/helpers/mensajes.js";
-    import { cambioUSDaCOP, obtenerTasasPrecios } from "@/utils/helpers/cambioMoneda.js";
-    import { calcularBsBcvDesdeCop } from "@/utils/helpers/precios.js";
+    import { noRegistros, mostrarError, mostrarMensaje, confirmarAccion } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
+    import { imprimir } from '@/utils/helpers/imprimir.js';
+    import { redondearCOP, redondearBS, formatearMoneda } from '@/utils/helpers/tasas.js';
+    import { descargarExcel } from '@/utils/helpers/exportarExcel.js';
+
+    const esAdmin = document.querySelector('.ventas-summary-card')?.getAttribute('data-es-admin') === 'true';
+    const cajaBanner = document.getElementById('cajaBanner') as HTMLElement;
+    const empresaNombre = cajaBanner?.dataset.empresaNombre || 'EMPRESA';
+    const empresaRif = cajaBanner?.dataset.empresaRif || '';
+    const empresaDir = cajaBanner?.dataset.empresaDir || '';
+
+    const overlayCaja = document.getElementById('overlayCaja') as HTMLDivElement;
+    const modalCaja = document.getElementById('modalCaja') as HTMLDivElement;
+
+    let estadoCajaActual: any = null;
+
+    function cerrarModalCaja() {
+        overlayCaja.classList.add('oculto');
+        modalCaja.innerHTML = '';
+    }
+
+    overlayCaja?.addEventListener('click', (e) => {
+        if (e.target === overlayCaja) cerrarModalCaja();
+    });
+
+    async function cargarEstadoCaja() {
+        try {
+            const res = await fetch('/api/caja');
+            if (!res.ok) return;
+            const data = await res.json();
+            estadoCajaActual = data;
+
+            const estadoLabel = document.getElementById('cajaEstadoLabel') as HTMLElement;
+            const titulo = document.getElementById('cajaTitulo') as HTMLElement;
+            const meta = document.getElementById('cajaMeta') as HTMLElement;
+            const metricasBox = document.getElementById('cajaMetricas') as HTMLElement;
+            const btnAbrir = document.getElementById('btnAbrirCaja') as HTMLButtonElement;
+            const btnCorteX = document.getElementById('btnCorteX') as HTMLButtonElement;
+            const btnCerrar = document.getElementById('btnCerrarCaja') as HTMLButtonElement;
+
+            cajaBanner.classList.toggle('is-open', Boolean(data.abierta));
+            cajaBanner.classList.toggle('is-closed', !data.abierta);
+
+            if (data.abierta && data.cajaAbierta) {
+                const c = data.cajaAbierta;
+                const x = data.corteX || {};
+                estadoLabel.textContent = 'Turno Fiscal Activo';
+                titulo.textContent = `Caja Abierta (${formatearFecha(c.fecha_apertura)} · ${c.hora_apertura})`;
+                meta.textContent = `Responsable: ${c.usuario_apertura_nombre} · Fondo Inicial: $${Number(c.monto_apertura_usd || 0).toFixed(4)} USD / ${Number(c.monto_apertura_bs || 0).toFixed(4)} Bs`;
+
+                metricasBox.hidden = false;
+                (document.getElementById('cajaFacturasCount') as HTMLElement).textContent = String(x.cantidad_facturas || 0);
+                (document.getElementById('cajaBaseBs') as HTMLElement).textContent = `${Number(x.base_imponible_bs || 0).toFixed(4)} Bs`;
+                (document.getElementById('cajaIvaBs') as HTMLElement).textContent = `${Number(x.iva_bs || 0).toFixed(4)} Bs`;
+                (document.getElementById('cajaTotalBs') as HTMLElement).textContent = `${Number(x.total_facturado_bs || 0).toFixed(4)} Bs`;
+                (document.getElementById('cajaTotalUsd') as HTMLElement).textContent = `$${Number(x.total_facturado_usd || 0).toFixed(4)} USD (BCV)`;
+
+                btnAbrir.hidden = true;
+                btnCorteX.hidden = false;
+                btnCerrar.hidden = false;
+            } else {
+                estadoLabel.textContent = 'Sin Turno Activo';
+                titulo.textContent = 'Caja Cerrada';
+                meta.textContent = 'Debes realizar la Apertura de Caja antes de emitir nuevas facturas de venta.';
+                metricasBox.hidden = true;
+                btnAbrir.hidden = false;
+                btnCorteX.hidden = true;
+                btnCerrar.hidden = true;
+            }
+        } catch (err) {
+            console.error('Error cargando caja:', err);
+        }
+    }
+
+    function mostrarModalAperturaCaja() {
+        modalCaja.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <div>
+                    <p style="margin:0; font-size:0.75rem; font-weight:800; text-transform:uppercase; color:var(--secondary-color);">Operación Fiscal</p>
+                    <h3 style="margin:0.2rem 0 0; font-size:1.35rem;">Apertura de Caja</h3>
+                </div>
+                <button type="button" id="cerrarModalCajaBtn" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:1rem;">
+                Registra el fondo inicial disponible en caja para iniciar las operaciones de facturación del turno.
+            </p>
+            <form id="formAbrirCaja" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.85rem;">
+                <div class="form-field">
+                    <label for="aperturaUsd">Fondo USD ($)</label>
+                    <input type="text" id="aperturaUsd" value="0.00" />
+                </div>
+                <div class="form-field">
+                    <label for="aperturaCop">Fondo COP (Pesos)</label>
+                    <input type="text" id="aperturaCop" value="0" />
+                </div>
+                <div class="form-field">
+                    <label for="aperturaBs">Fondo Bs (Bolívares)</label>
+                    <input type="text" id="aperturaBs" value="0.00" />
+                </div>
+                <div class="form-field" style="grid-column: 1 / -1;">
+                    <label for="aperturaObs">Observaciones de apertura (opcional)</label>
+                    <input type="text" id="aperturaObs" placeholder="Ej. Turno mañana - Caja Principal" />
+                </div>
+                <div class="form-actions" style="grid-column: 1 / -1; display:flex; justify-content:flex-end; gap:0.6rem; margin-top:0.5rem;">
+                    <button type="button" id="cancelarAperturaBtn" style="background:#e2e8f0; color:#0f172a;">Cancelar</button>
+                    <button type="submit">Confirmar Apertura de Caja</button>
+                </div>
+            </form>
+        `;
+        overlayCaja.classList.remove('oculto');
+
+        document.getElementById('cerrarModalCajaBtn')?.addEventListener('click', cerrarModalCaja);
+        document.getElementById('cancelarAperturaBtn')?.addEventListener('click', cerrarModalCaja);
+
+        document.getElementById('formAbrirCaja')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const monto_apertura_usd = (document.getElementById('aperturaUsd') as HTMLInputElement).value;
+            const monto_apertura_cop = (document.getElementById('aperturaCop') as HTMLInputElement).value;
+            const monto_apertura_bs = (document.getElementById('aperturaBs') as HTMLInputElement).value;
+            const observaciones = (document.getElementById('aperturaObs') as HTMLInputElement).value;
+
+            try {
+                const res = await fetch('/api/caja', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        accion: 'abrir',
+                        monto_apertura_usd,
+                        monto_apertura_cop,
+                        monto_apertura_bs,
+                        observaciones,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    mostrarError(data.error || 'No se pudo abrir la caja');
+                    return;
+                }
+                cerrarModalCaja();
+                mostrarMensaje('Caja abierta correctamente. Ya puedes registrar ventas.');
+                await cargarEstadoCaja();
+            } catch (err) {
+                mostrarError('Error de conexión al abrir la caja');
+            }
+        });
+    }
+
+    function htmlReporteFiscal(caja: any, metricas: any, esCierreZ: boolean) {
+        const nroZ = caja.nro_reporte_z ? String(caja.nro_reporte_z).padStart(4, '0') : 'EN CURSO (CORTE X)';
+        const tituloReporte = esCierreZ ? `REPORTE DIARIO Z #${nroZ}` : `CORTE PARCIAL DE CAJA (X)`;
+        const rangoFacturas = metricas.primera_factura && metricas.ultima_factura
+            ? `#${String(metricas.primera_factura).padStart(6, '0')} — #${String(metricas.ultima_factura).padStart(6, '0')}`
+            : 'Sin facturas en el turno';
+
+        const filasPagos = Array.isArray(metricas.desglose_pagos) && metricas.desglose_pagos.length > 0
+            ? metricas.desglose_pagos.map((p: any) => `
+                <tr>
+                    <td>${p.etiqueta}</td>
+                    <td style="text-align:center;">${p.operaciones}</td>
+                    <td style="text-align:right;">${formatearMoneda(p.total_moneda, p.moneda)}</td>
+                    <td style="text-align:right;">$${Number(p.total_usd).toFixed(4)}</td>
+                </tr>
+            `).join('')
+            : `<tr><td colspan="4" style="text-align:center; color:#64748b;">Sin pagos de contado registrados en este turno</td></tr>`;
+
+        return `
+            <div id="areaImpresionReporteZ" style="font-family: Arial, sans-serif; color: #0f172a;">
+                <div style="text-align:center; border-bottom: 2px dashed #334155; padding-bottom: 0.85rem; margin-bottom: 1rem;">
+                    <strong style="font-size: 1.15rem; display:block;">SENIAT · DOCUMENTO DE CONTROL FISCAL</strong>
+                    <h3 style="margin: 0.25rem 0; font-size: 1.3rem;">${empresaNombre}</h3>
+                    <p style="margin: 0; font-size: 0.85rem;">RIF: ${empresaRif} · ${empresaDir}</p>
+                    <div style="margin-top: 0.6rem; display:inline-block; padding: 0.3rem 0.9rem; background:#0f172a; color:#fff; font-weight:800; border-radius:6px; font-size:0.95rem;">
+                        ${tituloReporte}
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem 1rem; font-size: 0.85rem; margin-bottom: 1rem; background: #f8fafc; padding: 0.85rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <div><strong>Apertura:</strong> ${formatearFecha(caja.fecha_apertura)} ${caja.hora_apertura}</div>
+                    <div><strong>Cierre:</strong> ${caja.fecha_cierre ? `${formatearFecha(caja.fecha_cierre)} ${caja.hora_cierre}` : 'Abierta'}</div>
+                    <div><strong>Cajero Apertura:</strong> ${caja.usuario_apertura_nombre}</div>
+                    <div><strong>Cajero Cierre:</strong> ${caja.usuario_cierre_nombre || '—'}</div>
+                    <div><strong>Facturas Fiscales (Bs):</strong> ${metricas.cantidad_facturas} (${rangoFacturas})</div>
+                    <div><strong>Notas de Entrega (No Fiscales):</strong> ${metricas.cantidad_notas_entrega || 0} ($${Number(metricas.total_notas_entrega_usd || 0).toFixed(4)} USD)${Number(metricas.notas_entrega_pendientes_facturar || 0) > 0 ? ` · <span style="color:#b45309; font-weight:700;">${metricas.notas_entrega_pendientes_facturar} sin facturar</span>` : ''}</div>
+                    <div style="grid-column: 1 / -1;"><strong>Tasas Aplicadas:</strong> BCV ${Number(metricas.tasa_bcv).toFixed(4)} Bs · COP ${Number(metricas.tasa_cop).toLocaleString('es-CO')}</div>
+                </div>
+
+                <h4 style="margin: 0.8rem 0 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #334155;">1. Resumen Fiscal SENIAT (Base Imponible BCV e IVA)</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:0.88rem; margin-bottom:1rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
+                            <th style="text-align:left; padding:6px 8px;">Concepto Fiscal</th>
+                            <th style="text-align:right; padding:6px 8px;">Monto Legal (Bs)</th>
+                            <th style="text-align:right; padding:6px 8px;">Equiv. BCV (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:6px 8px;">Ventas Exentas / No Sujetas (E)</td>
+                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.exento_bs).toFixed(4)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.exento_usd).toFixed(4)}</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:6px 8px;">Base Imponible Alícuota General (G)</td>
+                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.base_imponible_bs).toFixed(4)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.base_imponible_usd).toFixed(4)}</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:6px 8px;">Débito Fiscal IVA</td>
+                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.iva_bs).toFixed(4)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.iva_usd).toFixed(4)}</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0; color:#b45309;">
+                            <td style="padding:6px 8px;">(-) Retenciones de IVA Practicadas</td>
+                            <td style="text-align:right; padding:6px 8px;">-${Number(metricas.retencion_iva_bs).toFixed(4)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">-$${Number(metricas.retencion_iva_usd).toFixed(4)}</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0; color:#dc2626;">
+                            <td style="padding:6px 8px;">(-) Devoluciones / Notas de Crédito</td>
+                            <td style="text-align:right; padding:6px 8px;">-${Number(metricas.total_devoluciones_bs).toFixed(4)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">-$${Number(metricas.total_devoluciones_usd).toFixed(4)}</td>
+                        </tr>
+                        <tr style="background:#dbeafe; font-weight:800;">
+                            <td style="padding:8px;">TOTAL FACTURADO DEL DÍA (Z)</td>
+                            <td style="text-align:right; padding:8px;">${Number(metricas.total_facturado_bs).toFixed(4)} Bs</td>
+                            <td style="text-align:right; padding:8px;">$${Number(metricas.total_facturado_usd).toFixed(4)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4 style="margin: 0.8rem 0 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #334155;">2. Arqueo Interno de Caja y Desglose por Métodos de Pago (Facturas + Notas de Entrega)</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:0.86rem; margin-bottom:0.8rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
+                            <th style="text-align:left; padding:6px 8px;">Método / Moneda</th>
+                            <th style="text-align:center; padding:6px 8px;">Operaciones</th>
+                            <th style="text-align:right; padding:6px 8px;">Monto Recibido</th>
+                            <th style="text-align:right; padding:6px 8px;">Equiv. USD</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filasPagos}
+                    </tbody>
+                </table>
+
+                <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; font-size: 0.82rem; background:#f8fafc; padding:0.75rem; border-radius:8px; border:1px solid #e2e8f0;">
+                    <div><strong>Facturas Contado (Z):</strong> $${Number(metricas.total_ventas_contado).toFixed(4)}</div>
+                    <div><strong>Facturas Crédito (Z):</strong> $${Number(metricas.total_ventas_credito).toFixed(4)}</div>
+                    <div><strong>Notas de Entrega (Interno):</strong> $${Number(metricas.total_notas_entrega_usd || 0).toFixed(4)}</div>
+                    <div><strong>Abonos Recibidos (${metricas.abonos_cantidad || 0}):</strong> $${Number(metricas.abonos_total_usd || 0).toFixed(4)}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function mostrarModalReporteFiscal(caja: any, metricas: any, esCierreZ: boolean) {
+        const htmlReporte = htmlReporteFiscal(caja, metricas, esCierreZ);
+        modalCaja.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+                <h3 style="margin:0;">${esCierreZ ? 'Reporte Diario Z Emitido' : 'Corte X (Vista Previa en Curso)'}</h3>
+                <button type="button" id="cerrarModalZBtn" class="modal-caja__close" aria-label="Cerrar modal">&times;</button>
+            </div>
+            ${htmlReporte}
+            <div class="modal-caja__actions">
+                <button type="button" id="btnCerrarVistaZ" class="btn-caja btn-caja--x">Cerrar</button>
+                <button type="button" id="btnImprimirReporteZ" class="btn-caja btn-caja--history">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    Imprimir Reporte ${esCierreZ ? 'Z' : 'X'}
+                </button>
+            </div>
+        `;
+        overlayCaja.classList.remove('oculto');
+
+        document.getElementById('cerrarModalZBtn')?.addEventListener('click', cerrarModalCaja);
+        document.getElementById('btnCerrarVistaZ')?.addEventListener('click', cerrarModalCaja);
+        document.getElementById('btnImprimirReporteZ')?.addEventListener('click', () => {
+            const area = document.getElementById('areaImpresionReporteZ');
+            if (!area) return;
+            imprimir({
+                titulo: esCierreZ ? `Reporte Z #${caja.nro_reporte_z || ''}` : 'Corte X de Caja',
+                tituloDocumento: esCierreZ ? `REPORTE DIARIO Z #${String(caja.nro_reporte_z || 1).padStart(4, '0')}` : 'CORTE PARCIAL DE CAJA (X)',
+                contenido: area.outerHTML,
+            });
+        });
+    }
+
+    async function mostrarModalHistorialZ() {
+        await cargarEstadoCaja();
+        const historial = estadoCajaActual?.historialZ || [];
+
+        const filas = historial.length > 0
+            ? historial.map((c: any) => `
+                <tr>
+                    <td><strong>Z-${String(c.nro_reporte_z || 0).padStart(4, '0')}</strong></td>
+                    <td>${formatearFecha(c.fecha_cierre || c.fecha_apertura)}<br/><small>${c.hora_cierre || ''}</small></td>
+                    <td>${c.usuario_cierre_nombre || c.usuario_apertura_nombre}</td>
+                    <td>${c.cantidad_facturas || 0}</td>
+                    <td><strong>${Number(c.total_facturado_bs || 0).toFixed(4)} Bs</strong><br/><small>$${Number(c.total_facturado_usd || 0).toFixed(4)} USD</small></td>
+                    <td>
+                        <button type="button" class="btn-caja btn-caja--history btn-ver-z" data-id="${c.id}">VER / IMPRIMIR Z</button>
+                    </td>
+                </tr>
+            `).join('')
+            : `<tr><td colspan="6" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Aún no hay cierres de caja (Reportes Z) generados.</td></tr>`;
+
+        modalCaja.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <div>
+                    <p style="margin:0; font-size:0.75rem; font-weight:800; text-transform:uppercase; color:var(--secondary-color);">Libros Fiscales</p>
+                    <h3 style="margin:0.2rem 0 0; font-size:1.3rem;">Historial de Cierres y Reportes Diarios Z</h3>
+                </div>
+                <button type="button" id="cerrarHistorialZBtn" class="modal-caja__close" aria-label="Cerrar modal">&times;</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>N° Z</th>
+                            <th>Fecha Cierre</th>
+                            <th>Responsable</th>
+                            <th>Facturas</th>
+                            <th>Total Fiscal</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+            </div>
+        `;
+        overlayCaja.classList.remove('oculto');
+
+        document.getElementById('cerrarHistorialZBtn')?.addEventListener('click', cerrarModalCaja);
+        modalCaja.querySelectorAll('.btn-ver-z').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const idCaja = (btn as HTMLElement).getAttribute('data-id');
+                if (!idCaja) return;
+                const res = await fetch(`/api/caja?id=${idCaja}`);
+                if (res.ok) {
+                    const detalle = await res.json();
+                    mostrarModalReporteFiscal(detalle.caja, detalle.metricas, true);
+                }
+            });
+        });
+    }
+
+    document.getElementById('btnAbrirCaja')?.addEventListener('click', mostrarModalAperturaCaja);
+
+    document.getElementById('btnCorteX')?.addEventListener('click', async () => {
+        await cargarEstadoCaja();
+        if (estadoCajaActual?.cajaAbierta && estadoCajaActual?.corteX) {
+            mostrarModalReporteFiscal(estadoCajaActual.cajaAbierta, estadoCajaActual.corteX, false);
+        }
+    });
+
+    document.getElementById('btnCerrarCaja')?.addEventListener('click', async () => {
+        const ok = await confirmarAccion(
+            '¿Deseas cerrar la caja del turno actual y emitir el Reporte Diario Z correlativo? Una vez cerrada, deberás abrir un nuevo turno para facturar.',
+            {
+                titulo: 'Cierre de Caja y Emisión de Reporte Z',
+                textoAceptar: 'Cerrar Caja y Emitir Z',
+            }
+        );
+        if (!ok) return;
+
+        try {
+            const res = await fetch('/api/caja', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accion: 'cerrar' }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                mostrarError(data.error || 'No se pudo cerrar la caja');
+                return;
+            }
+            mostrarMensaje(data.message || 'Caja cerrada y Reporte Z generado');
+            await cargarEstadoCaja();
+            mostrarModalReporteFiscal(data.caja, data.metricas, true);
+        } catch (err) {
+            mostrarError('Error de conexión al cerrar la caja');
+        }
+    });
+
+    document.getElementById('btnHistorialZ')?.addEventListener('click', mostrarModalHistorialZ);
+
+    document.getElementById('btnNuevaVenta')?.addEventListener('click', (e) => {
+        if (estadoCajaActual && !estadoCajaActual.abierta) {
+            e.preventDefault();
+            mostrarError('Debes abrir la caja antes de registrar una venta.');
+            mostrarModalAperturaCaja();
+        }
+    });
 
     interface Venta {
         id: number;
+        tipo_documento?: string;
+        nro_factura?: number;
+        nro_nota_entrega?: number;
         fecha: string;
+        cliente_id: number;
         cliente: string;
         cedula_cliente: string;
+        subtotal_base?: number;
+        subtotal_exento?: number;
+        iva_porcentaje?: number;
+        iva_monto?: number;
+        retencion_iva_monto?: number;
+        total_divisas?: number;
+        tasa_bcv?: number;
+        tasa_cop?: number;
         total: number;
         tipo_pago: string;
         estado: string;
+        facturada_en_venta_id?: string | null;
+        nota_entrega_origen_id?: string | null;
+        ganancia_aproximada?: number;
     }
 
-    // Disparar el evento input al cargar la página para mostrar las ventas del día actual
+    function obtenerClaseEstado(estado: string) {
+        const normalizado = estado.toLowerCase();
+        if (normalizado.includes('anul')) return 'status-badge--anulada';
+        if (normalizado.includes('devuel')) return 'status-badge--devuelta';
+        return 'status-badge--activa';
+    }
+
+    function actualizarResumen(cantidad: number, fecha: string) {
+        const resumen = document.getElementById('resumenVentas') as HTMLParagraphElement;
+        if (!resumen) return;
+
+        if (cantidad === 0) {
+            resumen.textContent = `No hay documentos registrados para el ${fecha}.`;
+            return;
+        }
+
+        const texto = cantidad === 1 ? '1 documento registrado' : `${cantidad} documentos registrados`;
+        resumen.textContent = `${texto} para el ${fecha}.`;
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+        cargarEstadoCaja();
         const inputBusqueda = document.getElementById("inputBusqueda") as HTMLInputElement;
         inputBusqueda.dispatchEvent(new Event('input'));
     });
 
+    let ventasDelDiaActuales: Venta[] = [];
+    let tasasDelDiaActuales: { cop: number; bs: number } = { cop: 0, bs: 0 };
+
     const inputBusqueda = document.getElementById("inputBusqueda") as HTMLInputElement;
     inputBusqueda.addEventListener('input', async () => {
-
-        // Elementos del DOM
         const tablaVentasHead = document.getElementById('tablaVentasHead') as HTMLTableSectionElement;
         const tbody = document.getElementById('listaVentas') as HTMLTableSectionElement;
-        const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
 
         tbody.innerHTML = "";
+        const fechaFormateadaResumen = formatearFecha(inputBusqueda.value);
 
         try {
             const res = await fetch(`/api/ventas?fecha=${inputBusqueda.value}`);
             const ventas : Venta[] = await res.json();
 
-            // Validar que no haya ventas
             if (res.status === 202) {
-                btnImprimir.style.display = 'none';
+                const imprimirContainer = document.getElementById('imprimirContainer') as HTMLDivElement;
+                const excelVentasContainer = document.getElementById('excelVentasContainer') as HTMLDivElement;
+                imprimirContainer.style.display = 'none';
+                if (excelVentasContainer) excelVentasContainer.style.display = 'none';
                 tablaVentasHead.style.display = 'none';
+                actualizarResumen(0, fechaFormateadaResumen);
                 noRegistros("No hay ventas registradas para esa fecha");
                 return;
             } else {
@@ -122,138 +1010,251 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             }
 
             tablaVentasHead.style.display = 'table-header-group';
-            btnImprimir.style.display = 'block'
+            const imprimirContainer = document.getElementById('imprimirContainer') as HTMLDivElement;
+            const excelVentasContainer = document.getElementById('excelVentasContainer') as HTMLDivElement;
+            imprimirContainer.style.display = 'inline-flex';
+            if (excelVentasContainer) excelVentasContainer.style.display = 'inline-flex';
+            actualizarResumen(ventas.length, fechaFormateadaResumen);
 
-            // Obtener tasa de cambio
-            const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
+            const tasas = await obtenerTasas();
+            ventasDelDiaActuales = Array.isArray(ventas) ? ventas : [];
+            tasasDelDiaActuales = tasas;
 
-            ventas.forEach(ventas => {
+            ventas.forEach(venta => {
+                const esNotaEntrega = venta.tipo_documento === 'nota_entrega';
+                const fechaFormateada = formatearFecha(venta.fecha);
+                const tasaCop = Number(venta.tasa_cop) > 0 ? Number(venta.tasa_cop) : tasas.cop;
+                const tasaBcv = Number(venta.tasa_bcv) > 0 ? Number(venta.tasa_bcv) : tasas.bs;
 
-                const fechaFormateada = formatearFecha(ventas.fecha);
-                const totalUsd = tasaCopUsd > 0 ? (ventas.total / tasaCopUsd).toFixed(2) : '0.00';
-                const totalBs = calcularBsBcvDesdeCop(ventas.total, tasaCopUsd, tasaBcvUsd, recargoBcv).toFixed(2);
+                const totalUsd = Number(venta.total) || 0;
+                const totalBs = redondearBS(totalUsd * tasaBcv);
+
+                const baseUsd = (Number(venta.subtotal_base) || 0) + (Number(venta.subtotal_exento) || 0) || totalUsd;
+                const baseBs = redondearBS(baseUsd * tasaBcv);
+                const ivaUsd = Number(venta.iva_monto) || 0;
+                const ivaBs = redondearBS(ivaUsd * tasaBcv);
+
+                const refDivisasUsd = Number(venta.total_divisas) > 0 ? Number(venta.total_divisas) : totalUsd;
+                const totalCOP = redondearCOP(refDivisasUsd * tasaCop);
+                const gananciaUsd = Number(venta.ganancia_aproximada) || 0;
+                const gananciaBs = redondearBS(gananciaUsd * tasaBcv);
+                const gananciaCop = Math.round(gananciaUsd * tasaCop);
+                const gananciaColor = gananciaUsd < 0 ? '#b91c1c' : '#047857';
+
+                const estadoClase = obtenerClaseEstado(venta.estado);
+
+                const badgeTipoDoc = esNotaEntrega
+                    ? `<span style="display:inline-block; font-size:0.65rem; padding:2px 7px; border-radius:99px; background:rgba(16,185,129,0.14); color:#047857; font-weight:800;">NOTA DE ENTREGA</span>`
+                    : `<span style="display:inline-block; font-size:0.65rem; padding:2px 7px; border-radius:99px; background:rgba(37,99,235,0.14); color:#1d4ed8; font-weight:800;">FACTURA FISCAL (BS)</span>`;
+
+                const badgeEstadoNota = esNotaEntrega
+                    ? (venta.facturada_en_venta_id
+                        ? `<a href="/ventas/${venta.facturada_en_venta_id}" style="display:inline-block; margin-top:2px; font-size:0.62rem; padding:2px 6px; border-radius:99px; background:rgba(37,99,235,0.12); color:#1d4ed8; font-weight:800; text-decoration:none;">FACTURADA ↗</a>`
+                        : (venta.estado.toLowerCase() !== 'devuelto'
+                            ? `<span style="display:inline-block; margin-top:2px; font-size:0.62rem; padding:2px 6px; border-radius:99px; background:rgba(217,119,6,0.14); color:#b45309; font-weight:800;">PENDIENTE FACTURAR</span>`
+                            : ''))
+                    : (venta.nota_entrega_origen_id
+                        ? `<a href="/ventas/${venta.nota_entrega_origen_id}" style="display:inline-block; margin-top:2px; font-size:0.62rem; padding:2px 6px; border-radius:99px; background:rgba(16,185,129,0.12); color:#047857; font-weight:700; text-decoration:none;">DE NOTA ENTREGA ↗</a>`
+                        : '');
+
+                const nroDocTexto = esNotaEntrega
+                    ? `${badgeTipoDoc}${badgeEstadoNota ? `<br/>${badgeEstadoNota}` : ''}<br/><strong>NE-${String(venta.nro_nota_entrega || 1).padStart(6, '0')}</strong><br/><span class="monto-cop">${fechaFormateada}</span>`
+                    : `${badgeTipoDoc}${badgeEstadoNota ? `<br/>${badgeEstadoNota}` : ''}<br/><strong>#${String(venta.nro_factura || 1).padStart(6, '0')}</strong><br/><span class="monto-cop">${fechaFormateada}</span>`;
+
+                const colImpuestoHtml = esNotaEntrega
+                    ? `<span class="monto-usd" style="color:#047857;">En Divisas (Sin IVA)</span><br/><span class="monto-cop">Nota de Entrega</span>`
+                    : `<span class="monto-usd">Base: ${baseBs.toFixed(4)} Bs</span><br/><span class="monto-cop">IVA: ${ivaBs.toFixed(4)} Bs ($${ivaUsd.toFixed(4)})</span>`;
+
+                const colBsHtml = esNotaEntrega
+                    ? `<span class="monto-cop">N/A (Facturado en Divisas)</span>`
+                    : `<span class="monto-usd">${totalBs.toFixed(4)} Bs</span><br/><span class="monto-cop">$${totalUsd.toFixed(4)} USD (BCV)</span>`;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `    
-                                    <td data-label="Fecha">${fechaFormateada}</td>
-                                    <td data-label="Cliente">
-                                        ${ventas.cliente.toUpperCase()}<br />
-                                        C.I. ${ventas.cedula_cliente}
-                                    </td>
-                                    <td data-label="Monto Total">
-                                        ${ventas.total} COP
-                                        <br />
-                                        ${totalUsd} USD (divisas)
-                                        <br />
-                                        ${totalBs} Bs BCV
-                                    </td>
-                                    <td data-label="Tipo Pago">${ventas.tipo_pago.toUpperCase()}</td>
-                                    <td data-label="Estado">${ventas.estado.toUpperCase()}</td>
-                                `;
+                    <td data-label="Documento / Fecha">${nroDocTexto}</td>
+                    <td data-label="Cliente">
+                        <strong>${venta.cliente.toUpperCase()}</strong><br />
+                        <span class="monto-cop">C.I./RIF ${venta.cedula_cliente}</span>
+                    </td>
+                    <td data-label="Modalidad / Impuesto">${colImpuestoHtml}</td>
+                    <td data-label="Total Factura (Bs / BCV)">${colBsHtml}</td>
+                    <td data-label="Total Divisas (USD / COP)">
+                        <span class="monto-usd">$${refDivisasUsd.toFixed(4)} USD</span>
+                        <br />
+                        <span class="monto-cop">${totalCOP.toLocaleString('es-CO')} COP</span>
+                    </td>
+                    <td data-label="Ganancia Aproximada">
+                        <span class="monto-usd" style="color:${gananciaColor};">≈ $${gananciaUsd.toFixed(4)} USD</span>
+                        <br />
+                        <span class="monto-cop">${gananciaBs.toFixed(4)} Bs · ${gananciaCop.toLocaleString('es-CO')} COP</span>
+                    </td>
+                    <td data-label="Tipo Pago">
+                        <span class="pago-badge">${venta.tipo_pago.toUpperCase()}</span>
+                    </td>
+                    <td data-label="Estado">
+                        <span class="status-badge ${estadoClase}">${venta.estado.toUpperCase()}</span>
+                    </td>
+                `;
 
-                // Botones de acciones
                 const tdAcciones = document.createElement('td');
                 tdAcciones.classList.add('acciones');
 
-                // Boton de eliminar
-                const btnEliminar = document.createElement('button');
-                btnEliminar.classList.add('btn-eliminar');
-                btnEliminar.textContent = 'ANULAR';
+                const estadoNorm = venta.estado.toLowerCase();
+                if (esNotaEntrega && !venta.facturada_en_venta_id && estadoNorm !== 'anulado' && estadoNorm !== 'devuelto') {
+                    const btnFacturar = document.createElement('button');
+                    btnFacturar.type = 'button';
+                    btnFacturar.classList.add('btn-editar');
+                    btnFacturar.style.background = '#1d4ed8';
+                    btnFacturar.style.color = '#fff';
+                    btnFacturar.textContent = 'FACTURAR';
 
-                btnEliminar.onclick = async () => {
+                    btnFacturar.onclick = async () => {
+                        const confirmado = await confirmarAccion(
+                            `¿Deseas emitir una Factura Fiscal (en Bs a tasa BCV + IVA) a partir de la Nota de Entrega NE-${String(venta.nro_nota_entrega || 1).padStart(6, '0')}? No volverá a descontar inventario ni duplicará el cobro en caja.`,
+                            {
+                                titulo: 'Convertir Nota de Entrega a Factura Fiscal',
+                                textoAceptar: 'Sí, Emitir Factura',
+                            }
+                        );
+                        if (!confirmado) return;
 
-                    // Confirmación antes de eliminar
-                    const confirmar = confirm(`¿Estás seguro de ANULAR la venta del cliente ${ventas.cliente.toUpperCase()} C.I. ${ventas.cedula_cliente} con fecha de ${fechaFormateada}?`);
-                    if (!confirmar) return;
-
-                    // Enviar solicitud de eliminación al servidor
-                    try {
-                        const res = await fetch(`/api/ventas/anularVenta`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: ventas.id })
-                        });
-
-                        // Validar
-                        if(res.status === 409 || res.status === 404){
-                            const data = await res.json();
-                            mostrarError(data.message);
-                            return; 
+                        btnFacturar.disabled = true;
+                        try {
+                            const resp = await fetch('/api/ventas/facturar-nota', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ notaEntregaId: venta.id }),
+                            });
+                            const data = await resp.json();
+                            if (!resp.ok) {
+                                mostrarError(data.error || 'No se pudo facturar la nota de entrega');
+                                btnFacturar.disabled = false;
+                                return;
+                            }
+                            mostrarMensaje(data.message || 'Factura generada exitosamente');
+                            cargarEstadoCaja();
+                            inputBusqueda.dispatchEvent(new Event('input'));
+                        } catch {
+                            mostrarError('Error de conexión al facturar la nota de entrega');
+                            btnFacturar.disabled = false;
                         }
-
-                        const data = await res.json();
-                        mostrarMensaje(data.message); 
-
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1500);
-
-                    } catch(error) {
-                        console.error("Error anulando ventas:", error);
-                    }    
+                    };
+                    tdAcciones.appendChild(btnFacturar);
                 }
-                tdAcciones.appendChild(btnEliminar);
 
-                // Boton de ver informacion
+                if (esAdmin && estadoNorm !== 'anulado' && estadoNorm !== 'devuelto') {
+                    const btnDevolver = document.createElement('button');
+                    btnDevolver.type = 'button';
+                    btnDevolver.classList.add('btn-eliminar');
+                    btnDevolver.textContent = 'NOTA CRÉDITO / DEVOLVER';
+
+                    btnDevolver.onclick = () => {
+                        (window as any).abrirModalDevolucion(venta.id, venta.cliente_id);
+                    };
+                    tdAcciones.appendChild(btnDevolver);
+                }
+
                 const btnVerInfo = document.createElement('button');
+                btnVerInfo.type = 'button';
                 btnVerInfo.classList.add('btn-editar');
-                btnVerInfo.textContent = 'VER INFO';
+                btnVerInfo.textContent = esNotaEntrega ? 'VER NOTA' : 'VER FACTURA';
 
                 btnVerInfo.onclick = () => {
-                    window.location.href = `/ventas/${ventas.id}`;
+                    window.location.href = `/ventas/${venta.id}`;
                 };
 
                 tdAcciones.appendChild(btnVerInfo);
 
-                // Adjuntar acciones al tr
                 tr.appendChild(tdAcciones);
                 tbody.appendChild(tr);
-
             });
         } catch (err) {
-            console.error('Error al cargar usuarios:', err);
+            console.error('Error al cargar ventas:', err);
         }
     });
 
     const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
 
     btnImprimir.addEventListener('click', () => {
-        
         const tabla = document.getElementById('tabla');
         if (!tabla) return;
 
         const tablaClon : any = tabla.cloneNode(true);
 
-        // Eliminamos la última celda de cada fila
         for (const fila of tablaClon.rows) {
             if (fila.cells.length > 0) {
-            fila.deleteCell(fila.cells.length - 1);
+                fila.deleteCell(fila.cells.length - 1);
             }
         }
 
-        // Creamos una ventana temporal para imprimir
-        const ventana = window.open('', '', 'width=800,height=600') as Window;
-        ventana.document.write(`
-                                <html>
-                                    <head>
-                                        <title>Impresión de ventas</title>
-                                        <style>
-                                            body { font-family: sans-serif; padding: 20px; }
-                                            table { border-collapse: collapse; width: 100%; }
-                                            th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-                                        </style>
-                                    </head>
-                                    <body>
-                                        <h1>REPORTE DE VENTAS DEL DIA</h1>
-                                        ${tablaClon.outerHTML}
-                                    </body>
-                                </html>
-                            `);
-        ventana.document.close();
-        ventana.focus();
-        ventana.print();
-        ventana.close();
+        imprimir({
+            titulo: 'Impresión de ventas',
+            tituloDocumento: 'RELACIÓN DE FACTURAS DEL DÍA',
+            contenido: tablaClon.outerHTML,
+        });
     });
 
+    document.getElementById('btnExportarExcelVentas')?.addEventListener('click', async () => {
+        if (!ventasDelDiaActuales.length) {
+            mostrarError('No hay ventas en la fecha seleccionada para exportar');
+            return;
+        }
 
+        const fechaSel = inputBusqueda.value || 'ventas';
+        const filasFacturas = ventasDelDiaActuales
+            .filter((v) => v.tipo_documento !== 'nota_entrega')
+            .map((v) => {
+                const tBcv = Number(v.tasa_bcv) > 0 ? Number(v.tasa_bcv) : tasasDelDiaActuales.bs;
+                const baseUsd = Number(v.subtotal_base) || 0;
+                const exentoUsd = Number(v.subtotal_exento) || 0;
+                const ivaUsd = Number(v.iva_monto) || 0;
+                const retUsd = Number(v.retencion_iva_monto) || 0;
+                const totUsd = Number(v.total) || 0;
+                return {
+                    Fecha: v.fecha,
+                    Nro_Factura: v.nro_factura || '',
+                    Cliente: String(v.cliente || '').toUpperCase(),
+                    Cedula_RIF: v.cedula_cliente || '',
+                    Tasa_BCV: tBcv,
+                    Base_Imponible_Bs: Number((baseUsd * tBcv).toFixed(4)),
+                    Exento_Bs: Number((exentoUsd * tBcv).toFixed(4)),
+                    IVA_Bs: Number((ivaUsd * tBcv).toFixed(4)),
+                    Retencion_IVA_Bs: Number((retUsd * tBcv).toFixed(4)),
+                    Total_Bs: Number((totUsd * tBcv).toFixed(4)),
+                    Equiv_BCV_USD: Number(totUsd.toFixed(4)),
+                    Tipo_Pago: String(v.tipo_pago || '').toUpperCase(),
+                    Estado: String(v.estado || '').toUpperCase(),
+                };
+            });
+
+        const filasNotas = ventasDelDiaActuales
+            .filter((v) => v.tipo_documento === 'nota_entrega')
+            .map((v) => {
+                const totUsd = Number(v.total_divisas) > 0 ? Number(v.total_divisas) : Number(v.total) || 0;
+                const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasasDelDiaActuales.cop;
+                return {
+                    Fecha: v.fecha,
+                    Nro_Nota_Entrega: v.nro_nota_entrega ? `NE-${String(v.nro_nota_entrega).padStart(6, '0')}` : '',
+                    Cliente: String(v.cliente || '').toUpperCase(),
+                    Cedula_RIF: v.cedula_cliente || '',
+                    Total_USD: Number(totUsd.toFixed(4)),
+                    Total_COP: Math.ceil(totUsd * tCop),
+                    Facturada: v.facturada_en_venta_id ? 'SI' : 'NO',
+                    Tipo_Pago: String(v.tipo_pago || '').toUpperCase(),
+                    Estado: String(v.estado || '').toUpperCase(),
+                };
+            });
+
+        try {
+            await descargarExcel({
+                nombreArchivo: `ventas_${fechaSel}`,
+                hojas: [
+                    ...(filasFacturas.length > 0 ? [{ nombre: 'Facturas Fiscales BCV', filas: filasFacturas }] : []),
+                    ...(filasNotas.length > 0 ? [{ nombre: 'Notas Entrega Divisas', filas: filasNotas }] : []),
+                ],
+            });
+        } catch (err: any) {
+            mostrarError(err?.message || 'Error al exportar ventas a Excel');
+        }
+    });
 </script>

@@ -7,56 +7,134 @@ if (!usuario) {
     return Astro.redirect('/login');
 }
 if (usuario.rol !== 'admin') {
-    return Astro.redirect('/'); 
+    return Astro.redirect('/dashboard'); 
 }
+
+const fechaActual = new Date().toLocaleDateString("es-VE", {
+    timeZone: "America/Caracas",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+}).split('/').reverse().join('-');
 ---
 
 <Layout>
-    <h1>REPORTES Y ESTADÍSTICAS</h1>
+    <section class="reportes-hero">
+        <p class="eyebrow">Inteligencia comercial y fiscal</p>
+        <h1>Reportes y Estadísticas</h1>
+        <p>Explora el rendimiento del negocio, la facturación fiscal en Bolívares, las notas de entrega en divisas y los cierres de caja.</p>
+    </section>
 
-    <main class="form-container">
-        <form>
+    <main class="form-container filtros-shell">
+        <form onsubmit="return false;">
             <div>
                 <label for="desde">Desde:</label>
-                <input type="date" id="desde" name="desde" required />
+                <input type="date" id="desde" name="desde" value={fechaActual} required />
             </div>
 
             <div>
                 <label for="hasta">Hasta:</label>
-                <input type="date" id="hasta" name="hasta" required />
+                <input type="date" id="hasta" name="hasta" value={fechaActual} required />
             </div>
         </form>
     </main>
 
     <section class="menu-reportes">
         <nav>
-            <button id="masVendido">Rendimiento</button>
-            <button id="stock">Baja Existencia</button>
-            <button id="caja">Reporte de Caja</button>
-            <button id="ventas">Ventas Totales</button>
-            <button id="anuladas">Anuladas</button>
-            <button id="creditos">Créditos</button>
+            <button type="button" id="masVendido" data-label="Rendimiento comercial">Rendimiento</button>
+            <button type="button" id="stock" data-label="Baja existencia">Baja Existencia</button>
+            <button type="button" id="caja" data-label="Reporte de caja y fiscal">Reporte de Caja</button>
+            <button type="button" id="metodosPago" data-label="Métodos de pago">Métodos de pago</button>
+            <button type="button" id="ventas" data-label="Ventas totales (Facturas y Notas)">Ventas Totales</button>
+            <button type="button" id="reportesZ" data-label="Cierres de Caja (Reportes Z)">Reportes Z</button>
+            <button type="button" id="libroCompras" data-label="Libro de Compras (IVA Crédito Fiscal)">Libro de Compras</button>
+            <button type="button" id="devoluciones" data-label="Devoluciones y Notas de Crédito">Devoluciones</button>
+            <button type="button" id="creditos" data-label="Ventas a crédito">Créditos</button>
+            <button type="button" id="fletes" data-label="Constancia y control de fletes">Fletes</button>
         </nav>
     </section>
 
-    <div id="reportes"></div>
+    <section class="reportes-panel">
+        <header class="reportes-panel__header">
+            <div class="reportes-panel__info">
+                <p class="eyebrow">Resultados</p>
+                <h2 id="reporte-activo-titulo">Selecciona un reporte</h2>
+                <p id="reporte-activo-desc">Elige un tipo de reporte arriba y, si aplica, define el rango de fechas.</p>
+            </div>
 
-    <div class="btn-add_container" >
-        <a class="btn-add" id="imprimir" style="display: none;">Imprimir</a>
-    </div>
+            <div class="reportes-toolbar" id="reportes-toolbar" hidden>
+                <button type="button" class="btn-excel" id="btnExportarExcel" aria-label="Exportar a Excel">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <path d="M8 13h2l2 3 2-3h2"></path>
+                        <path d="M8 17h8"></path>
+                    </svg>
+                    Exportar Excel
+                </button>
+                <button type="button" class="btn-imprimir" id="imprimir" aria-label="Imprimir reporte">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    Imprimir reporte
+                </button>
+            </div>
+        </header>
 
-    <div id="mensaje"></div>
+        <div id="reportes-empty" class="reportes-empty">
+            <div class="reportes-empty__icon" aria-hidden="true">📊</div>
+            <p class="reportes-empty__title">Sin resultados todavía</p>
+            <p class="reportes-empty__text">Usa los botones superiores para generar gráficos, tablas o resúmenes de caja.</p>
+        </div>
+
+        <div id="reportes" class="reportes-output" hidden></div>
+    </section>
+
     <div id="overlay" class="overlay oculto"> 
         <div id="modal" class="modal"></div>
     </div>
-
 </Layout>
 
 <style>
 
-    form{
-        display: flex;
-        flex-direction: row;
+    .reportes-hero {
+        padding: 1.6rem 1.8rem;
+        border-radius: 28px;
+        background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+        color: #111827;
+        border: 1px solid #e5e7eb;
+        border-left: 5px solid var(--accent-brand);
+        display: grid;
+        gap: 0.6rem;
+        box-shadow: 0 12px 24px rgba(17, 24, 39, 0.06);
+    }
+
+    .eyebrow {
+        font-size: 0.74rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-brand);
+        font-weight: 700;
+    }
+
+    .reportes-hero h1 {
+        max-width: none;
+        color: #111827;
+    }
+
+    .reportes-hero p:not(.eyebrow) {
+        max-width: 68ch;
+        color: #4b5563;
+    }
+
+    .filtros-shell {
+        width: min(100%, 780px);
+    }
+
+    form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .menu-reportes nav {
@@ -64,76 +142,246 @@ if (usuario.rol !== 'admin') {
         justify-content: center;
         flex-wrap: wrap;
         gap: 0.75rem;
-        padding: 1rem;
-        border-bottom: 1px solid #ccc;
+        padding: 1.25rem;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
+        box-shadow: 0 18px 32px rgba(var(--primary-rgb), 0.08);
     }
 
     .menu-reportes button {
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
-        color: #f4f4f4;
-        background-color: var(--secondary-color);
-        font-weight: 500;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.1s ease-in-out;
         white-space: nowrap;
     }
 
-    .menu-reportes button:hover {
-        scale: 1.05;
+    .menu-reportes button.is-active {
+        background: linear-gradient(135deg, var(--accent-brand), color-mix(in srgb, var(--accent-brand) 62%, white));
+        box-shadow: 0 14px 28px rgba(var(--accent-rgb), 0.32);
+        transform: translateY(-1px);
     }
 
-    .menu-reportes button:active {
-        scale: 0.95;
+    .reportes-panel {
+        display: grid;
+        gap: 1.25rem;
+        padding: 1.35rem;
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
+        box-shadow: 0 18px 32px rgba(var(--primary-rgb), 0.08);
     }
 
-    #reportes {
+    .reportes-panel__header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .reportes-panel__info {
+        display: grid;
+        gap: 0.35rem;
+        flex: 1;
+        min-width: min(100%, 280px);
+    }
+
+    .reportes-panel__info .eyebrow {
+        color: var(--secondary-color);
+    }
+
+    .reportes-panel__info h2 {
+        font-size: 1.35rem;
+        color: var(--primary-color);
+        margin: 0;
+    }
+
+    .reportes-panel__info p:last-child {
+        color: var(--text-muted);
+        font-size: 0.92rem;
+        max-width: 52ch;
+    }
+
+    .reportes-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .btn-imprimir {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+        padding: 0.78rem 1.35rem;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-brand));
+        color: #fffaff;
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        box-shadow: 0 12px 26px rgba(var(--primary-rgb), 0.22);
+        cursor: pointer;
+        transition:
+            transform 160ms ease,
+            box-shadow 160ms ease,
+            background 160ms ease;
+    }
+
+    .btn-imprimir:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 30px rgba(var(--primary-rgb), 0.28);
+    }
+
+    .btn-imprimir:active {
+        transform: translateY(0);
+    }
+
+    .btn-imprimir svg {
+        flex-shrink: 0;
+    }
+
+    .reportes-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+    }
+
+    .btn-excel {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.78rem 1.25rem;
+        border: none;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #15803d, #166534);
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.92rem;
+        cursor: pointer;
+        box-shadow: 0 10px 22px rgba(21, 128, 61, 0.22);
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .btn-excel:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 26px rgba(21, 128, 61, 0.28);
+    }
+
+    .btn-excel:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .reportes-toolbar[hidden],
+    .reportes-empty[hidden],
+    .reportes-output[hidden] {
+        display: none !important;
+    }
+
+    .reportes-empty {
+        display: grid;
+        place-items: center;
+        gap: 0.45rem;
+        min-height: 220px;
+        padding: 2rem 1.5rem;
+        border-radius: 22px;
+        border: 1px dashed rgba(var(--secondary-rgb), 0.16);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(237, 231, 248, 0.55));
+        text-align: center;
+    }
+
+    .reportes-empty__icon {
+        font-size: 2rem;
+        line-height: 1;
+        opacity: 0.85;
+    }
+
+    .reportes-empty__title {
+        font-weight: 700;
+        color: var(--secondary-color);
+        font-size: 1rem;
+    }
+
+    .reportes-empty__text {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        max-width: 42ch;
+    }
+
+    .reportes-output {
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        gap: 2rem;
+        gap: 1.5rem;
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    @media (max-width: 640px) {
+        form {
+            grid-template-columns: 1fr;
+        }
+
+        .reportes-hero {
+            padding: 1.3rem;
+        }
+
+        .reportes-panel__header {
+            flex-direction: column;
+        }
+
+        .reportes-toolbar {
+            width: 100%;
+        }
+
+        .btn-imprimir {
+            width: 100%;
+        }
     }
 
     @media (max-width: 600px) {
         .menu-reportes nav {
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
         }
 
         .menu-reportes button {
-            width: 90%;
-            max-width: 300px;
+            width: 100%;
         }
     }
 
     :global(.grid-reportes) {
         display: grid;
-        grid-template-columns: repeat(3, 1fr); /* siempre 3 columnas */
+        grid-template-columns: repeat(3, 1fr);
         gap: 1.2rem;
-        margin-top: 1.5rem;
     }
 
     @media (max-width: 900px) {
         :global(.grid-reportes) {
-            grid-template-columns: repeat(2, 1fr); /* 2 columnas en pantallas medianas */
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        :global(.grid-reportes) {
+            grid-template-columns: 1fr;
         }
     }
 
     :global(.card) {
-        background: #f9f9f9;
-        border-radius: 8px;
-        padding: 1rem;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(237, 231, 248, 0.9));
+        border-radius: 22px;
+        padding: 1.2rem;
         text-align: center;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 16px 28px rgba(var(--primary-rgb), 0.08);
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
     }
 
     :global(.card h3) {
-        font-size: 1rem;
+        font-size: 0.95rem;
         margin-bottom: 0.5rem;
-        color: #333;
+        color: var(--primary-color);
     }
 
     :global(.card p) {
@@ -147,11 +395,11 @@ if (usuario.rol !== 'admin') {
         display: block;
         margin-top: 0.3rem;
         font-size: 0.9rem;
-        color: #666;
+        color: var(--text-muted);
     }
 
     :global(.card.highlight) {
-        background: var(--secondary-color);
+        background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.96), rgba(var(--secondary-rgb), 0.92));
         color: #fff;
     }
 
@@ -161,21 +409,73 @@ if (usuario.rol !== 'admin') {
         color: #fff;
     }
 
+    .menu-reportes button:hover {
+        scale: 1.03;
+    }
+
+    .menu-reportes button:active {
+        scale: 0.98;
+    }
+
+    :global(.reporte-subseccion) {
+        display: grid;
+        gap: 0.85rem;
+        padding: 1.1rem;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
+    }
+
+    :global(.reporte-subseccion h3) {
+        font-size: 1rem;
+        color: var(--secondary-color);
+        margin: 0;
+    }
+
+    :global(.tabla-wrapper) {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    :global(table.tabla-reportes) {
+        width: 100%;
+        min-width: 520px;
+        white-space: normal;
+    }
+
 </style>
 
 <script>
 
-    import { mostrarError, noRegistros } from '@/utils/helpers/mensajes.js';
+    import { mostrarError } from '@/utils/helpers/mensajes.js';
     import { cambioUSDaCOP } from '@/utils/helpers/cambioMoneda.js';
     import { formatearFecha } from '@/utils/helpers/formateoFecha';
-    import { renderChart } from '@/utils/helpers/chart.js';
+    import { renderChart, destroyCharts } from '@/utils/helpers/chart.js';
+    import { imprimir } from '@/utils/helpers/imprimir.js';
+    import { toPng } from "html-to-image";
+    import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
+    import { descargarExcel } from '@/utils/helpers/exportarExcel.js';
 
     const masVendidoBtn = document.querySelector('#masVendido');
     const stockBtn = document.querySelector('#stock');
-    const anuladasBtn = document.querySelector('#anuladas');
+    const reportesZBtn = document.querySelector('#reportesZ');
+    const libroComprasBtn = document.querySelector('#libroCompras');
     const cajaBtn = document.querySelector('#caja');
+    const metodosPagoBtn = document.querySelector('#metodosPago');
     const ventasBtn = document.querySelector('#ventas');    
     const creditosBtn = document.querySelector('#creditos');
+    const devolucionesBtn = document.querySelector('#devoluciones');
+    const fletesBtn = document.querySelector('#fletes');
+    const menuButtons = document.querySelectorAll('.menu-reportes button');
+    const reportesContainer = document.getElementById('reportes') as HTMLDivElement;
+    const reportesEmpty = document.getElementById('reportes-empty') as HTMLDivElement;
+    const reportesToolbar = document.getElementById('reportes-toolbar') as HTMLDivElement;
+    const reporteActivoTitulo = document.getElementById('reporte-activo-titulo') as HTMLHeadingElement;
+    const reporteActivoDesc = document.getElementById('reporte-activo-desc') as HTMLParagraphElement;
+    const btnImprimir = document.getElementById('imprimir') as HTMLButtonElement;
+    const btnExportarExcel = document.getElementById('btnExportarExcel') as HTMLButtonElement;
+
+    let exportPayloadActual: { nombreArchivo: string; hojas: Array<{ nombre: string; filas: any[] }> } | null = null;
 
     interface Producto {
         codigo_producto: string;
@@ -185,49 +485,166 @@ if (usuario.rol !== 'admin') {
         unidad_medida: string;
     }
 
-    interface VentaAnulada {
+    interface ReporteZ {
+        id: string;
+        nro_reporte_z: number | null;
+        fecha_apertura: string;
+        hora_apertura: string;
+        fecha_cierre: string | null;
+        hora_cierre: string | null;
+        usuario_apertura_nombre: string;
+        usuario_cierre_nombre: string | null;
+        tasa_bcv_cierre: number;
+        total_ventas_contado: number;
+        total_ventas_credito: number;
+        base_imponible_usd: number;
+        base_imponible_bs: number;
+        exento_usd: number;
+        exento_bs: number;
+        iva_usd: number;
+        iva_bs: number;
+        retencion_iva_usd: number;
+        retencion_iva_bs: number;
+        total_facturado_usd: number;
+        total_facturado_bs: number;
+        total_devoluciones_usd: number;
+        total_devoluciones_bs: number;
+        cantidad_facturas: number;
+        primera_factura: number | null;
+        ultima_factura: number | null;
+        observaciones: string;
+    }
+
+    interface DevolucionReporte {
+        id: string;
+        id_venta: number;
+        monto_total: number;
+        tipo_resolucion: string;
+        saldo_disponible: number;
+        motivo: string;
+        fecha_creacion: string;
+        cliente_nombre: string;
+        cliente_cedula: string;
+    }
+
+    interface VentaReporte {
+        id?: string;
+        tipo_documento?: string;
+        nro_factura?: number | null;
+        nro_nota_entrega?: number | null;
         fecha_venta: string;
         nombre_cliente: string;
         cedula_cliente: string;
+        subtotal_base?: number;
+        subtotal_exento?: number;
+        iva_monto?: number;
+        retencion_iva_monto?: number;
+        tasa_bcv?: number;
+        tasa_cop?: number;
         total_usd: number;
         tipo_pago: string;
         estado: string;
+        facturada_en_venta_id?: string | null;
+        nota_entrega_origen_id?: string | null;
     }
 
-    // Resetear contenedor de reportes y mensajes
+    function setActiveButton(activeBtn: HTMLElement | null) {
+        menuButtons.forEach((btn) => {
+            btn.classList.toggle('is-active', btn === activeBtn);
+        });
+    }
+
+    function setImprimirVisible(visible: boolean) {
+        reportesToolbar.hidden = !visible;
+    }
+
+    function setResultadosVisibles(visible: boolean) {
+        reportesContainer.toggleAttribute('hidden', !visible);
+        reportesEmpty.toggleAttribute('hidden', visible);
+    }
+
+    function setEstadoInicial() {
+        reportesContainer.toggleAttribute('hidden', true);
+        reportesEmpty.toggleAttribute('hidden', false);
+        setImprimirVisible(false);
+    }
+
+    function setEstadoCargando() {
+        reportesContainer.toggleAttribute('hidden', true);
+        reportesEmpty.toggleAttribute('hidden', true);
+        setImprimirVisible(false);
+    }
+
+    function restablecerVistaInicial() {
+        setActiveButton(null);
+        setEstadoInicial();
+        setReporteMeta('Selecciona un reporte', 'Elige un tipo de reporte arriba y, si aplica, define el rango de fechas.');
+    }
+
+    function setReporteMeta(titulo: string, descripcion: string) {
+        reporteActivoTitulo.textContent = titulo;
+        reporteActivoDesc.textContent = descripcion;
+    }
+
+    function mostrarResultados(titulo: string, descripcion: string) {
+        setReporteMeta(titulo, descripcion);
+        setResultadosVisibles(true);
+        setImprimirVisible(true);
+    }
+
     function resetContenedor() {
-        const container = document.getElementById('reportes') as HTMLDivElement;
-        container.innerHTML = '';
-        const mensaje = document.getElementById('mensaje') as HTMLDivElement;
-        mensaje.style.display = 'none';
-        const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
-        btnImprimir.style.display = 'none';
+        destroyCharts('reportes');
+        exportPayloadActual = null;
+        reportesContainer.innerHTML = '';
+        reportesContainer.classList.remove('charts-grid');
+        setEstadoCargando();
+        setReporteMeta('Generando reporte…', 'Estamos preparando la información solicitada.');
     }
 
-    // Reporte de productos mas vendidos
+    setEstadoInicial();
+
+    function prepararGraficos(cantidad = 1) {
+        if (cantidad > 1) {
+            reportesContainer.classList.add('charts-grid');
+        }
+    }
+
+    function validarFechas(desde: string, hasta: string): boolean {
+        if (!desde || !hasta) {
+            mostrarError('Debe seleccionar ambas fechas');
+            return false;
+        }
+        if (hasta < desde) {
+            mostrarError('La fecha final no puede ser menor que la inicial');
+            return false;
+        }
+        return true;
+    }
+
+    function getButtonMeta(button: HTMLElement) {
+        return {
+            titulo: button.dataset.label || button.textContent?.trim() || 'Reporte',
+            descripcion: 'Resultados listos para revisión e impresión.',
+        };
+    }
+
     masVendidoBtn?.addEventListener("click", async (e: Event) => {
 
         e.preventDefault();
-
+        const button = e.currentTarget as HTMLElement;
         resetContenedor();
+        setActiveButton(button);
 
         const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
         const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
 
-        // Validaciones de las fechas
-        if (!desde || !hasta) {
-            mostrarError("Debe seleccionar ambas fechas");
-            return;
-        }
-        if (hasta < desde) {
-            mostrarError("La fecha final no puede ser menor que la inicial");
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
             return;
         }
 
         try {
-
             const response = await fetch(`/api/reportes/productosMasVendidos?desde=${desde}&hasta=${hasta}`);
-
             if (!response.ok) throw new Error(`Error ${response.status}`);
 
             const productos: {
@@ -235,41 +652,43 @@ if (usuario.rol !== 'admin') {
                 menos_vendidos: Producto[];
             } = await response.json();
 
-
             if (!productos || !Array.isArray(productos.mas_vendidos) || !Array.isArray(productos.menos_vendidos) || (productos.mas_vendidos.length === 0 && productos.menos_vendidos.length === 0)) {
-                mostrarError("No hay productos vendidos en ese rango de fecha");
+                restablecerVistaInicial();
+                mostrarError('No hay productos vendidos en ese rango de fecha');
                 return;
             }
 
-            const btnImprimir = (document.querySelector('#imprimir') as HTMLAnchorElement);
-            btnImprimir.style.display = 'block';
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `Comparativo de productos entre ${desde} y ${hasta}.`);
+            prepararGraficos(2);
 
-            // Datos para el grafico de mas vendidos
             renderChart(
                 "Productos Más Vendidos",
                 productos.mas_vendidos.map((p: Producto) => p.nombre_producto.toUpperCase()),
-                productos.mas_vendidos.map((p: Producto) => p.cantidad_total)
+                productos.mas_vendidos.map((p: Producto) => p.cantidad_total),
+                { valueLabel: "Unidades vendidas" }
             );
 
-            // Datos para el grafico de menos vendidos
             renderChart(
                 "Productos Menos Vendidos",
                 productos.menos_vendidos.map((p: Producto) => p.nombre_producto.toUpperCase()),
-                productos.menos_vendidos.map((p: Producto) => p.cantidad_total)
+                productos.menos_vendidos.map((p: Producto) => p.cantidad_total),
+                { valueLabel: "Unidades vendidas" }
             );
 
         } catch (error) {
             console.error("Error al generar reporte:", error);
-            mostrarError("No se pudo generar el reporte");
+            restablecerVistaInicial();
+            mostrarError('No se pudo generar el reporte');
         }
     });
 
-    // Reporte de productos con menos stock
     stockBtn?.addEventListener('click', async (e: Event) => {
 
         e.preventDefault();
-
+        const button = e.currentTarget as HTMLElement;
         resetContenedor();
+        setActiveButton(button);
 
         try {
             const response = await fetch(`/api/reportes/menosStock`);
@@ -281,453 +700,1198 @@ if (usuario.rol !== 'admin') {
                 || !Array.isArray(productos.agotados) 
                 || (productos.bajos.length === 0 && productos.agotados.length === 0)
             ) {
-                mostrarError("No hay productos con poco stock");
+                restablecerVistaInicial();
+                mostrarError('No hay productos con poco stock');
                 return;
             }
 
-            const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
-            btnImprimir.style.display = 'block';
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, 'Inventario crítico y productos agotados en el sistema.');
 
-            renderChart(
-                "Productos Bajos en Stock",
-                productos.bajos.map((p: Producto) => p.nombre_producto.toUpperCase()),
-                productos.bajos.map((p: Producto) => p.cantidad_total)
-            );
+            if (productos.bajos.length > 0) {
+                renderChart(
+                    "Productos Bajos en Stock",
+                    productos.bajos.map((p: Producto) => p.nombre_producto.toUpperCase()),
+                    productos.bajos.map((p: Producto) => p.cantidad_total),
+                    { valueLabel: "Stock disponible" }
+                );
+            }
 
-            if (productos.agotados.length === 0) return;
+            if (productos.agotados.length > 0) {
+                const tablaAgotados = `
+                    <section class="reporte-subseccion">
+                        <h3>Productos Agotados</h3>
+                        <div class="tabla-wrapper">
+                            <table class="tabla-reportes">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Código</th>
+                                        <th>Cantidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${productos.agotados.map((p: Producto) => `
+                                        <tr>
+                                            <td>${p.nombre_producto.toUpperCase()}</td>
+                                            <td>${p.codigo_producto}</td>
+                                            <td>${p.cantidad_total} ${p.unidad_medida}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                `;
 
-            // Renderizar tabla de productos agotados
-            const tablaAgotados : string = `
-            <br /><br />
-            <h2>Productos Agotados</h2>
-            <table>
-                <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>Código</th>
-                    <th>Cantidad</th>
-                </tr>
-                </thead>
-                <tbody>
-                ${productos.agotados
-                    .map(
-                    (p: Producto) => `
-                    <tr>
-                    <td>${p.nombre_producto.toUpperCase()}</td>
-                    <td>${p.codigo_producto}</td>
-                    <td>${p.cantidad_total} ${p.unidad_medida}</td>
-                    </tr>
-                `
-                    )
-                    .join("")}
-                </tbody>
-            </table>
-            `;
-
-            // Insertar en el DOM (ejemplo)
-            const contenedor = document.getElementById("reportes") as HTMLDivElement;
-            contenedor.insertAdjacentHTML("beforeend", tablaAgotados);      
+                reportesContainer.insertAdjacentHTML('beforeend', tablaAgotados);
+            }
 
         } catch (error) {
             console.error('Error al generar reporte:', error);
+            restablecerVistaInicial();
             mostrarError('No se pudo generar el reporte');
         }
     });
 
-    // Reporte de ingresos netos
     cajaBtn?.addEventListener('click', async (e: Event) => {
 
         e.preventDefault();
-
+        const button = e.currentTarget as HTMLElement;
         resetContenedor();
+        setActiveButton(button);
 
         const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
         const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
-        const container = document.getElementById('reportes') as HTMLDivElement;
 
-        // Validaciones de las fechas
-        if (desde === '' || hasta === '') {
-            mostrarError('Debe seleccionar ambas fechas');
-            return;
-        }
-        if (hasta < desde) {
-            mostrarError('La fecha final no puede ser menor que la inicial');
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
             return;
         }
 
         try {
-
             const response = await fetch(`/api/reportes/ingresos?desde=${desde}&hasta=${hasta}`);
             if (!response.ok) throw new Error(`Error ${response.status}`);
 
             const ventas = await response.json();
-
-            const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
-            btnImprimir.style.display = 'block';
-
-            // Obtener tasa de cambio
             const tasa = await cambioUSDaCOP();
+            const meta = getButtonMeta(button);
 
-            // Crear grid
-            container.innerHTML = `
+            mostrarResultados(meta.titulo, `Resumen financiero del ${desde} al ${hasta}.`);
+
+            reportesContainer.innerHTML = `
                 <div class="grid-reportes">
                     <div class="card">
-                        <h3>Nro. Ventas a Contado</h3>
-                        <p>${ventas.resumen.ventas_contado}</p>
+                        <h3>Facturado Fiscal (BCV + IVA)</h3>
+                        <p>${Number(ventas.resumen.total_facturado_bs || 0).toFixed(4)} Bs</p>
+                        <small>${ventas.resumen.facturas_bs_count || 0} factura(s) · Equiv. $${Number(ventas.resumen.total_facturado_bcv_usd || 0).toFixed(4)} USD BCV</small>
                     </div>
                     <div class="card">
-                        <h3>Nro. Abonos</h3>
-                        <p>${ventas.resumen.abonos_realizados}</p>
+                        <h3>IVA Facturado (SENIAT)</h3>
+                        <p>${Number(ventas.resumen.iva_bs || 0).toFixed(4)} Bs</p>
+                        <small>Base: ${Number(ventas.resumen.base_imponible_bs || 0).toFixed(4)} Bs · Exento: ${Number(ventas.resumen.exento_bs || 0).toFixed(4)} Bs</small>
+                    </div>
+                    <div class="card">
+                        <h3>Notas de Entrega (Divisas / Sin IVA)</h3>
+                        <p>$${Number(ventas.resumen.total_notas_entrega_usd || 0).toFixed(4)} USD</p>
+                        <small>${ventas.resumen.notas_entrega_count || 0} nota(s) · ${Math.ceil(Number(ventas.resumen.total_notas_entrega_cop || 0)).toLocaleString('es-CO')} COP</small>
                     </div>
                     <div class="card highlight">
-                        <h3>Total en Caja</h3>
-                        <p>${Number(ventas.resumen.total_ventas_contado + ventas.resumen.total_abonos_realizados)} COP</p>
-                        <small>${Math.ceil((ventas.resumen.total_ventas_contado + ventas.resumen.total_abonos_realizados) / tasa)} USD</small>
+                        <h3>Total Neto en Caja (Ref. USD)</h3>
+                        <p>$${ventas.resumen.total_en_caja.toFixed(4)} USD</p>
+                        <small>Contado (${ventas.resumen.ventas_contado}) + Abonos (${ventas.resumen.abonos_realizados}) - Salidas</small>
                     </div>
                     <div class="card">
-                        <h3>Total de Contado</h3>
-                        <p>${ventas.resumen.total_ventas_contado} COP</p>
-                        <small>${(ventas.resumen.total_ventas_contado / tasa).toFixed(2)} USD</small>
+                        <h3>Abonos Recibidos</h3>
+                        <p>$${ventas.resumen.total_abonos_realizados.toFixed(4)} USD</p>
+                        <small>${ventas.resumen.abonos_realizados} abono(s) · ${Math.ceil(ventas.resumen.total_abonos_realizados * tasa).toLocaleString('es-CO')} COP</small>
                     </div>
                     <div class="card">
-                        <h3>Total de Abonos</h3>
-                        <p>${ventas.resumen.total_abonos_realizados} COP</p>
-                        <small>${(ventas.resumen.total_abonos_realizados / tasa).toFixed(2)} USD</small>
+                        <h3>Pagado con Nota de Crédito</h3>
+                        <p>$${(ventas.resumen.notas_usadas || 0).toFixed(4)} USD</p>
+                        <small>No representa ingreso en efectivo</small>
                     </div>
-
+                    <div class="card">
+                        <h3>Salidas (Devoluciones)</h3>
+                        <p style="color: #ef4444;">-$${ventas.resumen.salidas_efectivo.toFixed(4)} USD</p>
+                        <small>${Math.ceil(ventas.resumen.salidas_efectivo * tasa).toLocaleString('es-CO')} COP</small>
+                    </div>
+                    <div class="card">
+                        <h3>Gastos de Flete (Descontados)</h3>
+                        <p style="color: #b45309;">-$${(ventas.resumen.total_fletes || 0).toFixed(4)} USD</p>
+                        <small>Descontado de caja y utilidades</small>
+                    </div>
                     <div class="card">
                         <h3>Ganancia Neta de Contado</h3>
-                        <p>${ventas.resumen.margen_ganancia} COP</p>
-                        <small>${(ventas.resumen.margen_ganancia / tasa).toFixed(2)} USD</small>
+                        <p>$${ventas.resumen.margen_ganancia.toFixed(4)} USD</p>
+                        <small>${Math.ceil(ventas.resumen.margen_ganancia * tasa).toLocaleString('es-CO')} COP</small>
                     </div>
                 </div>
             `;
 
-            // Construir arrays para el gráfico
-            const labels = [
-                "Contado",
+            const metodosRes = await fetch(`/api/reportes/metodosPago?desde=${desde}&hasta=${hasta}`);
+            let filasMetodosExcel: any[] = [];
+            if (metodosRes.ok) {
+                const metodosData = await metodosRes.json();
+                if (Array.isArray(metodosData.metodos) && metodosData.metodos.length > 0) {
+                    filasMetodosExcel = metodosData.metodos.map((fila: any) => ({
+                        Metodo: fila.etiqueta,
+                        Operaciones: fila.cantidad,
+                        Moneda: fila.moneda,
+                        Monto_Recibido: Number(fila.total_moneda) || 0,
+                        Equivalente_USD: Number(fila.total_base) || 0,
+                    }));
+                    const tablaMetodos = document.createElement('div');
+                    tablaMetodos.className = 'tabla-wrapper';
+                    tablaMetodos.innerHTML = `
+                        <h3 style="margin: 1.2rem 0 0.6rem;">Ingreso por método de pago</h3>
+                        <table class="tabla-reportes">
+                            <thead>
+                                <tr>
+                                    <th>Método</th>
+                                    <th>Operaciones</th>
+                                    <th>Recibido</th>
+                                    <th>Equivalente</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${metodosData.metodos.map((fila: any) => `
+                                    <tr>
+                                        <td data-label="Método">${fila.etiqueta}</td>
+                                        <td data-label="Operaciones">${fila.cantidad}</td>
+                                        <td data-label="Recibido">${formatearMoneda(fila.total_moneda, fila.moneda)}</td>
+                                        <td data-label="Equivalente">${formatearMoneda(fila.total_base, metodosData.moneda_base)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    reportesContainer.appendChild(tablaMetodos);
+                }
+            }
+
+            exportPayloadActual = {
+                nombreArchivo: `reporte_caja_${desde}_a_${hasta}`,
+                hojas: [
+                    {
+                        nombre: 'Resumen Caja',
+                        filas: [
+                            { Concepto: 'Facturas Fiscales (Cantidad)', Valor: ventas.resumen.facturas_bs_count || 0, Moneda: 'UND' },
+                            { Concepto: 'Base Imponible (Bs)', Valor: Number((ventas.resumen.base_imponible_bs || 0).toFixed(4)), Moneda: 'Bs' },
+                            { Concepto: 'Exento (Bs)', Valor: Number((ventas.resumen.exento_bs || 0).toFixed(4)), Moneda: 'Bs' },
+                            { Concepto: 'IVA Facturado (Bs)', Valor: Number((ventas.resumen.iva_bs || 0).toFixed(4)), Moneda: 'Bs' },
+                            { Concepto: 'Total Facturado Fiscal (Bs)', Valor: Number((ventas.resumen.total_facturado_bs || 0).toFixed(4)), Moneda: 'Bs' },
+                            { Concepto: 'Total Facturado Fiscal (Equiv BCV USD)', Valor: Number((ventas.resumen.total_facturado_bcv_usd || 0).toFixed(4)), Moneda: 'USD' },
+                            { Concepto: 'Notas de Entrega (Cantidad)', Valor: ventas.resumen.notas_entrega_count || 0, Moneda: 'UND' },
+                            { Concepto: 'Notas de Entrega (USD)', Valor: Number((ventas.resumen.total_notas_entrega_usd || 0).toFixed(4)), Moneda: 'USD' },
+                            { Concepto: 'Notas de Entrega (COP)', Valor: Math.ceil(ventas.resumen.total_notas_entrega_cop || 0), Moneda: 'COP' },
+                            { Concepto: 'Abonos Recibidos (USD)', Valor: Number((ventas.resumen.total_abonos_realizados || 0).toFixed(4)), Moneda: 'USD' },
+                            { Concepto: 'Pagado con Nota de Crédito (USD)', Valor: Number((ventas.resumen.notas_usadas || 0).toFixed(4)), Moneda: 'USD' },
+                            { Concepto: 'Salidas por Devoluciones (USD)', Valor: Number((ventas.resumen.salidas_efectivo || 0).toFixed(4)), Moneda: 'USD' },
+                            { Concepto: 'Total Neto en Caja (Ref. USD)', Valor: Number((ventas.resumen.total_en_caja || 0).toFixed(4)), Moneda: 'USD' },
+                            { Concepto: 'Ganancia Neta de Contado (USD)', Valor: Number((ventas.resumen.margen_ganancia || 0).toFixed(4)), Moneda: 'USD' },
+                        ],
+                    },
+                    ...(filasMetodosExcel.length > 0 ? [{ nombre: 'Metodos de Pago', filas: filasMetodosExcel }] : []),
+                ],
+            };
+
+            renderChart("Reporte de Caja (Ref. USD)", [
+                "Facturas BCV",
+                "Notas Entrega",
                 "Crédito",
                 "Abonos",
-                "Total",
+                "Salidas",
+                "Caja Total",
                 "Ganancia"
-            ];
-
-            const data = [
-                Math.ceil(ventas.resumen.total_ventas_contado),
+            ], [
+                Math.ceil(ventas.resumen.total_facturado_bcv_usd || 0),
+                Math.ceil(ventas.resumen.total_notas_entrega_usd || 0),
                 Math.ceil(ventas.resumen.total_ventas_credito),
                 Math.ceil(ventas.resumen.total_abonos_realizados),
+                Math.ceil(ventas.resumen.salidas_efectivo),
                 Math.ceil(ventas.resumen.total_en_caja),
                 Math.ceil(ventas.resumen.margen_ganancia),
-            ];
-
-            // Renderizar gráfico
-            renderChart("Reporte de Caja en COP", labels, data);
+            ], {
+                valueLabel: "USD",
+                horizontal: false,
+            });
 
         } catch (error) {
             console.error('Error al generar reporte:', error);
+            restablecerVistaInicial();
             mostrarError('No se pudo generar el reporte');
         }
     });
 
-    // Reporte de ventas totales
+    metodosPagoBtn?.addEventListener('click', async (e: Event) => {
+        e.preventDefault();
+        const button = e.currentTarget as HTMLElement;
+        resetContenedor();
+        setActiveButton(button);
+
+        const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
+        const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
+
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/reportes/metodosPago?desde=${desde}&hasta=${hasta}`);
+            if (!response.ok) throw new Error(`Error ${response.status}`);
+
+            const data = await response.json();
+            const metodos = Array.isArray(data.metodos) ? data.metodos : [];
+
+            if (metodos.length === 0) {
+                restablecerVistaInicial();
+                mostrarError('No hay pagos registrados en ese rango de fecha');
+                return;
+            }
+
+            const monedaBase = data.moneda_base || obtenerMonedaBase();
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `Ingreso por método de pago del ${desde} al ${hasta}.`);
+
+            reportesContainer.innerHTML = `
+                <div class="grid-reportes">
+                    <div class="card highlight">
+                        <h3>Total ingresado</h3>
+                        <p>${formatearMoneda(data.total_base, monedaBase)}</p>
+                    </div>
+                    ${Object.values(data.por_moneda || {}).map((grupo: any) => `
+                        <div class="card">
+                            <h3>${grupo.etiqueta}</h3>
+                            <p>${formatearMoneda(grupo.total_moneda, grupo.moneda)}</p>
+                            <small>${formatearMoneda(grupo.total_base, monedaBase)}</small>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="tabla-wrapper">
+                    <table class="tabla-reportes">
+                        <thead>
+                            <tr>
+                                <th>Método</th>
+                                <th>Operaciones</th>
+                                <th>Recibido</th>
+                                <th>Equivalente</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${metodos.map((fila: any) => `
+                                <tr>
+                                    <td data-label="Método">${fila.etiqueta}</td>
+                                    <td data-label="Operaciones">${fila.cantidad}</td>
+                                    <td data-label="Recibido">${formatearMoneda(fila.total_moneda, fila.moneda)}</td>
+                                    <td data-label="Equivalente">${formatearMoneda(fila.total_base, monedaBase)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            renderChart("Ingreso por método de pago", metodos.map((fila: any) => fila.etiqueta), metodos.map((fila: any) => Number(fila.total_base) || 0), {
+                valueLabel: monedaBase,
+                horizontal: true,
+            });
+        } catch (error) {
+            console.error('Error al generar reporte:', error);
+            restablecerVistaInicial();
+            mostrarError('No se pudo generar el reporte');
+        }
+    });
+
     ventasBtn?.addEventListener('click', async (e: Event) => {
 
         e.preventDefault();
-
+        const button = e.currentTarget as HTMLElement;
         resetContenedor();
-        const container = document.getElementById('reportes') as HTMLDivElement;
+        setActiveButton(button);
 
         const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
         const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
 
-        // Validaciones de las fechas
-        if (desde === '' || hasta === '') {
-            mostrarError('Debe seleccionar ambas fechas');
-            return;
-        }
-
-        if (hasta < desde) {
-            mostrarError('La fecha final no puede ser menor que la inicial');
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
             return;
         }
 
         try {
-
             const response = await fetch(`/api/reportes/ventasTotales?desde=${desde}&hasta=${hasta}`);
             if (!response.ok) throw new Error(`Error ${response.status}`);
 
-            const ventas : VentaAnulada[] = await response.json();
+            const ventas: VentaReporte[] = await response.json();
 
             if (ventas.length === 0) {
-                container.innerHTML = '';
-                noRegistros("No hay ventas en ese rango de fecha")
+                restablecerVistaInicial();
+                mostrarError('No hay ventas en ese rango de fecha');
                 return;
             }
 
-            const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
-            btnImprimir.style.display = 'block';
-
-            // Obtener tasa de cambio
             const tasa = await cambioUSDaCOP();
+            const meta = getButtonMeta(button);
 
-            const tabla = document.createElement('table');
-            tabla.classList.add('tabla-reportes');
+            let cantFacturas = 0;
+            let totalFacturasBs = 0;
+            let totalFacturasIvaBs = 0;
+            let totalFacturasBcvUsd = 0;
+            let cantNotas = 0;
+            let totalNotasUsd = 0;
+            let totalNotasCop = 0;
 
+            for (const v of ventas) {
+                const esNota = v.tipo_documento === 'nota_entrega';
+                const totalUsd = Number(v.total_usd) || 0;
+                const tBcv = Number(v.tasa_bcv) || 0;
+                const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasa;
+                const ivaUsd = Number(v.iva_monto) || 0;
+
+                if (esNota) {
+                    cantNotas += 1;
+                    totalNotasUsd += totalUsd;
+                    totalNotasCop += Math.ceil(totalUsd * tCop);
+                } else {
+                    cantFacturas += 1;
+                    totalFacturasBcvUsd += totalUsd;
+                    totalFacturasBs += totalUsd * tBcv;
+                    totalFacturasIvaBs += ivaUsd * tBcv;
+                }
+            }
+
+            mostrarResultados(meta.titulo, `${ventas.length} documento(s) entre ${desde} y ${hasta} (${cantFacturas} factura(s) BCV · ${cantNotas} nota(s) de entrega).`);
+
+            const resumenCards = document.createElement('div');
+            resumenCards.className = 'cards-resumen';
+            resumenCards.innerHTML = `
+                <div class="card">
+                    <h3>Facturas Fiscales (BCV + IVA)</h3>
+                    <p>${totalFacturasBs.toFixed(4)} Bs</p>
+                    <small>${cantFacturas} factura(s) · IVA: ${totalFacturasIvaBs.toFixed(4)} Bs · Equiv. $${totalFacturasBcvUsd.toFixed(4)} BCV</small>
+                </div>
+                <div class="card">
+                    <h3>Notas de Entrega (Divisas / Sin IVA)</h3>
+                    <p>$${totalNotasUsd.toFixed(4)} USD</p>
+                    <small>${cantNotas} nota(s) · ${totalNotasCop.toLocaleString('es-CO')} COP</small>
+                </div>
+            `;
+            reportesContainer.appendChild(resumenCards);
+
+            const tabla = document.createElement('div');
+            tabla.className = 'tabla-wrapper';
             tabla.innerHTML = `
-                                <thead>
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Cliente</th>
-                                        <th>Monto</th>
-                                        <th>Tipo de Pago</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${ventas.map(v => `
-                                    <tr>
-                                        <td data-label="Fecha">
-                                            ${formatearFecha(v.fecha_venta)}
-                                        </td>
-                                        <td data-label="Cliente">
-                                            ${v.nombre_cliente.toUpperCase()}
-                                            <br />
-                                            C.I. ${v.cedula_cliente}    
-                                        </td>
-                                        <td data-label="Monto">
-                                            ${v.total_usd} COP
-                                            <br />
-                                            ${(v.total_usd / tasa).toFixed(2)} USD
-                                        </td>
-                                        <td data-label="Tipo de Pago">${v.tipo_pago.toUpperCase()}</td>
-                                        <td data-label="Estado">${
-                                            v.estado.toUpperCase()
-                                        }</td>  
-                                    </tr>
-                                    `).join('')}
-                                </tbody>
+                <table class="tabla-reportes">
+                    <thead>
+                        <tr>
+                            <th>Documento / Fecha</th>
+                            <th>Cliente</th>
+                            <th>Modalidad</th>
+                            <th>Monto</th>
+                            <th>Tipo de Pago</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${ventas.map(v => {
+                            const esNota = v.tipo_documento === 'nota_entrega';
+                            const totalUsd = Number(v.total_usd) || 0;
+                            const tBcv = Number(v.tasa_bcv) || 0;
+                            const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasa;
+                            const ivaUsd = Number(v.iva_monto) || 0;
+                            const docLabel = esNota
+                                ? `NE-${String(v.nro_nota_entrega || 1).padStart(6, '0')}`
+                                : `#${String(v.nro_factura || 1).padStart(6, '0')}`;
+                            const badgeDoc = esNota
+                                ? `<span style="display:inline-block; font-size:0.65rem; padding:2px 6px; border-radius:99px; background:rgba(16,185,129,0.14); color:#047857; font-weight:800;">NOTA ENTREGA</span>`
+                                : `<span style="display:inline-block; font-size:0.65rem; padding:2px 6px; border-radius:99px; background:rgba(37,99,235,0.14); color:#1d4ed8; font-weight:800;">FACTURA BCV</span>`;
+                            const estadoNotaBadge = esNota && v.facturada_en_venta_id
+                                ? `<br/><small style="color:#1d4ed8; font-weight:700;">Facturada</small>`
+                                : (esNota ? `<br/><small style="color:#b45309; font-weight:700;">Sin facturar</small>` : '');
+
+                            const montoHtml = esNota
+                                ? `<strong>$${totalUsd.toFixed(4)} USD</strong><br/><small>${Math.ceil(totalUsd * tCop).toLocaleString('es-CO')} COP</small>`
+                                : `<strong>${(totalUsd * tBcv).toFixed(4)} Bs</strong><br/><small>IVA: ${(ivaUsd * tBcv).toFixed(4)} Bs · $${totalUsd.toFixed(4)} BCV</small>`;
+
+                            return `
+                                <tr>
+                                    <td data-label="Documento / Fecha">
+                                        ${badgeDoc} <strong>${docLabel}</strong>
+                                        <br />
+                                        <small>${formatearFecha(v.fecha_venta)}</small>
+                                        ${estadoNotaBadge}
+                                    </td>
+                                    <td data-label="Cliente">
+                                        ${v.nombre_cliente.toUpperCase()}
+                                        <br />
+                                        C.I. ${v.cedula_cliente}
+                                    </td>
+                                    <td data-label="Modalidad">${esNota ? 'Divisas (Sin IVA)' : 'Fiscal BCV + IVA'}</td>
+                                    <td data-label="Monto">${montoHtml}</td>
+                                    <td data-label="Tipo de Pago">${v.tipo_pago.toUpperCase()}</td>
+                                    <td data-label="Estado">${v.estado.toUpperCase()}</td>
+                                </tr>
                             `;
-            container.appendChild(tabla);
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            reportesContainer.appendChild(tabla);
+
+            const filasFacturasExcel = ventas
+                .filter((v) => v.tipo_documento !== 'nota_entrega')
+                .map((v) => {
+                    const tBcv = Number(v.tasa_bcv) || 0;
+                    const baseUsd = Number(v.subtotal_base) || 0;
+                    const exentoUsd = Number(v.subtotal_exento) || 0;
+                    const ivaUsd = Number(v.iva_monto) || 0;
+                    const retUsd = Number(v.retencion_iva_monto) || 0;
+                    const totUsd = Number(v.total_usd) || 0;
+                    return {
+                        Fecha: v.fecha_venta,
+                        Nro_Factura: v.nro_factura || '',
+                        Cliente: String(v.nombre_cliente || '').toUpperCase(),
+                        Cedula_RIF: v.cedula_cliente || '',
+                        Tasa_BCV: tBcv,
+                        Base_Imponible_Bs: Number((baseUsd * tBcv).toFixed(4)),
+                        Exento_Bs: Number((exentoUsd * tBcv).toFixed(4)),
+                        IVA_Bs: Number((ivaUsd * tBcv).toFixed(4)),
+                        Retencion_IVA_Bs: Number((retUsd * tBcv).toFixed(4)),
+                        Total_Bs: Number((totUsd * tBcv).toFixed(4)),
+                        Equiv_BCV_USD: Number(totUsd.toFixed(4)),
+                        Tipo_Pago: String(v.tipo_pago || '').toUpperCase(),
+                        Estado: String(v.estado || '').toUpperCase(),
+                    };
+                });
+
+            const filasNotasExcel = ventas
+                .filter((v) => v.tipo_documento === 'nota_entrega')
+                .map((v) => {
+                    const totUsd = Number(v.total_usd) || 0;
+                    const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasa;
+                    return {
+                        Fecha: v.fecha_venta,
+                        Nro_Nota_Entrega: v.nro_nota_entrega ? `NE-${String(v.nro_nota_entrega).padStart(6, '0')}` : '',
+                        Cliente: String(v.nombre_cliente || '').toUpperCase(),
+                        Cedula_RIF: v.cedula_cliente || '',
+                        Total_USD: Number(totUsd.toFixed(4)),
+                        Total_COP: Math.ceil(totUsd * tCop),
+                        Facturada: v.facturada_en_venta_id ? 'SI' : 'NO',
+                        Tipo_Pago: String(v.tipo_pago || '').toUpperCase(),
+                        Estado: String(v.estado || '').toUpperCase(),
+                    };
+                });
+
+            exportPayloadActual = {
+                nombreArchivo: `libro_ventas_${desde}_a_${hasta}`,
+                hojas: [
+                    ...(filasFacturasExcel.length > 0 ? [{ nombre: 'Facturas Fiscales BCV', filas: filasFacturasExcel }] : []),
+                    ...(filasNotasExcel.length > 0 ? [{ nombre: 'Notas Entrega Divisas', filas: filasNotasExcel }] : []),
+                ],
+            };
+
         } catch (error) {
             console.error('Error al generar reporte:', error);
+            restablecerVistaInicial();
             mostrarError('No se pudo generar el reporte');
         }
     });
 
-    // Reporte de ventas anuladas
-    anuladasBtn?.addEventListener('click', async (e: Event) => {
+    reportesZBtn?.addEventListener('click', async (e: Event) => {
 
         e.preventDefault();
-
+        const button = e.currentTarget as HTMLElement;
         resetContenedor();
-        const container = document.getElementById('reportes') as HTMLDivElement;
+        setActiveButton(button);
 
         const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
         const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
 
-        // Validaciones de las fechas
-        if (desde === '' || hasta === '') {
-            mostrarError('Debe seleccionar ambas fechas');
-            return;
-        }
-
-        if (hasta < desde) {
-            mostrarError('La fecha final no puede ser menor que la inicial');
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
             return;
         }
 
         try {
-
-            const response = await fetch(`/api/reportes/ventasAnuladas?desde=${desde}&hasta=${hasta}`);
+            const response = await fetch(`/api/reportes/reportesZ?desde=${desde}&hasta=${hasta}`);
             if (!response.ok) throw new Error(`Error ${response.status}`);
 
-            const ventas : VentaAnulada[] = await response.json();
+            const cierres: ReporteZ[] = await response.json();
 
-            if (ventas.length === 0) {
-                container.innerHTML = '';
-                noRegistros("No hay ventas anuladas en ese rango de fecha")
+            if (cierres.length === 0) {
+                restablecerVistaInicial();
+                mostrarError('No hay cierres de caja (Reportes Z) en ese rango de fecha');
                 return;
             }
 
-            const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
-            btnImprimir.style.display = 'block';
+            const totalFacturadoUsd = cierres.reduce((acc, c) => acc + Number(c.total_facturado_usd || 0), 0);
+            const totalFacturadoBs = cierres.reduce((acc, c) => acc + Number(c.total_facturado_bs || 0), 0);
+            const totalIvaBs = cierres.reduce((acc, c) => acc + Number(c.iva_bs || 0), 0);
+            const totalIvaUsd = cierres.reduce((acc, c) => acc + Number(c.iva_usd || 0), 0);
+            const totalFacturas = cierres.reduce((acc, c) => acc + Number(c.cantidad_facturas || 0), 0);
 
-            // Obtener tasa de cambio
-            const tasa = await cambioUSDaCOP();
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `${cierres.length} cierre(s) de caja (Reporte Z) entre ${desde} y ${hasta}.`);
 
-            const tabla = document.createElement('table');
-            tabla.classList.add('tabla-reportes');
+            const resumen = document.createElement('div');
+            resumen.className = 'cards-resumen';
+            resumen.innerHTML = `
+                <div class="card">
+                    <h3>Cierres Z Emitidos</h3>
+                    <p>${cierres.length}</p>
+                    <small>${totalFacturas} factura(s) fiscal(es)</small>
+                </div>
+                <div class="card">
+                    <h3>Total Facturado</h3>
+                    <p>${totalFacturadoBs.toFixed(4)} Bs</p>
+                    <small>$${totalFacturadoUsd.toFixed(4)} USD</small>
+                </div>
+                <div class="card">
+                    <h3>IVA Recaudado</h3>
+                    <p>${totalIvaBs.toFixed(4)} Bs</p>
+                    <small>$${totalIvaUsd.toFixed(4)} USD</small>
+                </div>
+            `;
+            reportesContainer.appendChild(resumen);
 
+            const tabla = document.createElement('div');
+            tabla.className = 'tabla-wrapper';
             tabla.innerHTML = `
-                                <thead>
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Cliente</th>
-                                        <th>Monto</th>
-                                        <th>Tipo de Pago</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${ventas.map(v => `
-                                    <tr>
-                                        <td data-label="Fecha">
-                                            ${formatearFecha(v.fecha_venta)}
-                                        </td>
-                                        <td data-label="Cliente">
-                                            ${v.nombre_cliente.toUpperCase()}
-                                            <br />
-                                            C.I. ${v.cedula_cliente}    
-                                        </td>
-                                        <td data-label="Monto">
-                                            ${v.total_usd} COP
-                                            <br />
-                                            ${(v.total_usd / tasa).toFixed(2)} USD
-                                        </td>
-                                        <td data-label="Tipo de Pago">${v.tipo_pago.toUpperCase()}</td>
-                                        <td data-label="Estado">${v.estado.toUpperCase()}</td>
-                                    </tr>
-                                    `).join('')}
-                                </tbody>
+                <table class="tabla-reportes">
+                    <thead>
+                        <tr>
+                            <th>N° Reporte Z</th>
+                            <th>Fecha Cierre</th>
+                            <th>Responsable</th>
+                            <th>Facturas</th>
+                            <th>Base + Exento</th>
+                            <th>IVA</th>
+                            <th>Total Fiscal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${cierres.map(c => {
+                            const nroZ = `Z-${String(c.nro_reporte_z || 0).padStart(4, '0')}`;
+                            const fechaCierre = c.fecha_cierre || c.fecha_apertura;
+                            const rangoFacturas = c.primera_factura && c.ultima_factura
+                                ? `<small>#${c.primera_factura} - #${c.ultima_factura}</small>`
+                                : '';
+                            return `
+                                <tr>
+                                    <td data-label="N° Reporte Z"><strong>${nroZ}</strong></td>
+                                    <td data-label="Fecha Cierre">
+                                        ${formatearFecha(fechaCierre)}
+                                        <br />
+                                        <small>${c.hora_cierre || ''}</small>
+                                    </td>
+                                    <td data-label="Responsable">${(c.usuario_cierre_nombre || c.usuario_apertura_nombre || '').toUpperCase()}</td>
+                                    <td data-label="Facturas">
+                                        ${c.cantidad_facturas || 0}
+                                        ${rangoFacturas ? `<br />${rangoFacturas}` : ''}
+                                    </td>
+                                    <td data-label="Base + Exento">
+                                        ${(Number(c.base_imponible_bs || 0) + Number(c.exento_bs || 0)).toFixed(4)} Bs
+                                        <br />
+                                        <small>$${(Number(c.base_imponible_usd || 0) + Number(c.exento_usd || 0)).toFixed(4)} USD</small>
+                                    </td>
+                                    <td data-label="IVA">
+                                        ${Number(c.iva_bs || 0).toFixed(4)} Bs
+                                        <br />
+                                        <small>$${Number(c.iva_usd || 0).toFixed(4)} USD</small>
+                                    </td>
+                                    <td data-label="Total Fiscal">
+                                        <strong>${Number(c.total_facturado_bs || 0).toFixed(4)} Bs</strong>
+                                        <br />
+                                        <small>$${Number(c.total_facturado_usd || 0).toFixed(4)} USD</small>
+                                    </td>
+                                </tr>
                             `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
 
-            container.appendChild(tabla);
+            reportesContainer.appendChild(tabla);
 
         } catch (error) {
-            console.error('Error al generar reporte:', error);
-            mostrarError('No se pudo generar el reporte');
+            console.error('Error al generar reporte Z:', error);
+            restablecerVistaInicial();
+            mostrarError('No se pudo generar el reporte Z');
         }
     });
 
-    // Reporte de créditos otorgados
+    libroComprasBtn?.addEventListener('click', async (e: Event) => {
+        e.preventDefault();
+        const button = e.currentTarget as HTMLElement;
+        resetContenedor();
+        setActiveButton(button);
+
+        const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
+        const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
+
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/reportes/libroCompras?desde=${desde}&hasta=${hasta}`);
+            if (!response.ok) throw new Error(`Error ${response.status}`);
+
+            const compras: any[] = await response.json();
+            if (compras.length === 0) {
+                restablecerVistaInicial();
+                mostrarError('No hay compras registradas en ese rango de fecha');
+                return;
+            }
+
+            let facturasCount = 0;
+            let baseTotalBs = 0;
+            let exentoTotalBs = 0;
+            let ivaCreditoBs = 0;
+            let retencionTotalBs = 0;
+            let totalComprasBs = 0;
+            let totalComprasUsd = 0;
+
+            for (const c of compras) {
+                const esNota = c.tipo_documento === 'nota_entrega';
+                const tBcv = Number(c.tasa_bcv) || 0;
+                const base = Number(c.subtotal_base) || 0;
+                const exento = Number(c.subtotal_exento) || 0;
+                const iva = Number(c.iva_monto) || 0;
+                const ret = Number(c.retencion_iva_monto) || 0;
+                const tot = Number(c.monto_total) || 0;
+
+                totalComprasUsd += tot;
+                if (!esNota) {
+                    facturasCount += 1;
+                    baseTotalBs += base * tBcv;
+                    exentoTotalBs += exento * tBcv;
+                    ivaCreditoBs += iva * tBcv;
+                    retencionTotalBs += ret * tBcv;
+                    totalComprasBs += tot * tBcv;
+                }
+            }
+
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `${compras.length} compra(s) registrada(s) entre ${desde} y ${hasta} (${facturasCount} factura(s) fiscal(es)).`);
+
+            const resumen = document.createElement('div');
+            resumen.className = 'cards-resumen';
+            resumen.innerHTML = `
+                <div class="card">
+                    <h3>Total Compras Fiscales</h3>
+                    <p>${totalComprasBs.toFixed(4)} Bs</p>
+                    <small>${facturasCount} factura(s) · Ref. $${totalComprasUsd.toFixed(4)} USD</small>
+                </div>
+                <div class="card">
+                    <h3>IVA Crédito Fiscal</h3>
+                    <p>${ivaCreditoBs.toFixed(4)} Bs</p>
+                    <small>Base: ${baseTotalBs.toFixed(4)} Bs · Exento: ${exentoTotalBs.toFixed(4)} Bs</small>
+                </div>
+                <div class="card">
+                    <h3>Retenciones de IVA</h3>
+                    <p>${retencionTotalBs.toFixed(4)} Bs</p>
+                    <small>Practicadas a proveedores</small>
+                </div>
+            `;
+            reportesContainer.appendChild(resumen);
+
+            const tabla = document.createElement('div');
+            tabla.className = 'tabla-wrapper';
+            tabla.innerHTML = `
+                <table class="tabla-reportes">
+                    <thead>
+                        <tr>
+                            <th>Fecha / Doc</th>
+                            <th>Proveedor / RIF</th>
+                            <th>Base + Exento</th>
+                            <th>IVA Crédito</th>
+                            <th>Retención</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${compras.map((c) => {
+                            const esNota = c.tipo_documento === 'nota_entrega';
+                            const tBcv = Number(c.tasa_bcv) || 0;
+                            const base = Number(c.subtotal_base) || 0;
+                            const exento = Number(c.subtotal_exento) || 0;
+                            const iva = Number(c.iva_monto) || 0;
+                            const ret = Number(c.retencion_iva_monto) || 0;
+                            const tot = Number(c.monto_total) || 0;
+                            const docTxt = esNota
+                                ? `Nota Entrega${c.nro_factura ? ` #${c.nro_factura}` : ''}`
+                                : `Fact: ${c.nro_factura || 'S/N'}${c.nro_control ? `<br/><small>Ctrl: ${c.nro_control}</small>` : ''}`;
+                            return `
+                                <tr>
+                                    <td data-label="Fecha / Doc">
+                                        <strong>${formatearFecha(c.fecha)}</strong>
+                                        <br />
+                                        <small>${docTxt}</small>
+                                    </td>
+                                    <td data-label="Proveedor / RIF">
+                                        <strong>${String(c.proveedor || '').toUpperCase()}</strong>
+                                        <br />
+                                        <small>${c.proveedor_rif || 'Sin RIF'}</small>
+                                    </td>
+                                    <td data-label="Base + Exento">
+                                        ${esNota ? 'N/A (No fiscal)' : `${((base + exento) * tBcv).toFixed(4)} Bs<br/><small>$${(base + exento).toFixed(4)} USD</small>`}
+                                    </td>
+                                    <td data-label="IVA Crédito">
+                                        ${esNota ? '0.00' : `${(iva * tBcv).toFixed(4)} Bs<br/><small>$${iva.toFixed(4)} (${c.iva_porcentaje ?? 16}%)</small>`}
+                                    </td>
+                                    <td data-label="Retención">
+                                        ${ret > 0 ? `-${(ret * tBcv).toFixed(4)} Bs<br/><small>${c.comprobante_retencion || ''}</small>` : '0.00'}
+                                    </td>
+                                    <td data-label="Total">
+                                        ${!esNota && tBcv > 0 ? `<strong>${(tot * tBcv).toFixed(4)} Bs</strong><br/><small>$${tot.toFixed(4)} USD</small>` : `<strong>$${tot.toFixed(4)} USD</strong>`}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            reportesContainer.appendChild(tabla);
+
+            exportPayloadActual = {
+                nombreArchivo: `libro_compras_${desde}_a_${hasta}`,
+                hojas: [
+                    {
+                        nombre: 'Libro de Compras',
+                        filas: compras.map((c) => {
+                            const esNota = c.tipo_documento === 'nota_entrega';
+                            const tBcv = Number(c.tasa_bcv) || 0;
+                            const base = Number(c.subtotal_base) || 0;
+                            const exento = Number(c.subtotal_exento) || 0;
+                            const iva = Number(c.iva_monto) || 0;
+                            const ret = Number(c.retencion_iva_monto) || 0;
+                            const tot = Number(c.monto_total) || 0;
+                            return {
+                                Fecha: c.fecha,
+                                Tipo_Documento: esNota ? 'NOTA ENTREGA' : 'FACTURA FISCAL',
+                                Nro_Factura: c.nro_factura || '',
+                                Nro_Control: c.nro_control || '',
+                                Proveedor: String(c.proveedor || '').toUpperCase(),
+                                RIF: c.proveedor_rif || '',
+                                Tasa_BCV: tBcv,
+                                Base_Imponible_USD: Number(base.toFixed(4)),
+                                Exento_USD: Number(exento.toFixed(4)),
+                                IVA_Credito_USD: Number(iva.toFixed(4)),
+                                Retencion_IVA_USD: Number(ret.toFixed(4)),
+                                Comprobante_Retencion: c.comprobante_retencion || '',
+                                Total_USD: Number(tot.toFixed(4)),
+                                Total_Bs_BCV: tBcv > 0 ? Number((tot * tBcv).toFixed(4)) : 0,
+                            };
+                        }),
+                    },
+                ],
+            };
+        } catch (error) {
+            console.error('Error en Libro de Compras:', error);
+            restablecerVistaInicial();
+            mostrarError('No se pudo generar el Libro de Compras');
+        }
+    });
+
     creditosBtn?.addEventListener('click', async (e: Event) => {
 
         e.preventDefault();
-
+        const button = e.currentTarget as HTMLElement;
         resetContenedor();
-        const container = document.getElementById('reportes') as HTMLDivElement;
+        setActiveButton(button);
 
         const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
         const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
 
-        // Validaciones de las fechas
-        if (desde === '' || hasta === '') {
-            mostrarError('Debe seleccionar ambas fechas');
-            return;
-        }
-
-        if (hasta < desde) {
-            mostrarError('La fecha final no puede ser menor que la inicial');
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
             return;
         }
 
         try {
-
             const response = await fetch(`/api/reportes/ventasCreditos?desde=${desde}&hasta=${hasta}`);
             if (!response.ok) throw new Error(`Error ${response.status}`);
 
-            const ventas : VentaAnulada[] = await response.json();
+            const ventas: VentaReporte[] = await response.json();
 
             if (ventas.length === 0) {
-                container.innerHTML = '';
-                noRegistros("No hay ventas a crédito en ese rango de fecha")
+                restablecerVistaInicial();
+                mostrarError('No hay ventas a crédito en ese rango de fecha');
                 return;
             }
 
-            const btnImprimir = document.querySelector('#imprimir') as HTMLAnchorElement;
-            btnImprimir.style.display = 'block';
-
-            // Obtener tasa de cambio
             const tasa = await cambioUSDaCOP();
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `${ventas.length} venta(s) a crédito entre ${desde} y ${hasta}.`);
 
-            const tabla = document.createElement('table');
-            tabla.classList.add('tabla-reportes');
-
+            const tabla = document.createElement('div');
+            tabla.className = 'tabla-wrapper';
             tabla.innerHTML = `
-                                <thead>
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Cliente</th>
-                                        <th>Monto</th>
-                                        <th>Tipo de Pago</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${ventas.map(v => `
-                                    <tr>
-                                        <td data-label="Fecha">
-                                            ${formatearFecha(v.fecha_venta)}
-                                        </td>
-                                        <td data-label="Cliente">
-                                            ${v.nombre_cliente.toUpperCase()}
-                                            <br />
-                                            C.I. ${v.cedula_cliente}    
-                                        </td>
-                                        <td data-label="Monto">
-                                            ${v.total_usd} COP
-                                            <br />
-                                            ${(v.total_usd * tasa).toFixed(2)} USD
-                                        </td>
-                                        <td data-label="Tipo de Pago">${v.tipo_pago.toUpperCase()}</td>
-                                        <td data-label="Estado">${v.estado.toUpperCase()}</td>
-                                    </tr>
-                                    `).join('')}
-                                </tbody>
-                            `;
+                <table class="tabla-reportes">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Cliente</th>
+                            <th>Monto</th>
+                            <th>Tipo de Pago</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${ventas.map(v => `
+                            <tr>
+                                <td data-label="Fecha">${formatearFecha(v.fecha_venta)}</td>
+                                <td data-label="Cliente">
+                                    ${v.nombre_cliente.toUpperCase()}
+                                    <br />
+                                    C.I. ${v.cedula_cliente}
+                                </td>
+                                <td data-label="Monto">
+                                    ${v.total_usd.toFixed(4)} USD
+                                    <br />
+                                    ${Math.ceil(v.total_usd * tasa)} COP
+                                </td>
+                                <td data-label="Tipo de Pago">${v.tipo_pago.toUpperCase()}</td>
+                                <td data-label="Estado">${v.estado.toUpperCase()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
 
-            container.appendChild(tabla);
+            reportesContainer.appendChild(tabla);
 
         } catch (error) {
             console.error('Error al generar reporte:', error);
+            restablecerVistaInicial();
             mostrarError('No se pudo generar el reporte');
         }
     });
-        
-    // Impresion
-    const btnImprimir = document.querySelector('#imprimir');
 
-    btnImprimir?.addEventListener("click", async () => {
-        const contenido = document.getElementById("reportes") as HTMLDivElement;
-        if (!contenido) return console.error("No se encontró el reporte");
+    devolucionesBtn?.addEventListener('click', async (e: Event) => {
+
+        e.preventDefault();
+        const button = e.currentTarget as HTMLElement;
+        resetContenedor();
+        setActiveButton(button);
+
+        const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
+        const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
+
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
+            return;
+        }
 
         try {
-            const { toPng } = await import("html-to-image");
+            const response = await fetch(`/api/reportes/ventasDevoluciones?desde=${desde}&hasta=${hasta}`);
+            if (!response.ok) throw new Error(`Error ${response.status}`);
 
-            // Captura literal del div como imagen
-            const imgData = await toPng(contenido, { cacheBust: true });
+            const data = await response.json();
+            const devoluciones: DevolucionReporte[] = data.devoluciones || [];
+            const resumen = data.resumen || {};
 
-            const ventana = window.open("", "", "width=800,height=600");
-            if (!ventana) return;
+            if (devoluciones.length === 0) {
+                restablecerVistaInicial();
+                mostrarError('No hay devoluciones en ese rango de fecha');
+                return;
+            }
 
-            // Crear estructura básica
-            ventana.document.write(`
-                <html>
-                <head>
-                    <title>Impresion</title>
-                    <style>
-                    body { font-family: sans-serif; padding: 20px; text-align: center; }
-                    img { max-width: 100%; height: auto; }
-                    </style>
-                </head>
-                <body>
-                </body>
-                </html>
-            `);
-            ventana.document.close();
+            const tasa = await cambioUSDaCOP();
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `${devoluciones.length} devolución(es) entre ${desde} y ${hasta}.`);
 
-            // Crear imagen y añadirla al body
-            const img = ventana.document.createElement("img");
-            img.src = imgData;
-            img.onload = () => {
-                ventana.focus();
-                ventana.print();
-                ventana.close();
-            };
-            ventana.document.body.appendChild(img);
+            reportesContainer.innerHTML = `
+                <div class="grid-reportes">
+                    <div class="card highlight">
+                        <h3>Total Devuelto</h3>
+                        <p>${Number(resumen.monto_total_devuelto || 0).toFixed(4)} USD</p>
+                        <small>${Math.ceil(Number(resumen.monto_total_devuelto || 0) * tasa)} COP</small>
+                    </div>
+                    <div class="card">
+                        <h3>Reembolsos en Efectivo</h3>
+                        <p>${Number(resumen.total_efectivo || 0).toFixed(4)} USD</p>
+                    </div>
+                    <div class="card">
+                        <h3>Notas de Crédito Emitidas</h3>
+                        <p>${Number(resumen.total_notas_credito || 0).toFixed(4)} USD</p>
+                    </div>
+                    <div class="card">
+                        <h3>Saldo Pendiente en Notas</h3>
+                        <p>${Number(resumen.saldo_notas_pendiente || 0).toFixed(4)} USD</p>
+                    </div>
+                </div>
+            `;
+
+            const tabla = document.createElement('div');
+            tabla.className = 'tabla-wrapper';
+            tabla.innerHTML = `
+                <table class="tabla-reportes">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Venta</th>
+                            <th>Cliente</th>
+                            <th>Monto</th>
+                            <th>Tipo</th>
+                            <th>Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${devoluciones.map((d: DevolucionReporte) => {
+                            const tipoTexto = d.tipo_resolucion === 'NOTA_CREDITO' ? 'Nota de Crédito' : 'Efectivo';
+                            const saldoTexto = d.tipo_resolucion === 'NOTA_CREDITO' ? `${d.saldo_disponible.toFixed(4)} USD` : '—';
+                            return `
+                            <tr>
+                                <td data-label="Fecha">${d.fecha_creacion ? new Date(d.fecha_creacion).toLocaleDateString('es-VE') : '—'}</td>
+                                <td data-label="Venta">#${d.id_venta}</td>
+                                <td data-label="Cliente">
+                                    ${d.cliente_nombre.toUpperCase()}
+                                    <br />C.I. ${d.cliente_cedula}
+                                </td>
+                                <td data-label="Monto">
+                                    ${d.monto_total.toFixed(4)} USD
+                                    <br />${Math.ceil(d.monto_total * tasa)} COP
+                                </td>
+                                <td data-label="Tipo">${tipoTexto}</td>
+                                <td data-label="Saldo">${saldoTexto}</td>
+                            </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            reportesContainer.appendChild(tabla);
+
         } catch (error) {
-            console.error("Error al imprimir reporte:", error);
-            mostrarError("No se pudo generar la impresión. Reinicia el servidor e intenta de nuevo.");
+            console.error('Error al generar reporte:', error);
+            restablecerVistaInicial();
+            mostrarError('No se pudo generar el reporte');
+        }
+    });
+
+    fletesBtn?.addEventListener("click", async (e: Event) => {
+        e.preventDefault();
+        const button = e.currentTarget as HTMLElement;
+        resetContenedor();
+        setActiveButton(button);
+
+        const desde = (document.querySelector("#desde") as HTMLInputElement)?.value;
+        const hasta = (document.querySelector("#hasta") as HTMLInputElement)?.value;
+
+        if (!validarFechas(desde, hasta)) {
+            restablecerVistaInicial();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/reportes/fletes?desde=${desde}&hasta=${hasta}`);
+            if (!response.ok) throw new Error(`Error ${response.status}`);
+            const data = await response.json();
+            const res = data.resumen || {};
+            const movs = Array.isArray(data.movimientos) ? data.movimientos : [];
+
+            const meta = getButtonMeta(button);
+            mostrarResultados(meta.titulo, `Constancia de fletes en compras y ventas del ${desde} al ${hasta}.`);
+
+            const resumenDiv = document.createElement('div');
+            resumenDiv.className = 'grid-reportes';
+            resumenDiv.innerHTML = `
+                <div class="card highlight">
+                    <h3>Total Fletes (General)</h3>
+                    <p>$${Number(res.total_fletes_general || 0).toFixed(4)} USD</p>
+                    <small>${res.cantidad_total || 0} operaciones registradas</small>
+                </div>
+                <div class="card">
+                    <h3>Fletes en Ventas</h3>
+                    <p>$${Number(res.total_fletes_ventas || 0).toFixed(4)} USD</p>
+                    <small>${res.cantidad_ventas || 0} ventas con flete</small>
+                </div>
+                <div class="card">
+                    <h3>Fletes en Compras</h3>
+                    <p>$${Number(res.total_fletes_compras || 0).toFixed(4)} USD</p>
+                    <small>${res.cantidad_compras || 0} compras con flete</small>
+                </div>
+            `;
+            reportesContainer.appendChild(resumenDiv);
+
+            const tablaWrapper = document.createElement('div');
+            tablaWrapper.className = 'tabla-wrapper';
+            tablaWrapper.innerHTML = `
+                <table class="tabla-reportes">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>ID Transacción</th>
+                            <th>Documento</th>
+                            <th>Fecha</th>
+                            <th>Cliente / Proveedor</th>
+                            <th>Monto Flete (USD)</th>
+                            <th>Total Operación (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${movs.length === 0
+                            ? `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No hay fletes registrados en el rango de fechas seleccionado.</td></tr>`
+                            : movs.map((m: any) => {
+                                const badgeColor = m.origen === 'Venta' ? '#047857' : '#1d4ed8';
+                                const badgeBg = m.origen === 'Venta' ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)';
+                                return `
+                                    <tr>
+                                        <td><span style="padding:0.2rem 0.55rem; border-radius:999px; font-weight:700; font-size:0.8rem; color:${badgeColor}; background:${badgeBg};">${m.origen}</span></td>
+                                        <td><a href="${m.url_detalle}" style="color:var(--primary-color); font-weight:700; text-decoration:underline;">#${m.id_transaccion}</a></td>
+                                        <td>${m.documento || '-'}</td>
+                                        <td>${formatearFecha(m.fecha)}</td>
+                                        <td>${m.contraparte || '-'}${m.contraparte_doc ? ` <small style="color:var(--text-muted);">(${m.contraparte_doc})</small>` : ''}</td>
+                                        <td style="font-weight:700; color:#b45309;">$${Number(m.flete_monto || 0).toFixed(4)}</td>
+                                        <td>$${Number(m.total_operacion || 0).toFixed(4)}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                    </tbody>
+                </table>
+            `;
+            reportesContainer.appendChild(tablaWrapper);
+
+            exportPayloadActual = {
+                nombreArchivo: `Reporte_Fletes_${desde}_${hasta}.xlsx`,
+                hojas: [
+                    {
+                        nombre: 'Resumen',
+                        filas: [
+                            { Concepto: 'Total Fletes General (USD)', Monto: Number(res.total_fletes_general || 0), Cantidad: Number(res.cantidad_total || 0) },
+                            { Concepto: 'Fletes en Ventas (USD)', Monto: Number(res.total_fletes_ventas || 0), Cantidad: Number(res.cantidad_ventas || 0) },
+                            { Concepto: 'Fletes en Compras (USD)', Monto: Number(res.total_fletes_compras || 0), Cantidad: Number(res.cantidad_compras || 0) },
+                        ],
+                    },
+                    {
+                        nombre: 'Detalle_Fletes',
+                        filas: movs.map((m: any) => ({
+                            Tipo: m.origen,
+                            ID_Transaccion: m.id_transaccion,
+                            Documento: m.documento,
+                            Fecha: m.fecha,
+                            Contraparte: m.contraparte,
+                            RIF_Cedula: m.contraparte_doc || '',
+                            Monto_Flete_USD: Number(m.flete_monto || 0),
+                            Total_Operacion_USD: Number(m.total_operacion || 0),
+                        })),
+                    },
+                ],
+            };
+        } catch (error) {
+            console.error('Error al generar reporte de fletes:', error);
+            restablecerVistaInicial();
+            mostrarError('No se pudo generar el reporte de fletes');
+        }
+    });
+
+    btnExportarExcel?.addEventListener('click', async () => {
+        if (reportesContainer.hidden || !reportesContainer.children.length) {
+            mostrarError('Genera un reporte primero para exportar');
+            return;
+        }
+
+        let payload = exportPayloadActual;
+
+        if (!payload) {
+            const hojas: Array<{ nombre: string; filas: any[] }> = [];
+            const cards = reportesContainer.querySelectorAll('.cards-resumen .card, .grid-reportes .card');
+            if (cards.length > 0) {
+                const filasResumen = Array.from(cards).map((card) => ({
+                    Indicador: card.querySelector('h3')?.textContent?.trim() || '',
+                    Valor: card.querySelector('p')?.textContent?.trim() || '',
+                    Detalle: card.querySelector('small')?.textContent?.trim() || '',
+                }));
+                hojas.push({ nombre: 'Resumen', filas: filasResumen });
+            }
+
+            const tablas = reportesContainer.querySelectorAll('table.tabla-reportes');
+            tablas.forEach((tbl, idx) => {
+                const headers = Array.from(tbl.querySelectorAll('thead th')).map((th) => th.textContent?.trim() || `Col_${idx + 1}`);
+                const filas = Array.from(tbl.querySelectorAll('tbody tr')).map((tr) => {
+                    const obj: Record<string, string> = {};
+                    Array.from(tr.querySelectorAll('td')).forEach((td, cIdx) => {
+                        const key = headers[cIdx] || `Col_${cIdx + 1}`;
+                        obj[key] = (td.textContent || '').replace(/\s+/g, ' ').trim();
+                    });
+                    return obj;
+                });
+                if (filas.length > 0) {
+                    hojas.push({ nombre: tablas.length > 1 ? `Detalle_${idx + 1}` : 'Detalle', filas });
+                }
+            });
+
+            if (hojas.length === 0) {
+                mostrarError('Este reporte no contiene tablas o tarjetas exportables');
+                return;
+            }
+
+            const slug = (reporteActivoTitulo.textContent || 'reporte')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_');
+            payload = { nombreArchivo: slug, hojas };
+        }
+
+        btnExportarExcel.disabled = true;
+        const textoOrig = btnExportarExcel.textContent;
+        try {
+            await descargarExcel(payload);
+        } catch (err: any) {
+            mostrarError(err?.message || 'Error al exportar a Excel');
+        } finally {
+            btnExportarExcel.disabled = false;
+            if (textoOrig) {
+                // mantiene el SVG intacto si no se sobreescribió
+            }
+        }
+    });
+
+    btnImprimir?.addEventListener("click", async () => {
+        if (reportesContainer.hidden || !reportesContainer.children.length) {
+            mostrarError('No hay contenido disponible para imprimir');
+            return;
+        }
+
+        btnImprimir.disabled = true;
+
+        try {
+            const imgData = await toPng(reportesContainer, { cacheBust: true, pixelRatio: 2 });
+            const tituloReporte = reporteActivoTitulo.textContent?.trim() || 'REPORTE';
+
+            imprimir({
+                titulo: 'Impresion',
+                tituloDocumento: tituloReporte,
+                estilosExtra: 'body { text-align: center; } img { max-width: 100%; height: auto; }',
+                contenido: `<img src="${imgData}" alt="Reporte" />`,
+                onReady: (ventana: Window) => {
+                    const img = ventana.document.querySelector('img');
+                    const ejecutarImpresion = () => {
+                        ventana.focus();
+                        ventana.print();
+                        ventana.close();
+                    };
+
+                    if (!img) return;
+
+                    if (img.complete) {
+                        ejecutarImpresion();
+                        return;
+                    }
+
+                    img.addEventListener('load', ejecutarImpresion);
+                },
+            } as Parameters<typeof imprimir>[0]);
+        } catch (error) {
+            console.error('Error al imprimir:', error);
+            mostrarError('No se pudo preparar la impresión');
+        } finally {
+            btnImprimir.disabled = false;
         }
     });
 

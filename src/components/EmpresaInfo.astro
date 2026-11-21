@@ -1,0 +1,59 @@
+---
+import empresa from '../data/empresa.json';
+---
+
+<div class="brand-chip">
+    <img src={empresa.logo} alt="" width="44" height="44" />
+    <div class="brand-chip_copy">
+        <strong>{empresa.nombre}</strong>
+        <span>{empresa.rif} · {empresa.telefono}</span>
+    </div>
+</div>
+
+<style>
+    .brand-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+        max-width: 100%;
+        padding: 0.55rem 0.75rem 0.55rem 0.55rem;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .brand-chip img {
+        width: 44px;
+        height: 44px;
+        object-fit: contain;
+        flex-shrink: 0;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 0.2rem;
+    }
+
+    .brand-chip_copy {
+        min-width: 0;
+        display: grid;
+        gap: 0.12rem;
+    }
+
+    .brand-chip strong {
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .brand-chip span {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.72);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>

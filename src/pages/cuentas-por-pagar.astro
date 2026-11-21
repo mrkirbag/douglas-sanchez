@@ -1,0 +1,619 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { verificarToken } from "../utils/auth.js";
+
+const usuario = verificarToken(Astro.request);
+if (!usuario) {
+    return Astro.redirect("/login");
+}
+if (usuario.rol !== "admin") {
+    return Astro.redirect("/dashboard");
+}
+
+const fechaHoy = new Date()
+    .toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+---
+
+<Layout>
+    <header class="page-header">
+        <p class="eyebrow">Gestión de Proveedores</p>
+        <h1>Cuentas por Pagar</h1>
+        <p class="page-intro">
+            Visualiza tus deudas consolidadas por proveedor, revisa qué compras las componen y registra abonos.
+        </p>
+    </header>
+
+    <section class="cxp-resumen">
+        <article class="cxp-stat">
+            <p class="eyebrow">Total por Pagar</p>
+            <strong id="statPorPagar">$0.00</strong>
+            <small id="statPorPagarSec">—</small>
+        </article>
+        <article class="cxp-stat">
+            <p class="eyebrow">Proveedores con Deuda</p>
+            <strong id="statProveedores">0</strong>
+            <small>Con saldo pendiente</small>
+        </article>
+        <article class="cxp-stat">
+            <p class="eyebrow">Total Abonado</p>
+            <strong id="statAbonado">$0.00</strong>
+            <small>Histórico en compras a crédito</small>
+        </article>
+    </section>
+
+    <div class="cxp-toolbar">
+        <div class="input-busqueda_container" style="flex:1; max-width:440px;">
+            <input
+                type="text"
+                id="busquedaProveedor"
+                placeholder="Buscar proveedor por nombre o RIF..."
+                autocomplete="off"
+            />
+        </div>
+        <select id="filtroEstado" style="max-width:240px;">
+            <option value="pendientes">Con deuda pendiente</option>
+            <option value="todos">Todos los proveedores</option>
+        </select>
+        <div class="btn-add_container">
+            <a class="btn-add" href="/compras/nueva">Nueva compra</a>
+        </div>
+    </div>
+
+    <div id="mensaje"></div>
+
+    <div class="table-wrap">
+        <table>
+            <thead id="theadCxp">
+                <tr>
+                    <th>Proveedor</th>
+                    <th>Compras a Crédito</th>
+                    <th>Total Deuda</th>
+                    <th>Abonado</th>
+                    <th>Saldo Pendiente</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyCxp"></tbody>
+        </table>
+    </div>
+
+    <!-- Modal Detalle Proveedor + Abonos -->
+    <div id="overlayCxp" class="overlay oculto" style="z-index: 1100;">
+        <div class="modal cxp-modal">
+            <div class="cxp-modal__head">
+                <div>
+                    <p class="eyebrow" style="color: var(--accent-brand); margin-bottom:0.2rem;">Cuenta por Pagar</p>
+                    <h2 id="modalProvNombre" style="margin:0;">Proveedor</h2>
+                    <small id="modalProvRif" style="color: var(--text-muted);"></small>
+                </div>
+                <button type="button" id="btnCerrarModalCxp" class="cxp-close">&times;</button>
+            </div>
+
+            <div class="cxp-modal__kpis">
+                <div>
+                    <span>Deuda Total</span>
+                    <strong id="modalDeudaTotal">$0.00</strong>
+                </div>
+                <div>
+                    <span>Total Abonado</span>
+                    <strong id="modalAbonado">$0.00</strong>
+                </div>
+                <div>
+                    <span>Saldo Pendiente</span>
+                    <strong id="modalSaldo" style="color: #dc2626;">$0.00</strong>
+                </div>
+            </div>
+
+            <div class="cxp-modal__grid">
+                <div class="cxp-box">
+                    <h3>Compras a Crédito del Proveedor</h3>
+                    <div class="table-wrap" style="max-height: 230px; overflow-y: auto;">
+                        <table class="cxp-subtable">
+                            <thead>
+                                <tr>
+                                    <th>Fecha / Doc</th>
+                                    <th>Total</th>
+                                    <th>Abonado</th>
+                                    <th>Saldo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalListaCompras"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="cxp-box">
+                    <h3>Registrar Abono</h3>
+                    <form id="formAbonoCxp" class="cxp-form">
+                        <div class="form-field" style="grid-column: 1 / -1;">
+                            <label for="abonoCompraId">Aplicar a</label>
+                            <select id="abonoCompraId"></select>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoMoneda">Moneda</label>
+                            <select id="abonoMoneda">
+                                <option value="USD">Dólares (USD)</option>
+                                <option value="BS">Bolívares (Bs BCV)</option>
+                                <option value="COP">Pesos (COP)</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoMonto">Monto</label>
+                            <input type="text" id="abonoMonto" placeholder="0.00" required />
+                            <small id="abonoEquiv" style="color: var(--accent-brand); font-weight:600;"></small>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoMetodo">Método</label>
+                            <select id="abonoMetodo">
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Pago Móvil">Pago Móvil</option>
+                                <option value="Zelle">Zelle</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="abonoFecha">Fecha</label>
+                            <input type="date" id="abonoFecha" value={fechaHoy} required />
+                        </div>
+                        <div class="form-field" style="grid-column: 1 / -1;">
+                            <label for="abonoObs">Observación / Referencia</label>
+                            <input type="text" id="abonoObs" placeholder="Ej: Ref #12345" />
+                        </div>
+                        <button type="submit" id="btnGuardarAbono" style="grid-column: 1 / -1;">
+                            Registrar Abono
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="cxp-box">
+                <h3>Historial de Abonos</h3>
+                <div class="table-wrap" style="max-height: 190px; overflow-y: auto;">
+                    <table class="cxp-subtable">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Compra / Doc</th>
+                                <th>Método</th>
+                                <th>Monto (USD)</th>
+                                <th>Recibido</th>
+                                <th>Observación</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalListaAbonos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    // @ts-nocheck
+    import { noRegistros, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const tbody = document.getElementById("tbodyCxp");
+        const thead = document.getElementById("theadCxp");
+        const busqueda = document.getElementById("busquedaProveedor");
+        const filtroEstado = document.getElementById("filtroEstado");
+
+        const statPorPagar = document.getElementById("statPorPagar");
+        const statPorPagarSec = document.getElementById("statPorPagarSec");
+        const statProveedores = document.getElementById("statProveedores");
+        const statAbonado = document.getElementById("statAbonado");
+
+        const overlayCxp = document.getElementById("overlayCxp");
+        const btnCerrarModalCxp = document.getElementById("btnCerrarModalCxp");
+        const formAbonoCxp = document.getElementById("formAbonoCxp");
+        const abonoCompraId = document.getElementById("abonoCompraId");
+        const abonoMoneda = document.getElementById("abonoMoneda");
+        const abonoMonto = document.getElementById("abonoMonto");
+        const abonoEquiv = document.getElementById("abonoEquiv");
+        const abonoMetodo = document.getElementById("abonoMetodo");
+        const abonoFecha = document.getElementById("abonoFecha");
+        const abonoObs = document.getElementById("abonoObs");
+        const btnGuardarAbono = document.getElementById("btnGuardarAbono");
+
+        let proveedores = [];
+        let proveedorActual = null;
+        const tasas = await obtenerTasas();
+
+        function actualizarResumenGlobal() {
+            const totalPendiente = proveedores.reduce((acc, p) => acc + p.saldo_pendiente_usd, 0);
+            const totalAbonado = proveedores.reduce((acc, p) => acc + p.total_abonado_usd, 0);
+            const conDeuda = proveedores.filter((p) => p.saldo_pendiente_usd > 0.01).length;
+
+            statPorPagar.textContent = `$${totalPendiente.toFixed(4)}`;
+            statProveedores.textContent = String(conDeuda);
+            statAbonado.textContent = `$${totalAbonado.toFixed(4)}`;
+
+            const partes = [];
+            if (tasas.bs > 0) partes.push(`${(totalPendiente * tasas.bs).toFixed(4)} Bs`);
+            if (tasas.cop > 0) partes.push(`${Math.ceil(totalPendiente * tasas.cop).toLocaleString("es-CO")} COP`);
+            statPorPagarSec.textContent = partes.join(" · ") || "USD";
+        }
+
+        function renderTabla() {
+            const term = (busqueda.value || "").trim().toLowerCase();
+            const soloPendientes = filtroEstado.value === "pendientes";
+
+            const filtrados = proveedores.filter((p) => {
+                if (soloPendientes && p.saldo_pendiente_usd <= 0.01) return false;
+                if (!term) return true;
+                return (
+                    p.proveedor.toLowerCase().includes(term) ||
+                    p.proveedor_rif.toLowerCase().includes(term)
+                );
+            });
+
+            tbody.innerHTML = "";
+            if (filtrados.length === 0) {
+                thead.style.display = "none";
+                noRegistros("No hay cuentas por pagar para mostrar");
+                return;
+            }
+
+            noRegistros("");
+            thead.style.display = "table-header-group";
+
+            filtrados.forEach((p) => {
+                const tr = document.createElement("tr");
+                const tieneDeuda = p.saldo_pendiente_usd > 0.01;
+                const badge = tieneDeuda
+                    ? `<span class="badge-pendiente">PENDIENTE</span>`
+                    : `<span class="badge-pagada">SALDADA</span>`;
+
+                tr.innerHTML = `
+                    <td data-label="Proveedor">
+                        <strong>${p.proveedor.toUpperCase()}</strong>
+                        ${p.proveedor_rif ? `<br/><small style="color:var(--text-muted);">RIF: ${p.proveedor_rif}</small>` : ""}
+                    </td>
+                    <td data-label="Compras">
+                        <strong>${p.total_compras}</strong> compra(s)
+                        ${p.compras_pendientes > 0 ? `<br/><small style="color:#b45309;">${p.compras_pendientes} pendiente(s)</small>` : ""}
+                    </td>
+                    <td data-label="Total Deuda">$${p.total_deuda_usd.toFixed(4)}</td>
+                    <td data-label="Abonado">$${p.total_abonado_usd.toFixed(4)}</td>
+                    <td data-label="Saldo Pendiente">
+                        <strong style="color:${tieneDeuda ? "#dc2626" : "#15803d"};">$${p.saldo_pendiente_usd.toFixed(4)}</strong>
+                    </td>
+                    <td data-label="Estado">${badge}</td>
+                `;
+
+                const tdAcciones = document.createElement("td");
+                tdAcciones.className = "acciones";
+                const btnVer = document.createElement("button");
+                btnVer.type = "button";
+                btnVer.className = "btn-detalles";
+                btnVer.textContent = tieneDeuda ? "Ver / Abonar" : "Ver Historial";
+                btnVer.onclick = () => abrirModalProveedor(p.key);
+                tdAcciones.appendChild(btnVer);
+                tr.appendChild(tdAcciones);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function actualizarEquivAbono() {
+            const val = parseFloat((abonoMonto.value || "").replace(",", "."));
+            const mon = abonoMoneda.value;
+            if (!Number.isFinite(val) || val <= 0 || mon === "USD") {
+                abonoEquiv.textContent = "";
+                return;
+            }
+            if (mon === "BS" && tasas.bs > 0) {
+                abonoEquiv.textContent = `Equivale a $${(val / tasas.bs).toFixed(4)} USD (Tasa ${tasas.bs})`;
+            } else if (mon === "COP" && tasas.cop > 0) {
+                abonoEquiv.textContent = `Equivale a $${(val / tasas.cop).toFixed(4)} USD (Tasa ${tasas.cop})`;
+            } else {
+                abonoEquiv.textContent = "";
+            }
+        }
+
+        function abrirModalProveedor(key) {
+            const p = proveedores.find((x) => x.key === key);
+            if (!p) return;
+            proveedorActual = p;
+
+            document.getElementById("modalProvNombre").textContent = p.proveedor.toUpperCase();
+            document.getElementById("modalProvRif").textContent = p.proveedor_rif ? `RIF: ${p.proveedor_rif}` : "Sin RIF registrado";
+            document.getElementById("modalDeudaTotal").textContent = `$${p.total_deuda_usd.toFixed(4)}`;
+            document.getElementById("modalAbonado").textContent = `$${p.total_abonado_usd.toFixed(4)}`;
+            document.getElementById("modalSaldo").textContent = `$${p.saldo_pendiente_usd.toFixed(4)}`;
+
+            const tbCompras = document.getElementById("modalListaCompras");
+            tbCompras.innerHTML = "";
+            abonoCompraId.innerHTML = `<option value="">Aplicar automáticamente (más antiguas primero)</option>`;
+
+            p.compras.forEach((c) => {
+                const docLabel = c.tipo_documento === "nota_entrega"
+                    ? "Nota de Entrega"
+                    : `Factura ${c.nro_factura || ""}`;
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><strong>${docLabel}</strong><br/><small>${formatearFecha(c.fecha)}</small></td>
+                    <td>$${c.monto_total.toFixed(4)}</td>
+                    <td>$${c.monto_abonado.toFixed(4)}</td>
+                    <td><strong style="color:${c.saldo_pendiente > 0.01 ? "#dc2626" : "#15803d"};">$${c.saldo_pendiente.toFixed(4)}</strong></td>
+                    <td><a href="/compras/${c.id}" style="color:var(--accent-brand); font-weight:700;">Ver</a></td>
+                `;
+                tbCompras.appendChild(tr);
+
+                if (c.saldo_pendiente > 0.01) {
+                    const opt = document.createElement("option");
+                    opt.value = c.id;
+                    opt.textContent = `${docLabel} (${formatearFecha(c.fecha)}) — Debe $${c.saldo_pendiente.toFixed(4)}`;
+                    abonoCompraId.appendChild(opt);
+                }
+            });
+
+            const tbAbonos = document.getElementById("modalListaAbonos");
+            tbAbonos.innerHTML = "";
+            if (p.abonos.length === 0) {
+                tbAbonos.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay abonos registrados todavía.</td></tr>`;
+            } else {
+                p.abonos.forEach((a) => {
+                    const doc = a.tipo_documento === "nota_entrega" ? "Nota Entrega" : `Fact. ${a.nro_factura || ""}`;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${formatearFecha(a.fecha)}</td>
+                        <td>${doc}</td>
+                        <td>${a.metodo || "—"}</td>
+                        <td><strong>$${a.monto.toFixed(4)}</strong></td>
+                        <td>${a.monto_recibido > 0 ? `${a.monto_recibido.toFixed(4)} ${a.moneda}` : "—"}</td>
+                        <td>${a.observacion || "—"}</td>
+                    `;
+                    tbAbonos.appendChild(tr);
+                });
+            }
+
+            const tienePendiente = p.saldo_pendiente_usd > 0.01;
+            btnGuardarAbono.disabled = !tienePendiente;
+            abonoMonto.value = "";
+            abonoObs.value = "";
+            actualizarEquivAbono();
+
+            overlayCxp.classList.remove("oculto");
+            overlayCxp.classList.add("visible");
+        }
+
+        function cerrarModal() {
+            overlayCxp.classList.remove("visible");
+            overlayCxp.classList.add("oculto");
+        }
+
+        async function cargarDatos(mantenerKey = null) {
+            try {
+                const res = await fetch("/api/cuentas-por-pagar");
+                if (!res.ok) throw new Error("No se pudieron cargar las cuentas por pagar");
+                proveedores = await res.json();
+                actualizarResumenGlobal();
+                renderTabla();
+                if (mantenerKey) {
+                    abrirModalProveedor(mantenerKey);
+                }
+            } catch (err) {
+                console.error(err);
+                mostrarError("Error cargando cuentas por pagar");
+            }
+        }
+
+        busqueda.addEventListener("input", renderTabla);
+        filtroEstado.addEventListener("change", renderTabla);
+        abonoMonto.addEventListener("input", actualizarEquivAbono);
+        abonoMoneda.addEventListener("change", actualizarEquivAbono);
+        btnCerrarModalCxp.addEventListener("click", cerrarModal);
+        overlayCxp.addEventListener("click", (e) => {
+            if (e.target === overlayCxp) cerrarModal();
+        });
+
+        formAbonoCxp.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!proveedorActual) return;
+
+            btnGuardarAbono.disabled = true;
+            try {
+                const res = await fetch("/api/cuentas-por-pagar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        proveedorKey: proveedorActual.key,
+                        id_compra: abonoCompraId.value,
+                        monto: abonoMonto.value,
+                        moneda: abonoMoneda.value,
+                        metodo: abonoMetodo.value,
+                        fecha: abonoFecha.value,
+                        observacion: abonoObs.value,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    mostrarError(data.error || "No se pudo registrar el abono");
+                    btnGuardarAbono.disabled = false;
+                    return;
+                }
+                mostrarMensaje("Abono registrado correctamente");
+                await cargarDatos(proveedorActual.key);
+            } catch (err) {
+                console.error(err);
+                mostrarError("Error al registrar el abono");
+                btnGuardarAbono.disabled = false;
+            }
+        });
+
+        await cargarDatos();
+    });
+</script>
+
+<style>
+    .cxp-resumen {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .cxp-stat {
+        padding: 1.15rem 1.25rem;
+        border-radius: var(--radius-md);
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        box-shadow: var(--shadow-card);
+        display: grid;
+        gap: 0.25rem;
+    }
+
+    .cxp-stat .eyebrow {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent-brand);
+    }
+
+    .cxp-stat strong {
+        font-size: 1.65rem;
+        color: #111827;
+    }
+
+    .cxp-stat small {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+    }
+
+    .cxp-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    :global(.badge-pendiente) {
+        display: inline-block;
+        padding: 0.22rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        background: rgba(220, 38, 38, 0.12);
+        color: #dc2626;
+    }
+
+    :global(.badge-pagada) {
+        display: inline-block;
+        padding: 0.22rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        background: rgba(22, 163, 74, 0.12);
+        color: #15803d;
+    }
+
+    .cxp-modal {
+        width: min(96%, 980px);
+        max-height: 92vh;
+        overflow-y: auto;
+        text-align: left;
+        padding: 1.5rem;
+        gap: 1.15rem;
+    }
+
+    .cxp-modal__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .cxp-close {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 1.4rem;
+        cursor: pointer;
+        color: #111827;
+    }
+
+    .cxp-modal__kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.85rem;
+    }
+
+    .cxp-modal__kpis > div {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        display: grid;
+        gap: 0.2rem;
+    }
+
+    .cxp-modal__kpis span {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        font-weight: 700;
+    }
+
+    .cxp-modal__kpis strong {
+        font-size: 1.35rem;
+        color: #111827;
+    }
+
+    .cxp-modal__grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .cxp-box {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 1rem;
+        display: grid;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+
+    .cxp-box h3 {
+        font-size: 0.95rem;
+        margin: 0;
+    }
+
+    .cxp-subtable th,
+    .cxp-subtable td {
+        padding: 0.55rem 0.65rem;
+        font-size: 0.82rem;
+    }
+
+    .cxp-subtable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .cxp-form {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+    }
+
+    @media (max-width: 860px) {
+        .cxp-resumen,
+        .cxp-modal__kpis,
+        .cxp-modal__grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

@@ -1,0 +1,359 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { verificarToken } from "@/utils/auth.js";
+
+const usuario = verificarToken(Astro.request);
+if (!usuario) {
+    return Astro.redirect("/login");
+}
+if (usuario.rol !== "admin") {
+    return Astro.redirect("/dashboard");
+}
+
+const { id } = Astro.params;
+---
+
+<Layout>
+    <header class="page-header">
+        <p class="eyebrow">Gestión de compras</p>
+        <h1>Detalle de compra</h1>
+        <p class="page-intro">Revisa la información y productos de esta compra.</p>
+    </header>
+
+    <div class="buttons">
+        <div class="btn-add_container">
+            <a class="btn-add" href="/compras">Regresar</a>
+        </div>
+        <button type="button" class="button" id="btnAbrirEditarCompra" style="display:none;">
+            Editar datos de compra
+        </button>
+    </div>
+
+    <div class="info-container" id="infoCompra" style="display: none;">
+        <div class="info-grid">
+            <p><strong>Documento:</strong> <span id="lblDoc"></span></p>
+            <p><strong>Fecha:</strong> <span id="lblFecha"></span></p>
+            <p><strong>Proveedor:</strong> <span id="lblProveedor"></span></p>
+            <p><strong>RIF Proveedor:</strong> <span id="lblRif"></span></p>
+            <p><strong>N° Control:</strong> <span id="lblControl"></span></p>
+            <p><strong>Base Imponible:</strong> <span id="lblBase"></span></p>
+            <p><strong>Exento:</strong> <span id="lblExento"></span></p>
+            <p><strong>IVA Crédito Fiscal:</strong> <span id="lblIva"></span></p>
+            <p><strong>Retención IVA:</strong> <span id="lblRetencion"></span></p>
+            <p><strong>Flete:</strong> <span id="lblFlete"></span></p>
+            <p><strong>Condición de Pago:</strong> <span id="lblCondicion"></span></p>
+            <p><strong>Monto Total:</strong> <span id="lblMonto"></span></p>
+        </div>
+    </div>
+
+    <!-- Modal Editar Cabecera de Compra -->
+    <div id="overlayEditarCompra" class="overlay oculto" style="z-index: 1100;">
+        <div class="modal edit-compra-modal">
+            <div class="edit-compra-head">
+                <div>
+                    <p class="eyebrow" style="color:var(--accent-brand); margin-bottom:0.2rem;">Datos no sensibles</p>
+                    <h2 style="margin:0;">Editar Compra</h2>
+                </div>
+                <button type="button" id="btnCerrarEditarCompra" class="edit-compra-close">&times;</button>
+            </div>
+            <form id="formEditarCompra" class="edit-compra-form">
+                <div class="form-field">
+                    <label for="editFecha">Fecha *</label>
+                    <input type="date" id="editFecha" required />
+                </div>
+                <div class="form-field">
+                    <label for="editTipoPago">Condición de Pago</label>
+                    <select id="editTipoPago">
+                        <option value="contado">Contado (Pagada)</option>
+                        <option value="credito">A Crédito (Cuenta por Pagar)</option>
+                    </select>
+                </div>
+                <div class="form-field" style="grid-column: 1 / -1;">
+                    <label for="editProveedorSelect">Proveedor guardado (opcional)</label>
+                    <select id="editProveedorSelect">
+                        <option value="">-- Mantener o escribir manualmente --</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="editProveedor">Proveedor *</label>
+                    <input type="text" id="editProveedor" required />
+                </div>
+                <div class="form-field">
+                    <label for="editRif">RIF / C.I.</label>
+                    <input type="text" id="editRif" />
+                </div>
+                <div class="form-field" id="grpEditNroFactura">
+                    <label for="editNroFactura">N° Factura</label>
+                    <input type="text" id="editNroFactura" />
+                </div>
+                <div class="form-field" id="grpEditNroControl">
+                    <label for="editNroControl">N° Control</label>
+                    <input type="text" id="editNroControl" />
+                </div>
+                <div class="form-field" id="grpEditCompRet" style="grid-column: 1 / -1;">
+                    <label for="editCompRet">Comprobante de Retención</label>
+                    <input type="text" id="editCompRet" />
+                </div>
+                <button type="submit" id="btnGuardarEditarCompra" style="grid-column: 1 / -1;">
+                    Guardar Cambios
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-wrap" style="margin-top: 2rem;">
+        <table id="tablaDetalles" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Producto</th>
+                    <th>Costo</th>
+                    <th>Cantidad</th>
+                    <th>Subtotal</th>
+                    <th>Seriales</th>
+                </tr>
+            </thead>
+            <tbody id="listaDetalles"> </tbody>
+        </table>
+    </div>
+
+    <div id="mensaje"></div>
+</Layout>
+
+<style>
+    .info-container {
+        background-color: rgba(var(--primary-rgb), 0.1);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(var(--primary-rgb), 0.2);
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    .info-grid p {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    .seriales-list {
+        font-size: 0.85rem;
+        color: #555;
+        margin-top: 0.2rem;
+    }
+    .edit-compra-modal {
+        width: min(95%, 600px);
+        text-align: left;
+        padding: 1.5rem;
+        gap: 1rem;
+    }
+    .edit-compra-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    .edit-compra-close {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 1.4rem;
+        cursor: pointer;
+        color: #111827;
+    }
+    .edit-compra-form {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+    }
+</style>
+
+<script>
+    import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
+    import { noRegistros, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const idCompra = window.location.pathname.split("/").pop() as string;
+        const btnAbrirEditar = document.getElementById("btnAbrirEditarCompra") as HTMLButtonElement;
+        const overlayEditar = document.getElementById("overlayEditarCompra") as HTMLElement;
+        const btnCerrarEditar = document.getElementById("btnCerrarEditarCompra") as HTMLButtonElement;
+        const formEditar = document.getElementById("formEditarCompra") as HTMLFormElement;
+        const editFecha = document.getElementById("editFecha") as HTMLInputElement;
+        const editTipoPago = document.getElementById("editTipoPago") as HTMLSelectElement;
+        const editProveedorSelect = document.getElementById("editProveedorSelect") as HTMLSelectElement;
+        const editProveedor = document.getElementById("editProveedor") as HTMLInputElement;
+        const editRif = document.getElementById("editRif") as HTMLInputElement;
+        const editNroFactura = document.getElementById("editNroFactura") as HTMLInputElement;
+        const editNroControl = document.getElementById("editNroControl") as HTMLInputElement;
+        const editCompRet = document.getElementById("editCompRet") as HTMLInputElement;
+
+        let compraActual: any = null;
+        let proveedores: any[] = [];
+
+        (async () => {
+            try {
+                const res = await fetch("/api/proveedores");
+                if (!res.ok) return;
+                proveedores = await res.json();
+                proveedores.forEach((p: any) => {
+                    const opt = document.createElement("option");
+                    opt.value = p.id;
+                    opt.textContent = p.rif ? `${p.nombre} (${p.rif})` : p.nombre;
+                    editProveedorSelect?.appendChild(opt);
+                });
+            } catch {}
+        })();
+
+        editProveedorSelect?.addEventListener("change", () => {
+            const p = proveedores.find((x) => String(x.id) === editProveedorSelect.value);
+            if (p) {
+                editProveedor.value = p.nombre || "";
+                editRif.value = p.rif || "";
+            }
+        });
+
+        editProveedor?.addEventListener("input", () => {
+            if (editProveedorSelect.value) {
+                const p = proveedores.find((x) => String(x.id) === editProveedorSelect.value);
+                if (p && p.nombre !== editProveedor.value) editProveedorSelect.value = "";
+            }
+        });
+
+        function renderCabecera(compra: any) {
+            compraActual = compra;
+            const esNota = compra.tipo_documento === "nota_entrega";
+            const tasaBcv = Number(compra.tasa_bcv) || 0;
+            const fmtBcv = (usd: number) => tasaBcv > 0 ? `$${usd.toFixed(4)} USD (${(usd * tasaBcv).toFixed(4)} Bs)` : `$${usd.toFixed(4)} USD`;
+
+            document.getElementById("infoCompra")!.style.display = "block";
+            btnAbrirEditar.style.display = "inline-flex";
+            document.getElementById("lblDoc")!.textContent = esNota
+                ? `Nota de Entrega${compra.nro_factura ? ` #${compra.nro_factura}` : ""}`
+                : `Factura Fiscal${compra.nro_factura ? ` #${compra.nro_factura}` : ""}`;
+            document.getElementById("lblFecha")!.textContent = formatearFecha(compra.fecha);
+            document.getElementById("lblProveedor")!.textContent = compra.proveedor;
+            document.getElementById("lblRif")!.textContent = compra.proveedor_rif || "—";
+            document.getElementById("lblControl")!.textContent = compra.nro_control || "—";
+            document.getElementById("lblBase")!.textContent = fmtBcv(Number(compra.subtotal_base) || 0);
+            document.getElementById("lblExento")!.textContent = fmtBcv(Number(compra.subtotal_exento) || 0);
+            document.getElementById("lblIva")!.textContent = esNota
+                ? "0.00 (Sin IVA)"
+                : `${fmtBcv(Number(compra.iva_monto) || 0)} (${compra.iva_porcentaje ?? 16}%)`;
+            document.getElementById("lblRetencion")!.textContent = Number(compra.retencion_iva_monto) > 0
+                ? `-${fmtBcv(Number(compra.retencion_iva_monto))}${compra.comprobante_retencion ? ` [Comp: ${compra.comprobante_retencion}]` : ""}`
+                : "0.00";
+            document.getElementById("lblFlete")!.textContent = Number(compra.flete_monto) > 0
+                ? `$${Number(compra.flete_monto).toFixed(4)} USD`
+                : "0.00";
+            document.getElementById("lblCondicion")!.textContent = compra.tipo_pago === "credito"
+                ? (compra.estado_pago === "pendiente"
+                    ? `A Crédito (Pendiente: $${Math.max(0, Number(compra.monto_total) - Number(compra.monto_abonado)).toFixed(4)})`
+                    : "A Crédito (Pagada)")
+                : "Contado (Pagada)";
+            document.getElementById("lblMonto")!.textContent = fmtBcv(Number(compra.monto_total) || 0);
+        }
+
+        btnAbrirEditar.addEventListener("click", () => {
+            if (!compraActual) return;
+            const esNota = compraActual.tipo_documento === "nota_entrega";
+            editFecha.value = compraActual.fecha || "";
+            editTipoPago.value = compraActual.tipo_pago === "credito" ? "credito" : "contado";
+            editProveedorSelect.value = compraActual.proveedor_id || "";
+            editProveedor.value = compraActual.proveedor || "";
+            editRif.value = compraActual.proveedor_rif || "";
+            editNroFactura.value = compraActual.nro_factura || "";
+            editNroControl.value = compraActual.nro_control || "";
+            editCompRet.value = compraActual.comprobante_retencion || "";
+            (document.getElementById("grpEditCompRet") as HTMLElement).style.display = esNota ? "none" : "flex";
+
+            overlayEditar.classList.remove("oculto");
+            overlayEditar.classList.add("visible");
+        });
+
+        const cerrarModal = () => {
+            overlayEditar.classList.remove("visible");
+            overlayEditar.classList.add("oculto");
+        };
+        btnCerrarEditar.addEventListener("click", cerrarModal);
+        overlayEditar.addEventListener("click", (e) => { if (e.target === overlayEditar) cerrarModal(); });
+
+        formEditar.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const res = await fetch(`/api/compras/${idCompra}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fecha: editFecha.value,
+                    tipo_pago: editTipoPago.value,
+                    proveedor_id: editProveedorSelect.value,
+                    proveedor: editProveedor.value.trim(),
+                    proveedor_rif: editRif.value.trim(),
+                    nro_factura: editNroFactura.value.trim(),
+                    nro_control: editNroControl.value.trim(),
+                    comprobante_retencion: editCompRet.value.trim(),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                mostrarError(data.error || "No se pudo actualizar la compra");
+                return;
+            }
+            mostrarMensaje(data.message || "Compra actualizada");
+            cerrarModal();
+            const ref = await fetch(`/api/compras/${idCompra}`);
+            if (ref.ok) renderCabecera(await ref.json());
+        });
+
+        try {
+            const respuesta = await fetch(`/api/compras/${idCompra}`);
+
+            if (respuesta.status === 204) {
+                noRegistros("Compra no encontrada");
+                return;
+            }
+
+            const compra = await respuesta.json();
+            renderCabecera(compra);
+
+            // Llenar detalles
+            const tabla = document.getElementById(
+                "tablaDetalles",
+            ) as HTMLTableElement;
+            const lista = document.getElementById(
+                "listaDetalles",
+            ) as HTMLTableSectionElement;
+
+            if (compra.detalles && compra.detalles.length > 0) {
+                tabla.style.display = "table";
+
+                compra.detalles.forEach((d: any) => {
+                    const tr = document.createElement("tr");
+
+                    let serialesHtml = "N/A";
+                    if (d.seriales && d.seriales.length > 0) {
+                        serialesHtml = `<div class="seriales-list">${d.seriales.join(", ")}</div>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td>${d.codigo_producto}</td>
+                        <td>${d.nombre_producto}</td>
+                        <td>${Number(d.costo).toFixed(4)}</td>
+                        <td>${d.cantidad}</td>
+                        <td>${Number(d.subtotal).toFixed(4)}</td>
+                        <td>${serialesHtml}</td>
+                    `;
+                    lista.appendChild(tr);
+                });
+            } else {
+                noRegistros(
+                    "No hay productos registrados en esta compra."
+                );
+            }
+        } catch (error) {
+            console.error("Error cargando detalles", error);
+            noRegistros("Ocurrió un error al cargar la compra.");
+        }
+    });
+</script>

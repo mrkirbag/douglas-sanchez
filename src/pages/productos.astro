@@ -7,32 +7,37 @@ if (!usuario) {
     return Astro.redirect('/login');
 }
 if (usuario.rol !== 'admin') {
-    return Astro.redirect('/'); 
+    return Astro.redirect('/dashboard'); 
 }
 ---
 
 <Layout>
-    <h1>INVENTARIO DE PRODUCTOS</h1>
+    <header class="page-header">
+        <p class="eyebrow">Inventario</p>
+        <h1>Productos</h1>
+        <p class="page-intro">Consulta el catálogo con precios de compra (costo), Precio Divisas (reflejado en COP) y Precio BCV (Base Imponible reflejada en Bs).</p>
+    </header>
 
-    <div class="btn-add_container">
-        <a class="btn-add" href="/productos/agregarProductos">Agregar Producto</a>
-    </div>
+    <div class="page-toolbar">
+        <div class="toolbar-actions">
+            <div class="btn-add_container">
+                <a class="btn-add" href="/productos/agregarProductos">Agregar producto</a>
+            </div>
 
-    <div class="buttons">
-        <div class="btn-add_container">
-            <a class="btn-add" href="/productos/cargaMasiva">Cargar de Excel</a>
+            <div class="btn-add_container">
+                <a class="btn-add" id="exportarBtn">Exportar a Excel</a>
+            </div>
+            <div class="btn-add_container">
+                <a class="btn-add" href="/productos/historial">Historial de stock</a>
+            </div>
         </div>
 
-        <div class="btn-add_container">
-            <a class="btn-add" id="exportarBtn">Exportar a Excel</a>
+        <div class="input-busqueda_container">
+            <input type="text" id="inputBusqueda" placeholder="Buscar por nombre o código..." />
         </div>
     </div>
 
-
-    <div class="input-busqueda_container">
-        <input type="text" id="inputBusqueda" placeholder="Buscar producto..." />
-    </div>
-
+    <div class="table-wrap">
     <table>
         <thead id="thead">
             <tr>
@@ -42,14 +47,16 @@ if (usuario.rol !== 'admin') {
                     Nombre
                 </th>
                 <th>Cantidad</th>
-                <th>Costo Promedio</th>
-                <th>Precio Venta</th>
+                <th>Costo (Compra)</th>
+                <th>Precio Divisas (COP)</th>
+                <th>Precio BCV (Base Imp. Bs)</th>
                 <th>Acciones</th> 
             </tr>
         </thead>
         <tbody id="listaProductos">
         </tbody>
     </table>
+    </div>
 
     <div class="btn-vermas_container">
         <button id="btnVerAnterior" class="btn-vermas">Anterior</button>
@@ -57,17 +64,19 @@ if (usuario.rol !== 'admin') {
     </div>
 
     <div id="mensaje"></div>
+
+    <div id="overlay" class="overlay oculto"> 
+        <div id="modal" class="modal"></div>
+    </div>
 </Layout>
 
 <script>
-
-    import { noRegistros } from "@/utils/helpers/mensajes.js";
-    import { obtenerTasasPrecios } from "@/utils/helpers/cambioMoneda.js";
-    import { calcularPreciosProducto } from "@/utils/helpers/precios.js";
+    import { noRegistros, confirmarAccion, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { convertirPrecioDivisas, convertirPrecioBcv, formatearMoneda, obtenerMonedaBase } from "@/utils/helpers/tasas.js";
+    import { ponerIcono } from "@/utils/helpers/iconosAccion.js";
 
     document.addEventListener('DOMContentLoaded', async () => {
-
-        // Elementos del DOM
         const thead = document.getElementById('thead') as HTMLTableSectionElement;
         const tbody = document.getElementById('listaProductos') as HTMLTableSectionElement;
         const btnVerMas = document.getElementById('btnVerMas') as HTMLButtonElement;
@@ -76,25 +85,66 @@ if (usuario.rol !== 'admin') {
 
         busqueda.value = '';
 
-        // Estado
         let productosListados = [] as any[];
         let productosFiltrados = [] as any[];
         let paginaActual = 1;
         const porPagina = 10;
 
-        // Obtener tasas de cambio
-        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
+        const tasas = await obtenerTasas();
+        const monedaBase = obtenerMonedaBase();
 
-        // Mostrar lote de clientes
+        function htmlCosto(valor: number) {
+            if (monedaBase === 'COP') {
+                const { usd, cop } = convertirPrecioDivisas(valor, tasas);
+                const refUsd = usd > 0
+                    ? `<br /><span style="font-size: .76rem; color: var(--text-muted);">${formatearMoneda(usd, 'USD')}</span>`
+                    : '';
+                return `<strong>${formatearMoneda(cop, 'COP')}</strong>${refUsd}`;
+            }
+            return `<strong>${formatearMoneda(valor, 'USD')}</strong>`;
+        }
+
+        function htmlPrecioDivisas(valor: number) {
+            const { usd, cop } = convertirPrecioDivisas(valor, tasas);
+            if (monedaBase === 'COP') {
+                const refUsd = usd > 0
+                    ? `<br /><span style="font-size: .76rem; color: var(--text-muted);">${formatearMoneda(usd, 'USD')}</span>`
+                    : '';
+                return `<strong>${formatearMoneda(cop, 'COP')}</strong>${refUsd}`;
+            }
+            const refCop = cop > 0
+                ? `<br /><span style="font-size: .76rem; color: var(--text-muted);">${formatearMoneda(cop, 'COP')}</span>`
+                : '';
+            return `<strong>${formatearMoneda(usd, 'USD')}</strong>${refCop}`;
+        }
+
+        function htmlPrecioBcv(valor: number, exentoIva: boolean) {
+            const calc = convertirPrecioBcv(valor, tasas, { exento: exentoIva });
+            if (monedaBase === 'COP') {
+                const refUsd = calc.baseUsd > 0
+                    ? `<br /><span style="font-size: .76rem; color: var(--secondary-color); font-weight: 600;">Ref. BCV: ${formatearMoneda(calc.baseUsd, 'USD')}</span>`
+                    : '';
+                const etiquetaIva = calc.exento
+                    ? `<br /><span style="display:inline-block; margin-top:2px; font-size:0.65rem; padding:1px 6px; border-radius:99px; background:rgba(16,185,129,0.14); color:#047857; font-weight:700;">EXENTO IVA</span>`
+                    : `<br /><span style="font-size:0.7rem; color:var(--text-muted);">+IVA (${calc.alicuota}%): ${formatearMoneda(calc.totalBs, 'BS')}</span>`;
+                return `<strong>${formatearMoneda(calc.baseBs, 'BS')}</strong>${refUsd}${etiquetaIva}`;
+            }
+            const refBs = calc.baseBs > 0
+                ? `<br /><span style="font-size: .76rem; color: var(--secondary-color); font-weight: 600;">Base: ${formatearMoneda(calc.baseBs, 'BS')}</span>`
+                : '';
+            const etiquetaIva = calc.exento
+                ? `<br /><span style="display:inline-block; margin-top:2px; font-size:0.65rem; padding:1px 6px; border-radius:99px; background:rgba(16,185,129,0.14); color:#047857; font-weight:700;">EXENTO IVA</span>`
+                : `<br /><span style="font-size:0.7rem; color:var(--text-muted);">+IVA (${calc.alicuota}%): ${formatearMoneda(calc.totalBs, 'BS')}</span>`;
+            return `<strong>${formatearMoneda(calc.baseUsd, 'USD')}</strong>${refBs}${etiquetaIva}`;
+        }
+
         async function mostrarPagina(pagina : number) {
-
             const inicio = (pagina - 1) * porPagina;
             const fin = inicio + porPagina;
             const lote = productosFiltrados.slice(inicio, fin);
 
             tbody.innerHTML = '';
 
-            // Si no hay clientes al buscar, mostrar mensaje
             if (lote.length === 0) {
                 tbody.innerHTML = "";
                 thead.style.display = 'none';
@@ -110,89 +160,97 @@ if (usuario.rol !== 'admin') {
 
             lote.forEach( producto => {
                 const tr = document.createElement('tr');
-
-                const ventaPrecios = calcularPreciosProducto(producto, { tasaCopUsd, tasaBcvUsd, recargoBcv });
-                const costoUsd = tasaCopUsd > 0 ? producto.costo / tasaCopUsd : 0;
-                const costoBs = costoUsd * tasaBcvUsd;
+                const costo = Number(producto.costo) || 0;
+                const precioDivisas = Number(producto.precio_divisas ?? producto.venta) || 0;
+                const precioBcv = Number(producto.precio_bcv ?? producto.venta) || 0;
+                const exentoIva = Boolean(Number(producto.exento_iva));
 
                 tr.innerHTML = `    
-                                    <td data-label="Código y Nombre">
-                                        ${producto.codigo}
-                                        <br />
-                                        ${producto.nombre.toUpperCase()}
-                                    </td>
-                                    <td data-label="Cantidad">${producto.stock} ${producto.unidad_medida}</td>
-                                    <td data-label="Precio de Costo">
-                                        ${producto.costo.toFixed(2)} COP
-                                        <br />
-                                        <span style="font-size: .75rem;">${costoUsd.toFixed(2)} USD
-                                        <br />
-                                        <span style="font-size: .75rem;">${Math.ceil(costoBs)} Bs BCV
-                                    </td>
-                                    <td data-label="Precio de Venta">
-                                        ${producto.venta.toFixed(2)} COP
-                                        <br />
-                                        <span style="font-size: .75rem;">${ventaPrecios.usdDivisa.toFixed(2)} USD (divisas)
-                                        <br />
-                                        <span style="font-size: .75rem;">${ventaPrecios.pventaBcv.toFixed(2)} USD BCV
-                                        <br />
-                                        <span style="font-size: .75rem;">${Math.ceil(ventaPrecios.bsBcv)} Bs BCV
-                                    </td>
-                                `;
+                    <td data-label="Código y Nombre">
+                        <strong>${producto.codigo}</strong>
+                        <br />
+                        ${producto.nombre.toUpperCase()}
+                    </td>
+                    <td data-label="Cantidad">${producto.stock} ${producto.unidad_medida}</td>
+                    <td data-label="Costo (Compra)">${htmlCosto(costo)}</td>
+                    <td data-label="Precio Divisas (COP)">${htmlPrecioDivisas(precioDivisas)}</td>
+                    <td data-label="Precio BCV (Base Bs)">${htmlPrecioBcv(precioBcv, exentoIva)}</td>
+                `;
 
-                // Botones de acciones
                 const tdAcciones = document.createElement('td');
                 tdAcciones.classList.add('acciones');
 
-                // Boton de agregar a stock
-                const btnStock = document.createElement('button');
-                btnStock.classList.add('btn-stock');
-                btnStock.textContent = '+UNIDADES';
+                const btnAgregar = document.createElement('a');
+                btnAgregar.href = `/productos/movimiento?id=${producto.id}&tipo=entrada`;
+                btnAgregar.classList.add('btn-stock');
+                ponerIcono(btnAgregar, 'agregar');
+                tdAcciones.appendChild(btnAgregar);
 
-                btnStock.onclick = async () => {
-                    window.location.href = `/productos/agregarStock?id=${producto.id}`;
-                }
+                const btnSacar = document.createElement('a');
+                btnSacar.href = `/productos/movimiento?id=${producto.id}&tipo=salida`;
+                btnSacar.classList.add('btn-salida');
+                ponerIcono(btnSacar, 'sacar');
+                tdAcciones.appendChild(btnSacar);
 
-                tdAcciones.appendChild(btnStock)
+                const btnHistorial = document.createElement('a');
+                btnHistorial.href = `/productos/historial?id=${producto.id}`;
+                btnHistorial.classList.add('btn-historial');
+                ponerIcono(btnHistorial, 'historial');
+                tdAcciones.appendChild(btnHistorial);
 
-                // Boton de eliminar
+                const btnInfo = document.createElement('button');
+                btnInfo.type = 'button';
+                btnInfo.classList.add('btn-editar');
+                ponerIcono(btnInfo, 'info');
+                btnInfo.onclick = () => (window as any).abrirModalInfo(producto.id);
+                tdAcciones.appendChild(btnInfo);
+
                 const btnEliminar = document.createElement('button');
+                btnEliminar.type = 'button';
                 btnEliminar.classList.add('btn-eliminar');
-                btnEliminar.textContent = 'DEL';
+                ponerIcono(btnEliminar, 'eliminar');
 
                 btnEliminar.onclick = async () => {
-                    // Confirmación antes de eliminar
-                    const confirmar = confirm(`¿Estás seguro de eliminar al producto ${producto.codigo} - ${producto.nombre}?`);
+                    const confirmar = await confirmarAccion(`¿Deseas eliminar el producto ${producto.codigo} - ${producto.nombre}?`, {
+                        titulo: 'Eliminar producto',
+                        textoAceptar: 'Eliminar',
+                    });
                     if (!confirmar) return;
 
-                    // Enviar solicitud de eliminación al servidor
                     try {
                         const res = await fetch('/api/productos/', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: producto.id })
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: producto.id })
                         });
 
-                        // Actualiza el array local y repinta
+                        if (!res.ok) {
+                            const data = await res.json().catch(() => ({}));
+                            mostrarError(data.error || data.message || 'No se pudo inactivar el producto');
+                            return;
+                        }
+
+                        mostrarMensaje('Producto eliminado correctamente');
+
                         productosListados = productosListados.filter(c => c.id !== producto.id);
                         productosFiltrados = aplicarFiltro(busqueda.value);
                         mostrarPagina(1);
                     } catch (error) {
+                        mostrarError('Error eliminando producto');
                         console.error("Error eliminando producto:", error);
                     }
                 };
                 tdAcciones.appendChild(btnEliminar);
 
-                // Boton de editar
                 const btnEditar = document.createElement('button');
+                btnEditar.type = 'button';
                 btnEditar.classList.add('btn-editar');
-                btnEditar.textContent = 'EDIT';
+                ponerIcono(btnEditar, 'editar');
                 btnEditar.onclick = () => {
                     window.location.href = `/productos/${producto.id}`;
                 };
                 tdAcciones.appendChild(btnEditar);
 
-                // Adjuntar acciones al tr
                 tr.appendChild(tdAcciones);
                 tbody.appendChild(tr);
             });
@@ -201,7 +259,6 @@ if (usuario.rol !== 'admin') {
             btnVerAnterior.style.display = pagina > 1 ? 'block' : 'none';
         }
 
-        // Filtro local por nombre o código
         function aplicarFiltro(texto : string) : any[] {
             if (!texto.trim()) return [...productosListados];
 
@@ -213,10 +270,9 @@ if (usuario.rol !== 'admin') {
             );
         }
 
-        // Cargar desde el backend una sola vez
         async function cargarProductos() {
             try {
-                const res = await fetch('/api/productos');
+                const res = await fetch('/api/productos?limit=500');
                 const data = await res.json();
 
                 if (data.message) {
@@ -236,7 +292,6 @@ if (usuario.rol !== 'admin') {
             }
         }
 
-        // Eventos
         busqueda.addEventListener('input', () => {
             paginaActual = 1;
             productosFiltrados = aplicarFiltro(busqueda.value);
@@ -256,6 +311,117 @@ if (usuario.rol !== 'admin') {
         });
 
         cargarProductos();
+
+        function cerrarModal() {
+            const overlay = document.getElementById('overlay');
+            if (overlay) {
+                overlay.classList.add('oculto');
+                const modal = document.getElementById('modal');
+                if (modal) {
+                    modal.innerHTML = '';
+                    modal.removeAttribute('style');
+                }
+            }
+        }
+
+        (window as any).abrirModalInfo = async function(id: number) {
+            try {
+                const res = await fetch(`/api/productos/${id}`);
+                if (!res.ok) throw new Error('Error al obtener datos');
+                const p = await res.json();
+
+                const overlay = document.getElementById('overlay');
+                const modal = document.getElementById('modal');
+                if (!overlay || !modal) return;
+
+                modal.style.padding = '0';
+                modal.style.background = 'transparent';
+                modal.style.boxShadow = 'none';
+                modal.style.border = 'none';
+                modal.style.width = 'min(100%, 580px)';
+
+                const precioDivisas = Number(p.precio_divisas ?? p.venta) || 0;
+                const precioBcv = Number(p.precio_bcv ?? p.venta) || 0;
+                const exentoIva = Boolean(Number(p.exento_iva));
+
+                let serialesHtml = '';
+                if (p.usaSeriales) {
+                    const disponibles = p.serialesDisponibles || [];
+                    if (disponibles.length > 0) {
+                        serialesHtml = `
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed rgba(var(--secondary-rgb), 0.2);">
+                                <h4 style="margin: 0 0 0.8rem 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-color);">Seriales en Stock <span style="background: var(--primary-color); color: #fff; padding: 0.1rem 0.4rem; border-radius: 12px; margin-left: 0.4rem; font-size: 0.7rem;">${disponibles.length}</span></h4>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 160px; overflow-y: auto; padding-right: 0.5rem;">
+                                    ${disponibles.map((s: string) => `<span style="display: inline-flex; align-items: center; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.05), rgba(var(--primary-rgb), 0.12)); border: 1px solid rgba(var(--primary-rgb), 0.2); color: var(--secondary-color); font-family: monospace; font-size: 0.85rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 99px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">${s}</span>`).join('')}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        serialesHtml = `
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed rgba(var(--secondary-rgb), 0.2);">
+                                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-color);">Seriales en Stock</h4>
+                                <div style="background: rgba(239, 68, 68, 0.05); border-left: 3px solid #ef4444; padding: 0.8rem; border-radius: 0 8px 8px 0;">
+                                    <p style="font-size: 0.85rem; color: #ef4444; margin: 0; font-weight: 500;">No hay seriales disponibles actualmente.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                modal.innerHTML = `
+                    <div class="info-modal-scroll" style="position: relative; overflow-y: auto; overflow-x: hidden; border-radius: 24px; background: #fff; max-height: 90vh; box-shadow: 0 24px 48px rgba(var(--primary-rgb), 0.24);">
+                        <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); padding: 2rem 1.5rem 3rem 1.5rem; position: relative;">
+                            <button id="btnCerrarModal" style="position: absolute; top: 1rem; right: 1rem; background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; color: #fff; display: flex; align-items: center; justify-content: center;">&times;</button>
+                            <span style="display: inline-block; background: rgba(255,255,255,0.2); color: #fff; font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 99px; letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase;">${p.codigo}</span>
+                            <h2 style="margin: 0; font-size: 1.8rem; color: #fff; font-weight: 800; line-height: 1.2;">${p.nombre.toUpperCase()}</h2>
+                        </div>
+                        
+                        <div style="padding: 0 1.5rem 1.5rem 1.5rem; margin-top: -1.5rem; position: relative; z-index: 10;">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; margin-bottom: 1.5rem;">
+                                <div style="background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid rgba(var(--secondary-rgb), 0.08); text-align: center;">
+                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.3rem;">Stock</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: var(--primary-strong);">${p.stock} <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${p.unidad_medida}</span></div>
+                                </div>
+                                <div style="background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid rgba(var(--secondary-rgb), 0.08); text-align: center;">
+                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.3rem;">Costo (Compra)</div>
+                                    <div style="font-size: 1.1rem; font-weight: 800; color: var(--secondary-color);">${htmlCosto(p.costo || 0)}</div>
+                                </div>
+                                <div style="background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid rgba(var(--secondary-rgb), 0.08); text-align: center;">
+                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.3rem;">Precio Divisas (Tasa COP)</div>
+                                    <div style="font-size: 1.05rem; font-weight: 800; color: var(--primary-color);">${htmlPrecioDivisas(precioDivisas)}</div>
+                                </div>
+                                <div style="background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid rgba(var(--secondary-rgb), 0.08); text-align: center;">
+                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.3rem;">Precio BCV (Base Imp. Bs)</div>
+                                    <div style="font-size: 1.05rem; font-weight: 800; color: var(--primary-color);">${htmlPrecioBcv(precioBcv, exentoIva)}</div>
+                                </div>
+                            </div>
+
+                            <div style="background: var(--surface-soft); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(var(--secondary-rgb), 0.05);">
+                                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">Descripción</h4>
+                                <p style="margin: 0; font-size: 0.95rem; color: var(--text-color); line-height: 1.5; white-space: pre-wrap;">${p.descripcion || '<span style="color: var(--text-muted); font-style: italic;">Sin descripción detallada.</span>'}</p>
+                            </div>
+                            
+                            ${serialesHtml}
+
+                            <div style="margin-top: 1.8rem; display: flex; justify-content: flex-end;">
+                                <a href="/productos/${p.id}" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.5rem; background: linear-gradient(135deg, var(--secondary-color), var(--primary-strong)); color: #fff; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 0.95rem;">
+                                    Editar Producto
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                overlay.classList.remove('oculto');
+                document.getElementById('btnCerrarModal')?.addEventListener('click', cerrarModal);
+
+                overlay.onclick = (e) => {
+                    if (e.target === overlay) cerrarModal();
+                };
+            } catch (err) {
+                mostrarError('No se pudo cargar la información del producto');
+            }
+        };
     });
 
     const exportarBtn = document.getElementById('exportarBtn' ) as HTMLAnchorElement;
@@ -282,15 +448,4 @@ if (usuario.rol !== 'admin') {
             console.error('Error al exportar los productos:', error);
         }
     });
-
 </script>
-
-<style>
-
-    .buttons {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
-</style>

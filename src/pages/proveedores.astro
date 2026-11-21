@@ -1,0 +1,395 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { verificarToken } from "../utils/auth.js";
+
+const usuario = verificarToken(Astro.request);
+if (!usuario) {
+    return Astro.redirect("/login");
+}
+if (usuario.rol !== "admin") {
+    return Astro.redirect("/dashboard");
+}
+---
+
+<Layout>
+    <header class="page-header">
+        <p class="eyebrow">Gestión de Compras</p>
+        <h1>Proveedores</h1>
+        <p class="page-intro">
+            Directorio de proveedores con su historial de compras. También se guardan automáticamente al registrar una compra.
+        </p>
+    </header>
+
+    <div class="prov-toolbar">
+        <div class="input-busqueda_container" style="flex:1; max-width:440px;">
+            <input
+                type="text"
+                id="busquedaProv"
+                placeholder="Buscar proveedor por nombre, RIF o teléfono..."
+                autocomplete="off"
+            />
+        </div>
+        <div class="btn-add_container">
+            <a class="btn-add" id="btnNuevoProv" style="cursor:pointer;">Agregar proveedor</a>
+        </div>
+    </div>
+
+    <div id="mensaje"></div>
+
+    <div class="table-wrap">
+        <table>
+            <thead id="theadProv">
+                <tr>
+                    <th>Proveedor</th>
+                    <th>RIF / Documento</th>
+                    <th>Contacto</th>
+                    <th>Compras Realizadas</th>
+                    <th>Por Pagar</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyProv"></tbody>
+        </table>
+    </div>
+
+    <!-- Modal Crear / Editar Proveedor -->
+    <div id="overlayFormProv" class="overlay oculto" style="z-index: 1100;">
+        <div class="modal prov-modal">
+            <div class="prov-modal__head">
+                <h2 id="tituloModalProv" style="margin:0;">Agregar Proveedor</h2>
+                <button type="button" id="btnCerrarFormProv" class="prov-close">&times;</button>
+            </div>
+            <form id="formProv" class="prov-form">
+                <input type="hidden" id="provId" />
+                <div class="form-field" style="grid-column: 1 / -1;">
+                    <label for="provNombre">Nombre / Razón Social *</label>
+                    <input type="text" id="provNombre" required placeholder="Ej: Distribuidora Andes C.A." />
+                </div>
+                <div class="form-field">
+                    <label for="provRif">RIF / C.I.</label>
+                    <input type="text" id="provRif" placeholder="J-12345678-9" />
+                </div>
+                <div class="form-field">
+                    <label for="provTelefono">Teléfono</label>
+                    <input type="text" id="provTelefono" placeholder="0414-0000000" />
+                </div>
+                <div class="form-field" style="grid-column: 1 / -1;">
+                    <label for="provEmail">Correo Electrónico</label>
+                    <input type="email" id="provEmail" placeholder="correo@proveedor.com" />
+                </div>
+                <div class="form-field" style="grid-column: 1 / -1;">
+                    <label for="provDireccion">Dirección</label>
+                    <textarea id="provDireccion" rows="2" placeholder="Dirección fiscal o de despacho"></textarea>
+                </div>
+                <button type="submit" id="btnGuardarProv" style="grid-column: 1 / -1;">
+                    Guardar Proveedor
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Historial de Compras del Proveedor -->
+    <div id="overlayHistProv" class="overlay oculto" style="z-index: 1100;">
+        <div class="modal prov-modal" style="width: min(96%, 820px);">
+            <div class="prov-modal__head">
+                <div>
+                    <p class="eyebrow" style="color:var(--accent-brand); margin-bottom:0.2rem;">Historial de Compras</p>
+                    <h2 id="histProvNombre" style="margin:0;">Proveedor</h2>
+                    <small id="histProvMeta" style="color:var(--text-muted);"></small>
+                </div>
+                <button type="button" id="btnCerrarHistProv" class="prov-close">&times;</button>
+            </div>
+            <div class="table-wrap" style="max-height: 360px; overflow-y: auto;">
+                <table class="prov-subtable">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Documento</th>
+                            <th>Condición</th>
+                            <th>Total</th>
+                            <th>Saldo</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyHistProv"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    // @ts-nocheck
+    import { noRegistros, confirmarAccion, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
+    import { ponerIcono } from "@/utils/helpers/iconosAccion.js";
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const tbody = document.getElementById("tbodyProv");
+        const thead = document.getElementById("theadProv");
+        const busqueda = document.getElementById("busquedaProv");
+        const btnNuevo = document.getElementById("btnNuevoProv");
+
+        const overlayForm = document.getElementById("overlayFormProv");
+        const btnCerrarForm = document.getElementById("btnCerrarFormProv");
+        const formProv = document.getElementById("formProv");
+        const tituloModal = document.getElementById("tituloModalProv");
+        const provId = document.getElementById("provId");
+        const provNombre = document.getElementById("provNombre");
+        const provRif = document.getElementById("provRif");
+        const provTelefono = document.getElementById("provTelefono");
+        const provEmail = document.getElementById("provEmail");
+        const provDireccion = document.getElementById("provDireccion");
+
+        const overlayHist = document.getElementById("overlayHistProv");
+        const btnCerrarHist = document.getElementById("btnCerrarHistProv");
+        const tbodyHist = document.getElementById("tbodyHistProv");
+
+        let proveedores = [];
+
+        function renderTabla() {
+            const term = (busqueda.value || "").trim().toLowerCase();
+            const filtrados = !term
+                ? proveedores
+                : proveedores.filter((p) =>
+                    p.nombre.toLowerCase().includes(term) ||
+                    p.rif.toLowerCase().includes(term) ||
+                    p.telefono.toLowerCase().includes(term)
+                );
+
+            tbody.innerHTML = "";
+            if (filtrados.length === 0) {
+                thead.style.display = "none";
+                noRegistros("No hay proveedores registrados");
+                return;
+            }
+
+            noRegistros("");
+            thead.style.display = "table-header-group";
+
+            filtrados.forEach((p) => {
+                const tr = document.createElement("tr");
+                const contacto = [p.telefono, p.email, p.direccion].filter(Boolean).join(" · ") || "—";
+                const deudaHtml = p.deuda_pendiente_usd > 0.01
+                    ? `<strong style="color:#dc2626;">$${p.deuda_pendiente_usd.toFixed(4)}</strong>`
+                    : `<span style="color:#15803d; font-weight:700;">$0.00</span>`;
+                const comprasHtml = p.total_compras > 0
+                    ? `<strong>${p.total_compras}</strong> compra(s) · <strong>$${p.total_comprado_usd.toFixed(4)}</strong>${p.ultima_compra ? `<br/><small style="color:var(--text-muted);">Última: ${formatearFecha(p.ultima_compra)}</small>` : ""}`
+                    : `<span style="color:var(--text-muted);">Sin compras aún</span>`;
+
+                tr.innerHTML = `
+                    <td data-label="Proveedor"><strong>${p.nombre.toUpperCase()}</strong></td>
+                    <td data-label="RIF">${p.rif || "—"}</td>
+                    <td data-label="Contacto"><small>${contacto}</small></td>
+                    <td data-label="Compras">${comprasHtml}</td>
+                    <td data-label="Por Pagar">${deudaHtml}</td>
+                `;
+
+                const tdAcc = document.createElement("td");
+                tdAcc.className = "acciones";
+
+                const btnHist = document.createElement("button");
+                btnHist.type = "button";
+                btnHist.className = "btn-historial";
+                ponerIcono(btnHist, "historial");
+                btnHist.title = "Ver compras del proveedor";
+                btnHist.onclick = () => abrirHistorial(p.id);
+                tdAcc.appendChild(btnHist);
+
+                const btnEdit = document.createElement("button");
+                btnEdit.type = "button";
+                btnEdit.className = "btn-editar";
+                ponerIcono(btnEdit, "editar");
+                btnEdit.onclick = () => abrirFormulario(p);
+                tdAcc.appendChild(btnEdit);
+
+                const btnDel = document.createElement("button");
+                btnDel.type = "button";
+                btnDel.className = "btn-eliminar";
+                ponerIcono(btnDel, "eliminar");
+                btnDel.onclick = async () => {
+                    const ok = await confirmarAccion(`¿Deseas eliminar al proveedor ${p.nombre}?`, {
+                        titulo: "Eliminar proveedor",
+                        textoAceptar: "Eliminar",
+                    });
+                    if (!ok) return;
+                    const res = await fetch("/api/proveedores", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: p.id }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        mostrarError(data.error || "No se pudo eliminar el proveedor");
+                        return;
+                    }
+                    mostrarMensaje("Proveedor eliminado correctamente");
+                    await cargarProveedores();
+                };
+                tdAcc.appendChild(btnDel);
+
+                tr.appendChild(tdAcc);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function abrirFormulario(p = null) {
+            provId.value = p?.id || "";
+            provNombre.value = p?.nombre || "";
+            provRif.value = p?.rif || "";
+            provTelefono.value = p?.telefono || "";
+            provEmail.value = p?.email || "";
+            provDireccion.value = p?.direccion || "";
+            tituloModal.textContent = p ? "Editar Proveedor" : "Agregar Proveedor";
+            overlayForm.classList.remove("oculto");
+            overlayForm.classList.add("visible");
+        }
+
+        function cerrarFormulario() {
+            overlayForm.classList.remove("visible");
+            overlayForm.classList.add("oculto");
+        }
+
+        async function abrirHistorial(id) {
+            try {
+                const res = await fetch(`/api/proveedores/${id}`);
+                if (!res.ok) throw new Error("No se pudo cargar el historial");
+                const { proveedor, compras } = await res.json();
+
+                document.getElementById("histProvNombre").textContent = proveedor.nombre.toUpperCase();
+                document.getElementById("histProvMeta").textContent = [proveedor.rif, proveedor.telefono, proveedor.direccion].filter(Boolean).join(" · ") || "Sin datos adicionales";
+
+                tbodyHist.innerHTML = "";
+                if (!compras.length) {
+                    tbodyHist.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Este proveedor aún no tiene compras registradas.</td></tr>`;
+                } else {
+                    compras.forEach((c) => {
+                        const doc = c.tipo_documento === "nota_entrega" ? "Nota de Entrega" : `Factura ${c.nro_factura || ""}`;
+                        const cond = c.tipo_pago === "credito" ? "A Crédito" : "Contado";
+                        const saldo = c.tipo_pago === "credito" ? Math.max(0, Number(c.monto_total) - Number(c.monto_abonado)) : 0;
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `
+                            <td>${formatearFecha(c.fecha)}</td>
+                            <td><strong>${doc}</strong></td>
+                            <td>${cond}</td>
+                            <td>$${Number(c.monto_total).toFixed(4)}</td>
+                            <td><strong style="color:${saldo > 0.01 ? "#dc2626" : "#15803d"};">$${saldo.toFixed(4)}</strong></td>
+                            <td><a href="/compras/${c.id}" style="color:var(--accent-brand); font-weight:700;">Ver</a></td>
+                        `;
+                        tbodyHist.appendChild(tr);
+                    });
+                }
+
+                overlayHist.classList.remove("oculto");
+                overlayHist.classList.add("visible");
+            } catch (err) {
+                console.error(err);
+                mostrarError("No se pudo cargar el historial del proveedor");
+            }
+        }
+
+        function cerrarHistorial() {
+            overlayHist.classList.remove("visible");
+            overlayHist.classList.add("oculto");
+        }
+
+        async function cargarProveedores() {
+            try {
+                const res = await fetch("/api/proveedores");
+                if (!res.ok) throw new Error("Error cargando proveedores");
+                proveedores = await res.json();
+                renderTabla();
+            } catch (err) {
+                console.error(err);
+                mostrarError("No se pudieron cargar los proveedores");
+            }
+        }
+
+        busqueda.addEventListener("input", renderTabla);
+        btnNuevo.addEventListener("click", () => abrirFormulario(null));
+        btnCerrarForm.addEventListener("click", cerrarFormulario);
+        btnCerrarHist.addEventListener("click", cerrarHistorial);
+        overlayForm.addEventListener("click", (e) => { if (e.target === overlayForm) cerrarFormulario(); });
+        overlayHist.addEventListener("click", (e) => { if (e.target === overlayHist) cerrarHistorial(); });
+
+        formProv.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const esEdit = Boolean(provId.value);
+            const res = await fetch("/api/proveedores", {
+                method: esEdit ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: provId.value || undefined,
+                    nombre: provNombre.value.trim(),
+                    rif: provRif.value.trim(),
+                    telefono: provTelefono.value.trim(),
+                    email: provEmail.value.trim(),
+                    direccion: provDireccion.value.trim(),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                mostrarError(data.error || "No se pudo guardar el proveedor");
+                return;
+            }
+            mostrarMensaje(data.message || "Guardado");
+            cerrarFormulario();
+            await cargarProveedores();
+        });
+
+        await cargarProveedores();
+    });
+</script>
+
+<style>
+    .prov-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .prov-modal {
+        width: min(95%, 540px);
+        text-align: left;
+        padding: 1.5rem;
+        gap: 1rem;
+    }
+
+    .prov-modal__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .prov-close {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 1.4rem;
+        cursor: pointer;
+        color: #111827;
+    }
+
+    .prov-form {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+    }
+
+    .prov-subtable th,
+    .prov-subtable td {
+        padding: 0.6rem 0.75rem;
+        font-size: 0.84rem;
+    }
+
+    .prov-subtable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+</style>

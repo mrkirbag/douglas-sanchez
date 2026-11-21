@@ -1,65 +1,126 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { verificarToken } from '../utils/auth.js';
+import Layout from "../layouts/Layout.astro";
+import { verificarToken } from "../utils/auth.js";
 
 const usuario = verificarToken(Astro.request);
 if (!usuario) {
-    return Astro.redirect('/login');
+    return Astro.redirect("/login");
 }
 ---
 
 <Layout>
-    <h1>TASAS MULTIMONEDA</h1>
+    <header class="page-header">
+        <p class="eyebrow">Configuración Fiscal y Monetaria</p>
+        <h1>Tasas y Retenciones</h1>
+    </header>
 
-    <p class="tasa-info">
-        Tasa COP → USD: <span id="tasaTextoContainer"></span> COP por 1 USD
-    </p>
+    <section class="tasas-resumen">
+        <article>
+            <p class="eyebrow">Tasa COP (USD → COP)</p>
+            <p><span id="tasaCopTexto">—</span></p>
+        </article>
+        <article>
+            <p class="eyebrow">Tasa BCV (USD → Bs)</p>
+            <p><span id="tasaBsTexto">—</span></p>
+        </article>
+        <article>
+            <p class="eyebrow">Tasa COP → Bs (BCV)</p>
+            <p><span id="tasaCopBsTexto">—</span></p>
+            <small class="resumen-hint">COP ÷ tasa = Bs a BCV</small>
+        </article>
+        <article>
+            <p class="eyebrow">Alícuota IVA Fiscal</p>
+            <p><span id="ivaPorcentajeTexto">16</span>%</p>
+            <small class="resumen-hint"
+                >Calculado sobre Base Imponible BCV</small
+            >
+        </article>
+        <article>
+            <p class="eyebrow">Retención de IVA</p>
+            <p><span id="retencionIvaTexto">75</span>%</p>
+            <small class="resumen-hint"
+                >Por defecto para Contribuyentes Especiales</small
+            >
+        </article>
+    </section>
 
-    <section class="form-container">
+    <section class="form-container page-form">
         <form id="formulario">
-            <div>
-                <label for="tasa">COP por 1 USD</label>
-                <input type="text" id="tasa" name="tasa" required />
+            <div class="form-section-title">
+                <h2>Tasas de Cambio del Día</h2>
             </div>
-            <button type="submit">Actualizar Tasa USD</button>
-        </form>
-    </section>
 
-    <p class="tasa-info">
-        Tasa BCV (Bs por 1 USD): <span id="tasaBcvTexto"></span> Bs
-    </p>
-
-    <section class="form-container">
-        <form id="formularioBcv">
-            <div>
-                <label for="tasaBcv">Bs por 1 USD (BCV)</label>
-                <input type="text" id="tasaBcv" name="tasaBcv" required />
+            <div class="form-field">
+                <label for="tasaCop"
+                    >Tasa COP (pesos por 1 USD en Divisas)</label
+                >
+                <input
+                    type="text"
+                    id="tasaCop"
+                    name="tasaCop"
+                    placeholder="Ej. 4000"
+                    required
+                />
             </div>
-            <button type="submit">Actualizar Tasa BCV</button>
-        </form>
-    </section>
 
-    <p class="tasa-info">
-        Recargo al pagar en bolívares (BCV): <span id="recargoTexto"></span>%
-    </p>
-    <p class="tasa-hint">
-        Aplica cuando el cliente paga en <strong>bolívares a tasa BCV</strong>. Si paga en
-        <strong>divisas</strong>, se cobra el precio base en dólares; si paga en Bs, el precio
-        referencial en dólares sube según este recargo y luego se convierte con la tasa BCV del día.
-        <br /><br />
-        <strong>Ejemplo para el cliente:</strong> un producto sale a <strong>$10 en divisas</strong>.
-        Con recargo del 35%, quien pague en bolívares verá el equivalente de
-        <strong>$13,50</strong>. Si la tasa BCV es 36,50 Bs/USD, pagaría
-        <strong>492,75 Bs</strong> — más que quien cancela los $10 en efectivo divisas.
-    </p>
-
-    <section class="form-container">
-        <form id="formularioRecargo">
-            <div>
-                <label for="recargoBcv">Recargo BCV (%)</label>
-                <input type="text" id="recargoBcv" name="recargoBcv" required />
+            <div class="form-field">
+                <label for="tasaBs">Tasa BCV (Bs por 1 USD)</label>
+                <input
+                    type="text"
+                    id="tasaBs"
+                    name="tasaBs"
+                    placeholder="Ej. 36.50"
+                    required
+                />
             </div>
-            <button type="submit">Actualizar Recargo</button>
+
+            <div class="form-field">
+                <label for="tasaCopBs">Tasa COP a Bs (pesos por 1 Bs)</label>
+                <input
+                    type="text"
+                    id="tasaCopBs"
+                    name="tasaCopBs"
+                    placeholder="Ej. 3"
+                    required
+                />
+            </div>
+
+            <div class="form-section-title">
+                <h2>Retenciones e Impuestos</h2>
+            </div>
+
+            <div class="form-field">
+                <label for="ivaPorcentaje">IVA General (%)</label>
+                <input
+                    type="text"
+                    id="ivaPorcentaje"
+                    name="ivaPorcentaje"
+                    placeholder="Ej. 16"
+                    required
+                />
+            </div>
+
+            <div class="form-field">
+                <label for="retencionIvaPorcentaje"
+                    >Retención de IVA por defecto (%)</label
+                >
+                <select
+                    id="retencionIvaPorcentaje"
+                    name="retencionIvaPorcentaje"
+                >
+                    <option value="75"
+                        >75% (Contribuyente Especial Ordinario)</option
+                    >
+                    <option value="100"
+                        >100% (Contribuyente Especial 100%)</option
+                    >
+                    <option value="0">0% (Sin retención por defecto)</option>
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit">Actualizar tasas y retenciones</button>
+            </div>
         </form>
     </section>
 
@@ -70,107 +131,186 @@ if (!usuario) {
 </Layout>
 
 <script>
-    import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
+    import { mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { invalidarCacheTasa } from "@/utils/helpers/cambioMoneda.js";
 
-    document.addEventListener('DOMContentLoaded', async () => {
-        const tasaTextoContainer = document.getElementById('tasaTextoContainer') as HTMLElement;
-        const inputTasa = document.getElementById('tasa') as HTMLInputElement;
-        const tasaBcvTexto = document.getElementById('tasaBcvTexto') as HTMLElement;
-        const inputTasaBcv = document.getElementById('tasaBcv') as HTMLInputElement;
-        const recargoTexto = document.getElementById('recargoTexto') as HTMLElement;
-        const inputRecargo = document.getElementById('recargoBcv') as HTMLInputElement;
+    async function parseApiResponse(response: Response) {
+        const contentType = response.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+            return response.json();
+        }
+
+        const text = await response.text();
+        return { error: text || "Error inesperado del servidor" };
+    }
+
+    function numeroInput(valor: string) {
+        return parseFloat(String(valor || "").replace(",", "."));
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const tasaCopTexto = document.getElementById(
+            "tasaCopTexto",
+        ) as HTMLElement;
+        const tasaBsTexto = document.getElementById(
+            "tasaBsTexto",
+        ) as HTMLElement;
+        const tasaCopBsTexto = document.getElementById(
+            "tasaCopBsTexto",
+        ) as HTMLElement;
+        const ivaPorcentajeTexto = document.getElementById(
+            "ivaPorcentajeTexto",
+        ) as HTMLElement;
+        const retencionIvaTexto = document.getElementById(
+            "retencionIvaTexto",
+        ) as HTMLElement;
+
+        const inputTasaCop = document.getElementById(
+            "tasaCop",
+        ) as HTMLInputElement;
+        const inputTasaBs = document.getElementById(
+            "tasaBs",
+        ) as HTMLInputElement;
+        const inputTasaCopBs = document.getElementById(
+            "tasaCopBs",
+        ) as HTMLInputElement;
+        const inputIvaPorcentaje = document.getElementById(
+            "ivaPorcentaje",
+        ) as HTMLInputElement;
+        const selectRetencionIva = document.getElementById(
+            "retencionIvaPorcentaje",
+        ) as HTMLSelectElement;
 
         try {
-            const [resTasa, resBcv, resRecargo] = await Promise.all([
-                fetch('/api/tasa'),
-                fetch('/api/tasaBcv'),
-                fetch('/api/configPrecios'),
-            ]);
+            const response = await fetch("/api/tasa");
 
-            if (resTasa.status === 204) {
-                mostrarMensaje('Configure la tasa COP/USD');
-            } else if (resTasa.ok) {
-                const data = await resTasa.json();
-                tasaTextoContainer.textContent = data.valor;
-                inputTasa.value = data.valor;
+            if (response.status === 204) {
+                mostrarMensaje(
+                    "No hay tasa registrada aún. Ingresa los valores iniciales.",
+                );
+                return;
             }
 
-            if (resBcv.status === 204) {
-                mostrarMensaje('Configure la tasa BCV');
-            } else if (resBcv.ok) {
-                const data = await resBcv.json();
-                tasaBcvTexto.textContent = data.valor;
-                inputTasaBcv.value = data.valor;
+            const data = await parseApiResponse(response);
+
+            if (!response.ok) {
+                mostrarError(
+                    data.error ||
+                        data.message ||
+                        "Error al cargar las tasas del día",
+                );
+                return;
             }
 
-            if (resRecargo.ok) {
-                const data = await resRecargo.json();
-                recargoTexto.textContent = data.recargo_bcv ?? '35';
-                inputRecargo.value = String(data.recargo_bcv ?? 35);
-            }
+            const cop = data.tasa_cop ?? data.cop ?? data.valor ?? "";
+            const bs = data.tasa_bcv ?? data.bs ?? "";
+            const copABs = data.tasa_cop_bs ?? data.cop_a_bs ?? 3;
+            const iva = data.iva_porcentaje ?? 16;
+            const retIva = data.retencion_iva_porcentaje ?? 75;
+
+            tasaCopTexto.textContent = cop === "" ? "—" : String(cop);
+            tasaBsTexto.textContent =
+                bs === "" || Number(bs) === 0 ? "—" : String(bs);
+            tasaCopBsTexto.textContent =
+                copABs === "" || Number(copABs) === 0 ? "—" : String(copABs);
+            ivaPorcentajeTexto.textContent = String(iva);
+            retencionIvaTexto.textContent = String(retIva);
+
+            inputTasaCop.value = cop === "" ? "" : String(cop);
+            inputTasaBs.value = bs === "" || Number(bs) === 0 ? "" : String(bs);
+            inputTasaCopBs.value = copABs === "" || Number(copABs) === 0 ? "" : String(copABs);
+            inputIvaPorcentaje.value = String(iva);
+            selectRetencionIva.value = String(retIva);
         } catch (error: any) {
-            mostrarError(error.message);
+            mostrarError(error.message || "Error al cargar las tasas del día");
         }
     });
 
-    document.getElementById('formulario')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const tasa = parseFloat((document.getElementById('tasa') as HTMLInputElement).value);
+    const formulario = document.getElementById("formulario") as HTMLFormElement;
 
-        try {
-            const response = await fetch('/api/tasa', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tasa }),
-            });
-            const data = await response.json();
-            if (!response.ok) mostrarError(data.error || 'Error al actualizar la tasa');
-            else {
-                mostrarMensaje('Tasa USD actualizada. Precios recalculados.');
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } catch (error: any) {
-            mostrarError(error.message);
+    formulario?.addEventListener("submit", async (event: SubmitEvent) => {
+        event.preventDefault();
+
+        const cop = numeroInput(
+            (document.getElementById("tasaCop") as HTMLInputElement).value,
+        );
+        const bs = numeroInput(
+            (document.getElementById("tasaBs") as HTMLInputElement).value,
+        );
+        const cop_a_bs = numeroInput(
+            (document.getElementById("tasaCopBs") as HTMLInputElement).value,
+        );
+        const iva_porcentaje = numeroInput(
+            (document.getElementById("ivaPorcentaje") as HTMLInputElement)
+                .value,
+        );
+        const retencion_iva_porcentaje = numeroInput(
+            (
+                document.getElementById(
+                    "retencionIvaPorcentaje",
+                ) as HTMLSelectElement
+            ).value,
+        );
+
+        if (!Number.isFinite(cop) || cop <= 0) {
+            mostrarError("La tasa COP debe ser un número mayor a 0");
+            return;
         }
-    });
 
-    document.getElementById('formularioBcv')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const tasaBcv = parseFloat((document.getElementById('tasaBcv') as HTMLInputElement).value);
-
-        try {
-            const response = await fetch('/api/tasaBcv', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tasaBcv }),
-            });
-            const data = await response.json();
-            if (!response.ok) mostrarError(data.error || 'Error al actualizar tasa BCV');
-            else {
-                mostrarMensaje('Tasa BCV actualizada correctamente');
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } catch (error: any) {
-            mostrarError(error.message);
+        if (!Number.isFinite(bs) || bs <= 0) {
+            mostrarError("La tasa BCV (Bs) debe ser un número mayor a 0");
+            return;
         }
-    });
 
-    document.getElementById('formularioRecargo')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const recargo_bcv = parseFloat((document.getElementById('recargoBcv') as HTMLInputElement).value);
+        if (!Number.isFinite(cop_a_bs) || cop_a_bs <= 0) {
+            mostrarError("La tasa COP a Bs debe ser un número mayor a 0");
+            return;
+        }
+
+        if (
+            !Number.isFinite(iva_porcentaje) ||
+            iva_porcentaje < 0 ||
+            iva_porcentaje > 100
+        ) {
+            mostrarError("El porcentaje de IVA debe estar entre 0 y 100");
+            return;
+        }
 
         try {
-            const response = await fetch('/api/configPrecios', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recargo_bcv }),
+            const response = await fetch("/api/tasa", {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    tasa_cop: cop,
+                    tasa_bcv: bs,
+                    tasa_cop_bs: cop_a_bs,
+                    cop,
+                    bs,
+                    cop_a_bs,
+                    iva_porcentaje,
+                    retencion_iva_porcentaje,
+                }),
             });
-            const data = await response.json();
-            if (!response.ok) mostrarError(data.error || 'Error al actualizar recargo');
-            else {
-                mostrarMensaje('Recargo actualizado. Precios en bolívares recalculados.');
-                setTimeout(() => window.location.reload(), 1000);
+
+            const data = await parseApiResponse(response);
+
+            if (!response.ok) {
+                mostrarError(
+                    data.error ||
+                        data.message ||
+                        "Error al actualizar las tasas y retenciones",
+                );
+                return;
             }
+
+            invalidarCacheTasa();
+            mostrarMensaje("Tasas y retenciones actualizadas correctamente");
+            setTimeout(() => {
+                window.location.reload();
+            }, 900);
         } catch (error: any) {
             mostrarError(error.message);
         }
@@ -178,22 +318,64 @@ if (!usuario) {
 </script>
 
 <style>
-    #tasaTextoContainer,
-    #tasaBcvTexto,
-    #recargoTexto {
-        font-weight: 700;
+    .tasas-resumen {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin: 1.25rem 0;
+    }
+
+    .tasas-resumen article {
+        padding: 1.1rem 1.2rem;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
+        box-shadow: 0 18px 32px rgba(var(--primary-rgb), 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .tasas-resumen p:nth-child(2) {
+        margin: 0.2rem 0 0;
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--secondary-color);
+    }
+
+    .resumen-hint {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .form-section-title {
+        grid-column: 1 / -1;
+        margin-top: 0.5rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid rgba(var(--secondary-rgb), 0.12);
+    }
+
+    .form-section-title h2 {
+        margin: 0;
+        font-size: 1.05rem;
         color: var(--primary-color);
     }
 
-    .tasa-info {
-        margin: 1.25rem 0 0.5rem;
+    .form-section-title p {
+        margin: 0.25rem 0 0;
+        font-size: 0.84rem;
+        color: var(--text-muted);
     }
 
-    .tasa-hint {
-        font-size: 0.85rem;
-        color: #666;
-        max-width: 36rem;
-        margin-bottom: 0.75rem;
-        line-height: 1.45;
+    @media (max-width: 960px) {
+        .tasas-resumen {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 560px) {
+        .tasas-resumen {
+            grid-template-columns: 1fr;
+        }
     }
 </style>

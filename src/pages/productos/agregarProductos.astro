@@ -1,6 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-
 import { verificarToken } from '@/utils/auth.js';
 
 const usuario = verificarToken(Astro.request);
@@ -8,39 +7,147 @@ if (!usuario) {
     return Astro.redirect('/login');
 }
 if (usuario.rol !== 'admin') {
-    return Astro.redirect('/'); 
+    return Astro.redirect('/dashboard'); 
 }
 ---
 
 <Layout>
-    <h1>AGREGAR PRODUCTO</h1>
+    <header class="page-header">
+        <p class="eyebrow">Inventario</p>
+        <h1>Agregar producto</h1>
+        <p class="page-intro">Crea un producto con su costo de compra en USD, su <strong>Precio Divisas</strong> (reflejado en COP) y su <strong>Precio BCV</strong> (Base Imponible para facturación en Bs).</p>
+    </header>
 
     <div class="btn-add_container">
         <a class="btn-add" href="/productos">Regresar</a>
     </div>
 
-    <section class="form-container">
+    <section class="form-container page-form">
         <form id="formulario">
-            <div>
-                <input type="text" name="codigo" id="codigo" placeholder="Código del Producto" />
-            </div>
-            <div>
-                <input type="text" name="nombre" id="nombre" placeholder="Nombre" />
-            </div>
-            <div>
-                <input type="text" name="unidad_medida" id="unidad_medida" placeholder="Unidad de Medida (ej. kg, lt, und)" />
-            </div>
-            <div>
-                <input type="text" name="stock" id="stock" placeholder="Cantidad de Stock Inicial" min="0"/>
-            </div>
-            <div>
-                <input type="text" name="costo" id="costo" placeholder="Precio de Costo en COP" min="0"/>
-            </div>
-            <div>
-                <input type="text" name="venta" id="venta" placeholder="Precio de Venta en COP" min="0"/>
+            <div class="form-field">
+                <label for="codigo">Código</label>
+                <input
+                    type="text"
+                    name="codigo"
+                    id="codigo"
+                    placeholder="Ej. PROD-001"
+                />
             </div>
 
-            <button type="submit">Agregar</button>
+            <div class="form-field">
+                <label for="nombre">Nombre</label>
+                <input
+                    type="text"
+                    name="nombre"
+                    id="nombre"
+                    placeholder="Ej. Arroz premium 1kg"
+                />
+            </div>
+
+            <div class="form-field" style="grid-column: 1 / -1;">
+                <label for="descripcion">Descripción (opcional)</label>
+                <textarea
+                    name="descripcion"
+                    id="descripcion"
+                    placeholder="Descripción o detalles del producto"
+                    rows="2"
+                ></textarea>
+            </div>
+
+            <div class="form-field">
+                <label for="unidad_medida">Unidad de medida</label>
+                <select name="unidad_medida" id="unidad_medida">
+                    <option value="unidades">Unidades</option>
+                    <option value="litros">Litros</option>
+                    <option value="kilogramos">Kilogramos</option>
+                    <option value="cajas">Cajas</option>
+                    <option value="metros">Metros</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="stock">Stock inicial</label>
+                <input
+                    type="text"
+                    name="stock"
+                    id="stock"
+                    placeholder="Ej. 100"
+                    min="0"
+                />
+            </div>
+
+            <div class="form-field">
+                <label for="costo">Precio de costo / compra (USD)</label>
+                <input
+                    type="text"
+                    name="costo"
+                    id="costo"
+                    placeholder="Ej. 2.50"
+                    min="0"
+                />
+            </div>
+
+            <div class="form-field">
+                <label for="precio_divisas">Precio Divisas (USD → Tasa COP)</label>
+                <input
+                    type="text"
+                    name="precio_divisas"
+                    id="precio_divisas"
+                    placeholder="Ej. 4.00"
+                    min="0"
+                />
+                <span class="precio-preview" id="previewDivisas">Equivalente en COP: —</span>
+            </div>
+
+            <div class="form-field">
+                <label for="precio_bcv">Precio BCV / Base Imponible (USD → Tasa BCV)</label>
+                <input
+                    type="text"
+                    name="precio_bcv"
+                    id="precio_bcv"
+                    placeholder="Ej. 4.50"
+                    min="0"
+                />
+                <span class="precio-preview" id="previewBcv">Equivalente en Bs: —</span>
+            </div>
+
+            <div class="form-field toggle-field">
+                <label class="toggle-container" for="chkExentoIva">
+                    <div>
+                        <span class="toggle-label">¿Producto Exento de IVA?</span>
+                        <small style="display:block; color:var(--text-muted); font-size:0.78rem; margin-top:2px;">Si no está marcado, al facturar se sumará el IVA sobre su Precio BCV (Base Imponible).</small>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="chkExentoIva" name="exento_iva" />
+                        <span class="slider round"></span>
+                    </div>
+                </label>
+            </div>
+
+            <div class="form-field toggle-field">
+                <label class="toggle-container" for="chkSeriales">
+                    <span class="toggle-label">¿El producto tiene números de serie?</span>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="chkSeriales" />
+                        <span class="slider round"></span>
+                    </div>
+                </label>
+            </div>
+
+            <div class="form-field panel-seriales" id="panelSeriales" style="display: none;">
+                <div class="panel-seriales-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-barcode"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7v-1a2 2 0 0 1 2 -2h2" /><path d="M4 17v1a2 2 0 0 0 2 2h2" /><path d="M16 4h2a2 2 0 0 1 2 2v1" /><path d="M16 20h2a2 2 0 0 0 2 -2v-1" /><path d="M5 11h1v2h-1z" /><path d="M10 11l0 2" /><path d="M14 11h1v2h-1z" /><path d="M19 11l0 2" /></svg>
+                    <div>
+                        <p class="panel-title">Números de serie requeridos</p>
+                        <p class="panel-subtitle">Ingresa un serial por cada unidad en stock (máx 500).</p>
+                    </div>
+                </div>
+                <div id="inputsSeriales" class="inputs-grid"></div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit">Agregar producto</button>
+            </div>
         </form>
     </section>
 
@@ -50,71 +157,337 @@ if (usuario.rol !== 'admin') {
 
 </Layout>
 
-<script>
+<style>
+    .precio-preview {
+        display: block;
+        margin-top: 0.35rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--secondary-color);
+    }
 
+    .toggle-field {
+        grid-column: 1 / -1;
+        margin-top: 0.35rem;
+    }
+    .toggle-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, rgba(236, 231, 246, 0.4), rgba(243, 244, 246, 0.3));
+        border: 1px solid rgba(var(--secondary-rgb), 0.12);
+        padding: 1rem 1.3rem;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all 250ms ease;
+    }
+    .toggle-label {
+        font-weight: 700;
+        color: var(--secondary-color);
+        font-size: 0.95rem;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+    .toggle-switch input { 
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+    input:checked + .slider {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    }
+    input:checked + .slider:before {
+        transform: translateX(24px);
+    }
+    .slider.round {
+        border-radius: 34px;
+    }
+    .slider.round:before {
+        border-radius: 50%;
+    }
+
+    .panel-seriales {
+        grid-column: 1 / -1;
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px dashed rgba(var(--primary-rgb), 0.3);
+        border-radius: var(--radius-md);
+        padding: 1.5rem;
+        margin-top: 0.25rem;
+    }
+    .panel-seriales-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+    .panel-seriales-header svg {
+        color: var(--primary-color);
+        background: rgba(var(--primary-rgb), 0.1);
+        padding: 0.45rem;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+    }
+    .panel-title {
+        margin: 0 0 0.15rem;
+        font-weight: 800;
+        color: var(--secondary-color);
+        font-size: 0.95rem;
+    }
+    .panel-subtitle {
+        margin: 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+    }
+    .inputs-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.85rem;
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+    :global(.in-serial) {
+        border-radius: 8px !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 0.75rem 0.95rem !important;
+        font-family: monospace !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        background-color: #f8fafc !important;
+        color: #0f172a !important;
+    }
+</style>
+
+<script>
     import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
+    import { obtenerTasas } from '@/utils/helpers/cambioMoneda.js';
+    import { calcularBcvDesdeCop, convertirPrecioDivisas, convertirPrecioBcv, formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
     const formulario = document.getElementById('formulario') as HTMLFormElement;
+    const stockInput = document.getElementById('stock') as HTMLInputElement;
+    const precioDivisasInput = document.getElementById('precio_divisas') as HTMLInputElement;
+    const precioBcvInput = document.getElementById('precio_bcv') as HTMLInputElement;
+    const chkExentoIva = document.getElementById('chkExentoIva') as HTMLInputElement;
+    const previewDivisas = document.getElementById('previewDivisas') as HTMLElement;
+    const previewBcv = document.getElementById('previewBcv') as HTMLElement;
+
+    const chkSeriales = document.getElementById('chkSeriales') as HTMLInputElement;
+    const panelSeriales = document.getElementById('panelSeriales') as HTMLDivElement;
+    const inputsSeriales = document.getElementById('inputsSeriales') as HTMLDivElement;
+
+    let tasasActuales = { cop: 0, bs: 0, iva_porcentaje: 16 };
+
+    async function cargarPreviews() {
+        tasasActuales = await obtenerTasas();
+        actualizarPreviews();
+    }
+
+    function actualizarPreviews() {
+        const valDiv = parseFloat((precioDivisasInput.value || '').replace(',', '.'));
+        if (Number.isFinite(valDiv) && valDiv > 0) {
+            const { usd, cop } = convertirPrecioDivisas(valDiv, tasasActuales);
+            if (obtenerMonedaBase() === 'COP') {
+                const sugeridoBs = calcularBcvDesdeCop(valDiv, tasasActuales);
+                const txtSugerido = sugeridoBs > 0 ? ` · Sugerido BCV: ${formatearMoneda(sugeridoBs, 'BS')}` : '';
+                previewDivisas.textContent = `Equivalente en Divisas (USD): ${formatearMoneda(usd, 'USD')}${txtSugerido}`;
+            } else {
+                previewDivisas.textContent = `Equivalente a Tasa COP: ${formatearMoneda(cop, 'COP')}`;
+            }
+        } else {
+            previewDivisas.textContent = obtenerMonedaBase() === 'COP'
+                ? 'Equivalente en Divisas (USD): —'
+                : 'Equivalente en COP: —';
+        }
+
+        const valBcv = parseFloat((precioBcvInput.value || '').replace(',', '.'));
+        if (Number.isFinite(valBcv) && valBcv > 0) {
+            const calc = convertirPrecioBcv(valBcv, tasasActuales, { exento: chkExentoIva.checked });
+            if (obtenerMonedaBase() === 'COP') {
+                if (calc.exento) {
+                    previewBcv.textContent = `Ref. USD BCV (Exento): ${formatearMoneda(calc.baseUsd, 'USD')}`;
+                } else {
+                    previewBcv.textContent = `Ref. USD BCV: ${formatearMoneda(calc.baseUsd, 'USD')} · Con IVA (${calc.alicuota}%): ${formatearMoneda(calc.totalBs, 'BS')} (${formatearMoneda(calc.totalUsd, 'USD')})`;
+                }
+            } else if (calc.exento) {
+                previewBcv.textContent = `Base Exenta en Bs: ${formatearMoneda(calc.baseBs, 'BS')}`;
+            } else {
+                previewBcv.textContent = `Base Bs: ${formatearMoneda(calc.baseBs, 'BS')} · Con IVA (${calc.alicuota}%): ${formatearMoneda(calc.totalBs, 'BS')} (${formatearMoneda(calc.totalUsd, 'USD')})`;
+            }
+        } else {
+            previewBcv.textContent = obtenerMonedaBase() === 'COP' ? 'Ref. USD BCV: —' : 'Equivalente en Bs: —';
+        }
+    }
+
+    let bcvEditadoManual = false;
+
+    precioDivisasInput.addEventListener('input', () => {
+        if (obtenerMonedaBase() === 'COP' && !bcvEditadoManual) {
+            const valDiv = parseFloat((precioDivisasInput.value || '').replace(',', '.'));
+            if (Number.isFinite(valDiv) && valDiv > 0) {
+                const sugeridoBs = calcularBcvDesdeCop(valDiv, tasasActuales);
+                precioBcvInput.value = sugeridoBs > 0 ? String(sugeridoBs) : '';
+            } else {
+                precioBcvInput.value = '';
+            }
+        }
+        actualizarPreviews();
+    });
+    precioBcvInput.addEventListener('input', () => {
+        bcvEditadoManual = precioBcvInput.value.trim().length > 0;
+        actualizarPreviews();
+    });
+    chkExentoIva.addEventListener('change', actualizarPreviews);
+    cargarPreviews();
+
+    function renderSerialInputs() {
+        if (!chkSeriales.checked) {
+            panelSeriales.style.display = "none";
+            return;
+        }
+        panelSeriales.style.display = "block";
+        
+        const normalizado = stockInput.value.replace(",", ".");
+        const qty = parseFloat(normalizado) || 0;
+        
+        if (qty > 500) {
+            inputsSeriales.innerHTML = `<p style="color: var(--error-color);">Demasiadas unidades para ingresar seriales manualmente.</p>`;
+            return;
+        }
+
+        inputsSeriales.innerHTML = "";
+        for (let i = 0; i < qty; i++) {
+            const input = document.createElement("input");
+            input.type = "text";
+            input.className = "in-serial";
+            input.placeholder = `Serial #${i + 1}`;
+            inputsSeriales.appendChild(input);
+        }
+    }
+
+    chkSeriales.addEventListener("change", renderSerialInputs);
+    stockInput.addEventListener("input", renderSerialInputs);
 
     formulario?.addEventListener('submit', async (event : SubmitEvent) => { 
-        
         event.preventDefault();
 
         const formData = new FormData(formulario);
 
-        const codigo = formData.get('codigo') as string;
-        const nombre = formData.get('nombre') as string;
-        const stockString = formData.get('stock') as string;
-        const costoString = formData.get('costo') as string;
-        const ventaString = formData.get('venta') as string;
-        const unidad_medida = formData.get('unidad_medida') as string;
+        const codigo = (formData.get('codigo') as string).trim();
+        const nombre = (formData.get('nombre') as string).trim();
+        const descripcion = (formData.get('descripcion') as string || '').trim();
+        const stockString = (formData.get('stock') as string || '').trim();
+        const costoString = (formData.get('costo') as string || '').trim();
+        const divisasString = (formData.get('precio_divisas') as string || '').trim();
+        const bcvString = (formData.get('precio_bcv') as string || '').trim();
+        const unidad_medida = (formData.get('unidad_medida') as string || '').trim();
 
-        // Validar campos vacios
-        if (codigo === '' || nombre === '' || stockString === '' || costoString === '' || ventaString === '' || unidad_medida === '') {
+        if (!codigo || !nombre || !stockString || !costoString || !divisasString || !bcvString || !unidad_medida) {
             mostrarError('Todos los campos son obligatorios');
             return;
         }
 
-        // Validar stock
         const normalizado = stockString.replace(",", ".");
         const stockValido = /^\d+(\.\d+)?$/.test(normalizado);
         const stockNumero = parseFloat(normalizado);
 
         if (!stockValido || isNaN(stockNumero) || stockNumero <= 0) {
-            mostrarError("La cantidad en stock debe ser un número positivo mayor a 0 (se permiten decimales con . o ,)");
+            mostrarError("La cantidad en stock debe ser un número positivo mayor a 0");
             return;
         }
 
-        // Validar costo
         const costoNum = parseFloat(costoString.replace(',', '.'));
         if (isNaN(costoNum) || costoNum <= 0) {
-            mostrarError('El costo debe ser un número positivo mayor a 0');
+            mostrarError('El precio de costo debe ser un número positivo mayor a 0');
             return;
         }
 
-        // Validar venta
-        const ventaNum = parseFloat(ventaString.replace(',', '.'));
-        if (isNaN(ventaNum) || ventaNum <= 0) {
-            mostrarError('El precio de venta debe ser un número positivo mayor a 0');
+        const precioDivisasNum = parseFloat(divisasString.replace(',', '.'));
+        if (isNaN(precioDivisasNum) || precioDivisasNum <= 0) {
+            mostrarError('El Precio Divisas debe ser un número positivo mayor a 0');
             return;
         }
 
-        // Parseo
-        const stock = stockNumero;
-        const costo = costoNum;
-        const venta = ventaNum;
+        const precioBcvNum = parseFloat(bcvString.replace(',', '.'));
+        if (isNaN(precioBcvNum) || precioBcvNum <= 0) {
+            mostrarError('El Precio BCV debe ser un número positivo mayor a 0');
+            return;
+        }
 
-        // Enviar datos al servidor
+        let seriales: string[] = [];
+        if (chkSeriales.checked) {
+            if (stockNumero !== Math.floor(stockNumero)) {
+                mostrarError("El stock debe ser un número entero para ingresar seriales");
+                return;
+            }
+
+            const inps = inputsSeriales.querySelectorAll(".in-serial");
+            let vacios = false;
+            inps.forEach((el) => {
+                const i = el as HTMLInputElement;
+                const v = i.value.trim();
+                if (!v) vacios = true;
+                else seriales.push(v);
+            });
+            if (vacios || seriales.length !== stockNumero) {
+                mostrarError("Debe completar todos los números de serie ingresados.");
+                return;
+            }
+        }
+
         const response = await fetch("/api/productos", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ codigo, nombre, stock, costo, venta, unidad_medida })
+            body: JSON.stringify({
+                codigo,
+                nombre,
+                descripcion,
+                stock: stockNumero,
+                costo: costoNum,
+                venta: precioBcvNum,
+                precio_divisas: precioDivisasNum,
+                precio_bcv: precioBcvNum,
+                exento_iva: chkExentoIva.checked ? 1 : 0,
+                unidad_medida,
+                seriales
+            })
         });
 
-        // Verificar si la respuesta es exitosa
         if (!response.ok) {
+            if (response.status === 401) {
+                mostrarError('Tu sesión expiró. Vuelve a iniciar sesión.');
+                setTimeout(() => { window.location.href = '/login'; }, 1200);
+                return;
+            }
             if (response.status === 409) {
                 const mensaje = await response.text();
                 mostrarError(mensaje);
@@ -130,5 +503,4 @@ if (usuario.rol !== 'admin') {
             window.location.href = '/productos';
         }, 1000);
     });
-
 </script>

@@ -8,7 +8,7 @@ export function verificarToken(request) {
     const token = cookie.split('token=')[1]?.split(';')[0];
     if (!token) return null;
     try {
-        const JWT_SECRET = import.meta.env.JWT_SECRET;
+        const JWT_SECRET = process.env.JWT_SECRET || import.meta.env.JWT_SECRET;
         const payload = jwt.verify(token, JWT_SECRET);
         return payload;
     } catch (err) {

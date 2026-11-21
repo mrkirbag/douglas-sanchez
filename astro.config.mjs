@@ -1,5 +1,11 @@
 import { defineConfig } from 'astro/config';
 import netlify from '@astrojs/netlify';
+import node from '@astrojs/node';
+
+import tailwindcss from '@tailwindcss/vite';
+
+const isNetlifyDeploy = process.env.NETLIFY === 'true' || process.env.CONTEXT === 'production' || process.env.CONTEXT === 'deploy-preview';
+const useNodeAdapter = process.platform === 'win32' && !isNetlifyDeploy;
 
 export default defineConfig({
 
@@ -9,17 +15,22 @@ export default defineConfig({
 
     output: 'server',
 
-    adapter: netlify(),
+    adapter: useNodeAdapter
+        ? node({ mode: 'standalone' })
+        : netlify(),
 
     vite: {
-        resolve: {
-            alias: {
-                '@': '/src'
-            }
-        },
-        optimizeDeps: {
-            include: ['html-to-image', 'chart.js', 'chartjs-plugin-datalabels']
-        }
+      optimizeDeps: {
+          include: ['html-to-image', 'chart.js/auto', 'chartjs-plugin-datalabels']
+      },
+
+      resolve: {
+          alias: {
+              '@': '/src'
+          }
+      },
+
+      plugins: [tailwindcss()]
     }
 
 });

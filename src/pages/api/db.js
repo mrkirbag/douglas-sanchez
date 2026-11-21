@@ -1,6 +1,6 @@
 import { createClient } from '@libsql/client';
 
 export const db = createClient({
-    url: import.meta.env.DATABASE_URL,
-    authToken: import.meta.env.DATABASE_AUTH_TOKEN
+    url: process.env.DATABASE_URL || import.meta.env.DATABASE_URL,
+    authToken: process.env.DATABASE_AUTH_TOKEN || import.meta.env.DATABASE_AUTH_TOKEN
 });

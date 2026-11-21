@@ -1,361 +1,1042 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import { verificarToken } from '@/utils/auth.js';
+import Layout from "../../layouts/Layout.astro";
+import { verificarToken } from "@/utils/auth.js";
+import { obtenerMonedaBase } from "@/utils/helpers/tasas.js";
+
+const monedaBase = obtenerMonedaBase();
 
 const usuario = verificarToken(Astro.request);
 if (!usuario) {
-    return Astro.redirect('/login');
+    return Astro.redirect("/login");
 }
 
-const fechaVenezuela = new Intl.DateTimeFormat('es-VE', {
-        timeZone: 'America/Caracas',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).format(new Date());
+const fechaVenezuela = new Intl.DateTimeFormat("es-VE", {
+    timeZone: "America/Caracas",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+}).format(new Date());
 
-// Convertir de formato DD/MM/YYYY a YYYY-MM-DD
-const [dia, mes, ano] = fechaVenezuela.split('/');
+const [dia, mes, ano] = fechaVenezuela.split("/");
 const fechaCompleta = `${ano}-${mes}-${dia}`;
 ---
 
 <Layout>
-    <h1>AGREGAR VENTA</h1>
+    <header class="page-header">
+        <p class="eyebrow">Facturación y Ventas</p>
+        <h1>Emitir Factura Fiscal o Nota de Entrega</h1>
+    </header>
 
     <div class="btn-add_container">
         <a class="btn-add" href="/ventas">Regresar</a>
     </div>
 
-    <section class="form-container venta-form">
-        <form>
-            <div class="fecha-field">
-                <label for="fecha">Fecha de la venta</label>
-                <input type="date" name="fecha" id="fecha" value={fechaCompleta}/>
-            </div>
-            
-            <div id="productos-container" class="modulo-agregar-producto">
-                <h2 class="section-title">Agregar productos</h2>
-
-                <div class="barcode-container">
-                    <label for="barcodeInput">Escanear código de barras</label>
-                    <input type="text" id="barcodeInput" placeholder="Escanea para seleccionar el producto y luego ajusta cantidad o precio" autocomplete="off" />
-                </div>
-
-                <div class="field-row">
-                    <label for="busquedaProductos">Buscar producto</label>
-                    <input type="text" id="busquedaProductos" placeholder="Buscar por nombre o código" />
-                </div>
-
-                <div class="field-row">
-                    <label for="productoSelect">Producto</label>
-                    <select name="producto" id="productoSelect"></select>
-                </div>
-
-                <div class="field-grid">
-                    <div class="field-row">
-                        <label for="cantidad">Cantidad</label>
-                        <input type="text" id="cantidad" placeholder="Cantidad" value="1"/>
-                    </div>
-                    <div class="field-row">
-                        <label for="precio">Precio por unidad</label>
-                        <input type="text" id="precio"/>
-                        <span id="precioPesos"></span>
-                    </div>
-                </div>
-
-                <div class="btns-container">
-                    <button id="agregarProducto" type="button">Agregar producto</button>
-                </div>
-            </div>
-        </form>
-    </section>
-
-    <div class="table-section">
-        <h2 class="section-title table-title">Productos en la venta</h2>
-
-        <div id="emptyProductos" class="empty-state">
-            <p>No se han agregado productos a la venta</p>
-            <span>Busca o escanea un producto para comenzar</span>
+    <!-- Aviso si la caja está cerrada -->
+    <div
+        id="alertaCajaCerrada"
+        style="display:none; padding: 1.1rem 1.3rem; margin-bottom: 1.1rem; border-radius: 18px; background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); color: #991b1b; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;"
+    >
+        <div>
+            <strong style="display:block; font-size: 1rem;"
+                >⚠️ Caja Cerrada</strong
+            >
+            <span style="font-size: 0.88rem;"
+                >Para poder emitir facturas o notas de entrega debes abrir
+                primero el turno de caja del día.</span
+            >
         </div>
-
-        <div id="panelProductos" class="productos-panel hidden">
-            <table>
-                <thead id="headerTablaProductos">
-                    <tr>
-                        <th>Producto</th>
-                        <th>Precio por Unidad</th>
-                        <th>Cantidad Seleccionada</th>
-                        <th>Subtotal</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="listaProductos">
-                </tbody>
-            </table>
-        </div>
+        <a
+            href="/ventas"
+            style="padding: 0.65rem 1.2rem; border-radius: 12px; background: #dc2626; color: #fff; text-decoration: none; font-weight: 700; font-size: 0.86rem;"
+            >Ir a Abrir Caja</a
+        >
     </div>
 
-    <div class="btns-container btns-center">
-        <button id="btnConfirmacion" disabled style="display: none;">Concretar la venta</button>
-    </div>  
-
-            
-    <section class="form-container venta-checkout" id="moduloDatosCompletar" style="display: none;">
-        <form>
-            <h2 class="section-title">Datos de la venta</h2>
-
-            <div class="field-row">
-                <label for="busquedaClientes">Buscar cliente</label>
-                <input type="text" id="busquedaClientes" placeholder="Buscar cliente por cédula" />
+    <main class="venta-flow">
+        <section class="venta-panel">
+            <div class="panel-heading">
+                <span class="step-badge">1</span>
+                <div>
+                    <p class="eyebrow">Modalidad y Productos</p>
+                    <h2>Selecciona el tipo de documento y agrega productos</h2>
+                </div>
             </div>
 
-            <div class="select-container">
-                <select name="cliente" id="cliente"></select>
-                <span class="btn-cliente" id="abrirMenuClienteNuevo" title="Agregar cliente">+</span>
+            <section class="form-container page-form venta-form">
+                <form onsubmit="return false;">
+                    <div class="form-field" style="grid-column: 1 / -1;">
+                        <select
+                            id="tipoDocumento"
+                            name="tipoDocumento"
+                            style="font-weight: 700;"
+                        >
+                            <option value="factura"
+                                >Factura en Bs (Precio BCV)</option
+                            >
+                            <option value="nota_entrega"
+                                >Nota de Entrega en Divisas</option
+                            >
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="fecha">Fecha de emisión</label>
+                        <input
+                            type="date"
+                            name="fecha"
+                            id="fecha"
+                            value={fechaCompleta}
+                        />
+                    </div>
+
+                    <div id="productos-container" class="producto-module">
+                        <div class="form-field producto-module_search">
+                            <label for="busquedaProductos"
+                                >Buscar producto</label
+                            >
+                            <input
+                                type="text"
+                                id="busquedaProductos"
+                                placeholder="Nombre o código del producto"
+                                autocomplete="off"
+                            />
+                        </div>
+
+                        <div class="form-field producto-module_select">
+                            <label for="productoSelect">Producto</label>
+                            <select name="producto" id="productoSelect"
+                            ></select>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="cantidad">Cantidad</label>
+                            <input
+                                type="text"
+                                id="cantidad"
+                                placeholder="Ej. 2"
+                            />
+                        </div>
+
+                        <div class="form-field">
+                            <label for="precio" id="lblPrecioInput"
+                                >Base Imponible BCV por unidad (USD -> Bs)</label
+                            >
+                            <input type="text" id="precio" placeholder="0.00" />
+                            <span
+                                id="precioReferencia"
+                                class="precio-referencia"
+                                >Base Bs: — · Ref. Divisas/COP: —</span
+                            >
+                        </div>
+
+                        <div
+                            class="form-field"
+                            id="panelSerialesVenta"
+                            style="display: none; grid-column: 1 / -1;"
+                        >
+                            <label>Seleccionar Seriales</label>
+                            <p
+                                style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem;"
+                            >
+                                Busca y selecciona los seriales (se irán
+                                agregando abajo).
+                            </p>
+
+                            <div
+                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: end; margin-bottom: 0.5rem;"
+                            >
+                                <div
+                                    class="form-field"
+                                    style="margin-bottom: 0;"
+                                >
+                                    <label
+                                        for="busquedaSeriales"
+                                        style="font-size: 0.8rem;"
+                                        >Filtro de búsqueda</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="busquedaSeriales"
+                                        placeholder="Ej. ABC12..."
+                                        autocomplete="off"
+                                    />
+                                </div>
+                                <div
+                                    class="form-field"
+                                    style="margin-bottom: 0; position: relative;"
+                                >
+                                    <label
+                                        for="dropdownSeriales"
+                                        style="font-size: 0.8rem;"
+                                        >Seleccionar serial</label
+                                    >
+                                    <select id="dropdownSeriales"></select>
+                                </div>
+                            </div>
+
+                            <div
+                                id="listaSerialesVenta"
+                                class="serial-tags-container"
+                                style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem;"
+                            >
+                            </div>
+                        </div>
+
+                        <div class="form-actions producto-module_actions">
+                            <button type="button" id="agregarProducto"
+                                >Agregar producto</button
+                            >
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </section>
+
+        <section class="venta-panel invoice-table-card">
+            <div class="table-heading">
+                <div>
+                    <p class="eyebrow">Detalle</p>
+                    <h2 id="tituloTablaSeleccionados">
+                        Productos seleccionados
+                    </h2>
+                </div>
             </div>
 
-            <div id="moduloAgregarClienteNuevo" class="modulo-agregar-cliente" style="display: none;">
-                <span class="modulo-label">Registrar cliente no existente</span>
-                <input type="text" name="nombre" id="nombre" placeholder="Nombre y Apellido" />
-                <input type="text" name="telefono" id="telefono" placeholder="Número de Teléfono" />
-                <input type="number" name="cedula" id="cedula" placeholder="Cédula del Cliente" min="0"/>
-                <button id="btnAgregarClienteNuevo" type="button">Agregar cliente</button>
+            <div class="table-wrap">
+                <table>
+                    <thead id="headerTablaProductos" style="opacity: 0;">
+                        <tr>
+                            <th>Producto</th>
+                            <th id="thPrecioUnitario">Precio Unitario</th>
+                            <th>Cantidad</th>
+                            <th id="thSubtotalCol">Subtotal</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaProductos"> </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="confirm-step">
+            <button
+                id="btnConfirmacion"
+                class="btn-confirmar"
+                disabled
+                style="display: none;"
+            >
+                Continuar con el documento
+            </button>
+        </div>
+
+        <section
+            class="form-container page-form venta-panel checkout-panel"
+            id="moduloDatosCompletar"
+            style="display: none;"
+        >
+            <div class="panel-heading">
+                <span class="step-badge">2</span>
+                <div>
+                    <p class="eyebrow" id="eyebrowPaso2">
+                        Finalizar Factura Fiscal
+                    </p>
+                    <h2 id="tituloPaso2">Cliente, Retenciones de IVA y Pago</h2>
+                </div>
             </div>
 
-            <div class="select-container" id="tipoPago-container">
-                <select name="tipoPago" id="tipoPago">
-                    <option value="">Selecciona el Tipo de Pago</option>
-                    <option value="contado">De Contado</option>
-                    <option value="credito">A Crédito</option>
-                </select>
-            </div>
+            <form class="checkout-form" onsubmit="return false;">
+                <div class="form-field">
+                    <label for="busquedaClientes">Buscar cliente</label>
+                    <input
+                        type="text"
+                        id="busquedaClientes"
+                        placeholder="Nombre, cédula o RIF"
+                        autocomplete="off"
+                    />
+                </div>
 
-            <p id="totalDeVenta"></p>
+                <div class="form-field select-container password-container">
+                    <label for="cliente">Cliente</label>
+                    <select name="cliente" id="cliente"></select>
+                    <span
+                        class="btn-cliente"
+                        id="abrirMenuClienteNuevo"
+                        title="Registrar nuevo cliente">+</span
+                    >
+                </div>
 
-            <div class="btns-container btns-center">
-                <button id="btnFinalizar" type="button">Confirmar Venta</button>
-            </div>
-        </form>
-    </section>
-        
-    <div id="overlay" class="overlay oculto"> 
+                <div
+                    id="infoCreditoCliente"
+                    style="display: none; grid-column: 1 / -1; padding: 0.8rem; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 8px; color: #854d0e; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem;"
+                >
+                    El cliente tiene un saldo a favor de <strong
+                        id="montoCreditoCliente">0.00</strong
+                    > en notas de crédito. Puedes usarlo en la sección de pagos seleccionando
+                    "Nota de crédito" en USD.
+                </div>
+
+                <div
+                    id="moduloAgregarClienteNuevo"
+                    class="cliente-nuevo-panel"
+                    style="display: none;"
+                >
+                    <p class="cliente-nuevo_title">
+                        Registrar cliente no existente
+                    </p>
+                    <div class="form-field">
+                        <label for="clienteNuevoNombre"
+                            >Nombre / Razón Social</label
+                        >
+                        <input
+                            type="text"
+                            name="clienteNuevoNombre"
+                            id="clienteNuevoNombre"
+                            placeholder="Ej. Carlos Pérez"
+                            maxlength="80"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div class="form-field">
+                        <label for="clienteNuevoCedula">Cédula o RIF</label>
+                        <input
+                            type="text"
+                            name="clienteNuevoCedula"
+                            id="clienteNuevoCedula"
+                            placeholder="Ej. 12345678 o J-12345678-9"
+                            maxlength="15"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div class="form-field">
+                        <label for="clienteNuevoTelefono">Teléfono</label>
+                        <input
+                            type="text"
+                            name="clienteNuevoTelefono"
+                            id="clienteNuevoTelefono"
+                            placeholder="Ej. 04141234567"
+                            maxlength="20"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="btnAgregarClienteNuevo"
+                            >Registrar cliente</button
+                        >
+                    </div>
+                </div>
+
+                <div class="form-field" id="tipoPago-container">
+                    <label for="tipoPago">Condición de pago</label>
+                    <select name="tipoPago" id="tipoPago">
+                        <option value="">Selecciona el tipo de pago</option>
+                        <option value="contado">De contado</option>
+                        <option value="credito">A crédito</option>
+                    </select>
+                </div>
+
+                <div class="form-field" id="grupoRetencionIva">
+                    <label for="retencionIvaSelect"
+                        >Retención de IVA (Contribuyente Especial)</label
+                    >
+                    <select id="retencionIvaSelect">
+                        <option value="0">Sin retención de IVA (0%)</option>
+                        <option value="75">Retención de IVA 75%</option>
+                        <option value="100">Retención de IVA 100%</option>
+                    </select>
+                </div>
+
+                <div
+                    class="form-field"
+                    id="campoComprobanteRetencion"
+                    style="display: none; grid-column: 1 / -1;"
+                >
+                    <label for="comprobanteRetencion"
+                        >N° Comprobante de Retención (opcional)</label
+                    >
+                    <input
+                        type="text"
+                        id="comprobanteRetencion"
+                        placeholder="Ej. 20261100001234"
+                        autocomplete="off"
+                    />
+                </div>
+
+                <div id="moduloPagosVenta" class="pagos-venta-panel" hidden>
+                    <p class="pagos-venta_title">Métodos de pago</p>
+                    <p class="pagos-venta_hint" id="pagosEyebrow">
+                        Puedes combinar USD, COP y Bs. El total cubierto debe
+                        igualar el Neto a Pagar del documento.
+                    </p>
+
+                    <div class="pagos-venta_form">
+                        <div class="form-field">
+                            <label for="pagoMoneda">Moneda</label>
+                            <select id="pagoMoneda"></select>
+                        </div>
+                        <div class="form-field">
+                            <label for="pagoMetodo">Método</label>
+                            <select id="pagoMetodo"></select>
+                        </div>
+                        <div class="form-field">
+                            <label for="pagoMonto">Monto recibido</label>
+                            <input
+                                type="text"
+                                id="pagoMonto"
+                                inputmode="decimal"
+                                placeholder="0"
+                                autocomplete="off"
+                            />
+                        </div>
+                        <div class="form-actions pagos-venta_add">
+                            <button type="button" id="btnAgregarPago"
+                                >Agregar pago</button
+                            >
+                        </div>
+                    </div>
+
+                    <div
+                        class="table-wrap pagos-venta_tabla"
+                        id="pagosVentaTablaWrap"
+                        hidden
+                    >
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Método</th>
+                                    <th>Recibido</th>
+                                    <th>Equivalente (USD)</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaPagosVenta"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagos-venta_resumen" id="pagosVentaResumen">
+                        <p>Cubierto: <strong id="pagosCubierto">—</strong></p>
+                        <p>Falta: <strong id="pagosFalta">—</strong></p>
+                    </div>
+                </div>
+
+                <div class="flete-box" style="grid-column: 1 / -1; margin-top: 0.75rem; padding: 0.9rem 1rem; border-radius: 14px; background: #f9fafb; border: 1px solid #e5e7eb; display: grid; gap: 0.65rem;">
+                    <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; font-weight:700; color:#111827; margin:0; text-transform:none; letter-spacing:0;">
+                        <input type="checkbox" id="chkFlete" style="width:18px; height:18px; accent-color: var(--accent-brand);" />
+                        <span>Registrar monto de flete (solo visual/informativo; no altera el total ni los cálculos)</span>
+                    </label>
+                    <div id="grpFleteMonto" style="display:none; max-width: 280px;">
+                        <label for="fleteMonto">Monto del Flete (USD) *</label>
+                        <input type="text" id="fleteMonto" inputmode="decimal" placeholder="Ej. 15.00" autocomplete="off" />
+                    </div>
+                </div>
+
+                <p class="pagos-venta_credito" id="avisoPagoCredito" hidden>
+                    En ventas a crédito el ingreso se registra cuando se abona.
+                </p>
+
+                <!-- Desglose Fiscal Completo -->
+                <div class="total-box checkout-total">
+                    <p class="total-box_label" id="lblTituloLiquidacion">
+                        Resumen de Factura
+                    </p>
+                    <div class="fiscal-breakdown">
+                        <div class="fiscal-row" id="filaBaseGravada">
+                            <span>Base Imponible Gravada:</span>
+                            <strong id="resumenBaseGravada">0.00 Bs</strong>
+                        </div>
+                        <div
+                            class="fiscal-row"
+                            id="filaExento"
+                            style="display:none;"
+                        >
+                            <span>Monto Exento (E):</span>
+                            <strong id="resumenExento">0.00 Bs</strong>
+                        </div>
+                        <div class="fiscal-row" id="filaIva">
+                            <span
+                                >IVA (<span id="lblIvaPorcentaje">16</span
+                                >%):</span
+                            >
+                            <strong id="resumenIva">0.00 Bs</strong>
+                        </div>
+                        <div
+                            class="fiscal-row"
+                            id="filaRetencion"
+                            style="display:none; color:#b45309;"
+                        >
+                            <span
+                                >(-) Retención IVA (<span id="lblRetPorcentaje"
+                                    >75</span
+                                >%):</span
+                            >
+                            <strong id="resumenRetencion">-0.00 Bs</strong>
+                        </div>
+                        <hr
+                            id="separadorFiscal"
+                            style="border:none; border-top:1px dashed rgba(37, 99, 235, 0.3); margin: 0.45rem 0;"
+                        />
+                        <div class="fiscal-row fiscal-row--total">
+                            <span id="lblTotalAPagar">TOTAL FACTURA:</span>
+                            <strong id="totalDeVenta">—</strong>
+                        </div>
+                        <div
+                            class="fiscal-row fiscal-row--ref"
+                            id="filaRefSecundaria"
+                            style="display: none;"
+                        >
+                            <span id="lblRefSecundaria"
+                                >Equivalente en Pesos (COP):</span
+                            >
+                            <strong id="resumenRefDivisas">—</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions checkout-actions">
+                    <button id="btnFinalizar" type="button"
+                        >Emitir Factura Fiscal (Bs)</button
+                    >
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <div id="overlay" class="overlay oculto">
         <div id="modal" class="modal"></div>
     </div>
 </Layout>
 
 <style>
-
-    .venta-form,
-    .venta-checkout {
-        max-width: 560px;
-    }
-
-    .section-title {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: var(--primary-color);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.75rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid var(--gray-border);
-    }
-
-    .table-section {
-        width: 100%;
-    }
-
-    .productos-panel {
-        width: 100%;
-    }
-
-    .productos-panel.hidden {
-        display: none;
-    }
-
-    .table-title {
-        margin-bottom: 0.75rem;
-    }
-
-    .fecha-field {
-        width: 100%;
-        margin-bottom: 0.5rem;
-    }
-
-    .field-row {
+    .venta-flow {
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
-        width: 100%;
+        gap: 1.2rem;
     }
 
-    .field-grid {
+    .venta-panel,
+    .invoice-table-card {
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
+        box-shadow: 0 18px 32px rgba(var(--primary-rgb), 0.08);
+    }
+
+    .venta-panel {
+        padding: 1.15rem;
+    }
+
+    .panel-heading {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .step-badge {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: linear-gradient(
+            135deg,
+            var(--primary-color),
+            var(--secondary-color)
+        );
+        color: #fff;
+        font-family: "Archivo Black", sans-serif;
+        font-size: 1rem;
+        flex-shrink: 0;
+        box-shadow: 0 10px 20px rgba(var(--primary-rgb), 0.18);
+    }
+
+    .panel-heading h2 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+
+    .venta-form {
         width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .producto-module {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.85rem 1rem;
+        padding: 1.1rem;
+        border-radius: var(--radius-md);
+        background: linear-gradient(
+            180deg,
+            rgba(236, 231, 246, 0.5),
+            rgba(255, 255, 255, 0.72)
+        );
+        border: 1px solid rgba(var(--secondary-rgb), 0.08);
+    }
+
+    .producto-module_search,
+    .producto-module_select,
+    .producto-module_actions {
+        grid-column: 1 / -1;
+    }
+
+    .precio-referencia {
+        display: block;
+        margin-top: 0.35rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--secondary-color);
+        line-height: 1.4;
+    }
+
+    .invoice-table-card {
+        padding: 1.15rem;
+    }
+
+    .table-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .table-heading h2 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+
+    .confirm-step {
+        display: flex;
+        justify-content: center;
+    }
+
+    .btn-confirmar {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 0.75rem 1.4rem;
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        background: linear-gradient(
+            135deg,
+            var(--primary-color),
+            var(--secondary-color)
+        );
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.22);
+    }
+
+    .btn-confirmar:hover:not(:disabled) {
+        transform: translateY(-2px);
+        cursor: pointer;
+    }
+
+    .btn-confirmar:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    .checkout-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+        max-width: none;
+    }
+
+    .checkout-form {
+        align-items: start;
+    }
+
+    .checkout-form .select-container {
+        grid-template-columns: 1fr auto;
+        align-items: end;
+    }
+
+    .checkout-form .select-container label {
+        grid-column: 1 / -1;
     }
 
     .btn-cliente {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        height: 38px;
-        width: 38px;
-        min-width: 38px;
-        border-radius: var(--radius-sm);
+        height: 44px;
+        width: 44px;
+        border-radius: 50%;
         cursor: pointer;
-        font-weight: 700;
-        font-size: 1.1rem;
+        font-weight: bold;
+        font-size: 1.2rem;
         color: #fff;
-        background: var(--primary-color);
-        transition: background var(--transition), transform var(--transition);
-        box-shadow: var(--shadow-sm);
-
-        &:hover {
-            background-color: var(--secondary-color);
-            transform: translateY(-1px);
-        }
+        background: linear-gradient(
+            135deg,
+            var(--primary-color),
+            var(--secondary-color)
+        );
+        align-self: end;
     }
 
-    .modulo-agregar-cliente,
-    .modulo-agregar-producto {
-        display: flex;
-        flex-direction: column;
-        padding: 1.25rem;
-        gap: 0.85rem;
-        background-color: var(--gray-light);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--gray-border);
-        width: 100%;
-    }
-
-    .modulo-label {
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: var(--primary-color);
-    }
-
-    .btns-container {
-        display: flex;
-        justify-content: center;
-        margin-top: 0.5rem;
-        width: 100%;
-    }
-
-    .btns-center {
-        justify-content: center;
-    }
-
-    #btnConfirmacion,
-    #imprimirFacturacion,
-    #btnFinalizar,
-    #agregarProducto,
-    #btnAgregarClienteNuevo {
-        background-color: var(--primary-color);
-        color: #fff;
-        border-radius: var(--radius-sm);
-        padding: 0.6rem 1.25rem;
-        text-align: center;
-        font-size: 0.875rem;
-        font-weight: 600;
-        border: none;
-        outline: none;
-        cursor: pointer;
-        box-shadow: var(--shadow-sm);
-        transition: background var(--transition), transform var(--transition), box-shadow var(--transition), opacity var(--transition);
-
-        &:hover:not(:disabled) {
-            background: var(--secondary-color);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        &:disabled {
-            opacity: 0.45;
-            cursor: not-allowed;
-        }
-    }
-
-    #btnConfirmacion {
-        display: block;
-        margin: 0.5rem auto;
-    }
-
-    #mensaje {
-        margin-top: 1rem;
-    }
-
-    #totalDeVenta {
-        margin-top: 0.5rem;
-        font-weight: 700;
-        font-size: 1.05rem;
-        text-align: center;
-        color: var(--primary-color);
+    .cliente-nuevo-panel {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.85rem 1rem;
         padding: 1rem;
-        background: var(--gray-light);
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--gray-border);
+        border-radius: var(--radius-md);
+        background: rgba(236, 231, 246, 0.45);
+        border: 1px dashed rgba(var(--secondary-rgb), 0.18);
     }
 
-    #precioPesos {
-        margin-top: 0.25rem;
-        font-weight: 600;
-        font-size: 0.75rem;
+    .cliente-nuevo_title {
+        grid-column: 1 / -1;
+        margin: 0 0 0.15rem;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
         color: var(--secondary-color);
     }
 
-    .barcode-container {
+    .cliente-nuevo-panel .form-actions {
+        grid-column: 1 / -1;
+    }
+
+    .checkout-total {
+        grid-column: 1 / -1;
+        width: min(100%, 540px);
+        margin-left: auto;
+        padding: 1.15rem 1.3rem;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+        color: #0f172a;
+        border: 1px solid rgba(37, 99, 235, 0.18);
+        box-shadow: 0 18px 28px rgba(37, 99, 235, 0.14);
+    }
+
+    .total-box_label {
+        margin: 0 0 0.65rem;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #1d4ed8;
+    }
+
+    .fiscal-breakdown {
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
+        gap: 0.35rem;
+        font-size: 0.9rem;
+    }
+
+    .fiscal-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .fiscal-row--total {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .fiscal-row--ref {
+        margin-top: 0.2rem;
+        font-size: 0.8rem;
+        color: #1e40af;
+    }
+
+    .checkout-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+    }
+
+    .pagos-venta-panel,
+    .pagos-venta_credito {
+        grid-column: 1 / -1;
+    }
+
+    .pagos-venta-panel {
+        display: grid;
+        gap: 0.85rem;
         padding: 1rem;
-        background: rgba(0, 42, 73, 0.04);
-        border: 2px dashed var(--primary-color);
-        border-radius: var(--radius-sm);
-
-        label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-
-        input {
-            font-size: 0.95rem;
-            letter-spacing: 0.03em;
-            background: #fff;
-        }
+        border-radius: var(--radius-md);
+        background: rgba(236, 231, 246, 0.45);
+        border: 1px dashed rgba(var(--secondary-rgb), 0.18);
     }
 
-    .barcode-container.barcode-error {
-        border-color: var(--danger-color);
-        border-style: solid;
-        background: rgba(255, 77, 77, 0.06);
-        animation: barcode-shake 0.3s ease;
+    .pagos-venta-panel[hidden],
+    .pagos-venta_credito[hidden],
+    .pagos-venta_tabla[hidden] {
+        display: none !important;
     }
 
-    @keyframes barcode-shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-4px); }
-        75% { transform: translateX(4px); }
+    .pagos-venta_title {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--secondary-color);
+    }
+
+    .pagos-venta_hint,
+    .pagos-venta_credito {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+    }
+
+    .pagos-venta_form {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem 1rem;
+        align-items: end;
+    }
+
+    .pagos-venta_add {
+        grid-column: 1 / -1;
+        margin: 0;
+    }
+
+    .pagos-venta_resumen {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.4rem;
+        font-size: 0.9rem;
+    }
+
+    .pagos-venta_resumen p {
+        margin: 0;
+    }
+
+    .pagos-venta_resumen.is-completo strong {
+        color: #15803d;
     }
 
     @media (max-width: 768px) {
-        .field-grid {
+        .producto-module,
+        .cliente-nuevo-panel,
+        .checkout-form,
+        .pagos-venta_form {
             grid-template-columns: 1fr;
+        }
+
+        .checkout-total {
+            width: 100%;
+            margin-left: 0;
         }
     }
 
+    :global(.serial-tag) {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: linear-gradient(
+            135deg,
+            rgba(var(--primary-rgb), 0.1),
+            rgba(var(--primary-rgb), 0.2)
+        );
+        border: 1px solid rgba(var(--primary-rgb), 0.3);
+        color: var(--secondary-color);
+        font-family: monospace;
+        font-size: 0.9rem;
+        font-weight: 600;
+        padding: 0.3rem 0.6rem 0.3rem 0.85rem;
+        border-radius: 99px;
+    }
+
+    :global(.serial-tag-remove) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        cursor: pointer;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
 </style>
 
 <script>
+    import { mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { crearModuloSeriales } from "@/utils/helpers/seleccionSerial.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { ponerIcono } from "@/utils/helpers/iconosAccion.js";
+    import { validarCliente } from "@/utils/clienteValidaciones.js";
+    import {
+        convertirPrecioBcv,
+        convertirPrecioDivisas,
+        formatearMoneda,
+        obtenerMonedaBase,
+        redondearBS,
+        redondearCOP,
+        toleranciaPago,
+        formatearDecimal,
+    } from "@/utils/helpers/tasas.js";
+    import {
+        etiquetaPago,
+        metodosDeMoneda,
+        montoRestanteEnMoneda,
+        monedasPagoDisponibles,
+        parsearLineaPago,
+        resumenPagos,
+        validarPagosVenta,
+    } from "@/utils/helpers/metodosPago.js";
+    import {
+        crearModuloProductos,
+        enfocarBusquedaProductos,
+        reiniciarBusquedaProductos,
+    } from "@/utils/helpers/seleccionProducto.js";
 
-    import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
-    import { obtenerTasasPrecios } from '@/utils/helpers/cambioMoneda.js';
-    import { calcularPventaBcv, calcularBsBcv, calcularTotalBsBcv } from '@/utils/helpers/precios.js';
-    import { initBarcodeScanner, buscarProductoPorCodigo } from '@/utils/helpers/barcodeScanner.js';
+    let serialesDisponiblesMemoria: string[] = [];
+    let serialesSeleccionadosMemoria: string[] = [];
+    let moduloSeriales: any = null;
+    let productoActualEnFormulario: any = null;
+
+    const monedaBase = obtenerMonedaBase();
+    let moduloProductos: ReturnType<typeof crearModuloProductos> | null = null;
+
+    const tipoDocumentoSelect = document.getElementById(
+        "tipoDocumento",
+    ) as HTMLSelectElement;
+    const avisoModalidadFiscal = document.getElementById(
+        "avisoModalidadFiscal",
+    ) as HTMLDivElement;
+    const lblPrecioInput = document.getElementById(
+        "lblPrecioInput",
+    ) as HTMLLabelElement;
+    const productoSelect = document.getElementById(
+        "productoSelect",
+    ) as HTMLSelectElement;
+    const precioInput = document.getElementById("precio") as HTMLInputElement;
+    const precioReferencia = document.getElementById(
+        "precioReferencia",
+    ) as HTMLSpanElement;
+
+    function esModoNotaEntrega() {
+        return tipoDocumentoSelect?.value === "nota_entrega";
+    }
+
+    async function verificarCajaAbierta() {
+        try {
+            const res = await fetch("/api/caja");
+            if (!res.ok) return;
+            const data = await res.json();
+            const alerta = document.getElementById(
+                "alertaCajaCerrada",
+            ) as HTMLElement;
+            if (alerta) {
+                alerta.style.display = data.abierta ? "none" : "flex";
+            }
+        } catch (err) {
+            console.error("Error verificando caja:", err);
+        }
+    }
+
+    async function actualizarReferenciaPrecio() {
+        const valorPrecio = parseFloat(
+            (precioInput.value || "").replace(",", "."),
+        );
+        const tasas = await obtenerTasas();
+        const esNota = esModoNotaEntrega();
+
+        if (!Number.isFinite(valorPrecio) || valorPrecio <= 0) {
+            precioReferencia.textContent = esNota
+                ? "Precio Divisas (COP): — · Sin IVA (Nota de Entrega)"
+                : "Base Bs: — · Ref. Divisas/COP: —";
+            return;
+        }
+
+        if (esNota) {
+            const calcDiv = convertirPrecioDivisas(valorPrecio, tasas);
+            precioReferencia.textContent = `Nota de Entrega (Sin IVA): ${formatearMoneda(calcDiv.usd, "USD")} · ${formatearMoneda(calcDiv.cop, "COP")}`;
+            return;
+        }
+
+        const exento = Boolean(Number(productoActualEnFormulario?.exento_iva));
+        const calcBcv = convertirPrecioBcv(valorPrecio, tasas, { exento });
+        const precioDiv =
+            Number(productoActualEnFormulario?.precio_divisas) > 0
+                ? Number(productoActualEnFormulario.precio_divisas)
+                : valorPrecio;
+        const calcDiv = convertirPrecioDivisas(precioDiv, tasas);
+
+        const textoIva = exento
+            ? "Exento IVA"
+            : `+IVA (${calcBcv.alicuota}%): ${formatearMoneda(calcBcv.totalBs, "BS")}`;
+
+        precioReferencia.textContent = `Base BCV: ${formatearMoneda(calcBcv.baseBs, "BS")} (${textoIva}) · Divisas: ${formatearMoneda(calcDiv.usd, "USD")} (${formatearMoneda(calcDiv.cop, "COP")})`;
+    }
+
+    async function aplicarPrecioProducto(producto: any) {
+        productoActualEnFormulario = producto;
+        const esNota = esModoNotaEntrega();
+        const bcv = parseFloat(
+            String(producto.precio_bcv ?? producto.venta ?? ""),
+        );
+        const div = parseFloat(
+            String(
+                producto.precio_divisas ??
+                    producto.precio_bcv ??
+                    producto.venta ??
+                    "",
+            ),
+        );
+        const elegido = esNota ? (div > 0 ? div : bcv) : bcv;
+
+        if (!Number.isNaN(elegido) && elegido > 0) {
+            precioInput.value = formatearDecimal(elegido, 2, 4);
+        } else {
+            precioInput.value = "";
+        }
+
+        await actualizarReferenciaPrecio();
+    }
+
+    function iniciarModuloProductos() {
+        if (moduloProductos) return;
+
+        const cantidadInput = document.getElementById(
+            "cantidad",
+        ) as HTMLInputElement;
+
+        moduloProductos = crearModuloProductos({
+            productoSelect,
+            cantidadInput,
+            onNoEncontrado: mostrarError,
+        });
+
+        const busquedaSeriales = document.getElementById(
+            "busquedaSeriales",
+        ) as HTMLInputElement;
+        const serialSelect = document.getElementById(
+            "dropdownSeriales",
+        ) as HTMLSelectElement;
+        moduloSeriales = crearModuloSeriales({
+            serialSelect,
+            busquedaInput: busquedaSeriales,
+        });
+    }
+
+    function iniciarPagina() {
+        verificarCajaAbierta();
+        rellenarSelectClientes();
+        iniciarModuloProductos();
+    }
 
     interface Cliente {
         id: number;
@@ -364,201 +1045,195 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         telefono: string;
     }
 
-    interface Producto {
+    interface ProductoSeleccionado {
         codigo: string;
         nombre: string;
-        precio: number;
-        pventa_bcv?: number;
+        precio: number; // Base BCV USD
+        precio_divisas: number; // Divisas USD
+        exento_iva: number;
         cantidad: number;
         id: number;
-
         stock: number;
         costo: number;
         venta: number;
-        pventa_bcv?: number;
         unidad_medida: string;
+        serialesSeleccionados?: string[];
     }
 
-    function lineasPrecio(cop: number, cantidad: number, pventaBcv: number, tasaCopUsd: number, tasaBcvUsd: number) {
-        const subtotalCop = Math.ceil(cop * cantidad);
-        const usdDivisa = tasaCopUsd > 0 ? (cop / tasaCopUsd).toFixed(2) : '0.00';
-        const bsUnit = calcularBsBcv(pventaBcv, tasaBcvUsd).toFixed(2);
-        const subtotalUsd = tasaCopUsd > 0 ? ((cop * cantidad) / tasaCopUsd).toFixed(2) : '0.00';
-        const subtotalBs = (calcularBsBcv(pventaBcv, tasaBcvUsd) * cantidad).toFixed(2);
-        return {
-            unitario: `${cop} COP<br />${usdDivisa} USD (divisas)<br />${bsUnit} Bs`,
-            subtotal: `${subtotalCop} COP<br />${subtotalUsd} USD<br />${subtotalBs} Bs`,
-        };
+    const btnAbrirMenuClienteNuevo = document.getElementById(
+        "abrirMenuClienteNuevo",
+    ) as HTMLSpanElement;
+    const btnAgregarClienteNuevo = document.getElementById(
+        "btnAgregarClienteNuevo",
+    ) as HTMLButtonElement;
+    const selectClientes = document.getElementById(
+        "cliente",
+    ) as HTMLSelectElement;
+    const busquedaClientes = document.getElementById(
+        "busquedaClientes",
+    ) as HTMLInputElement;
+    const moduloAgregarCliente = document.getElementById(
+        "moduloAgregarClienteNuevo",
+    ) as HTMLDivElement;
+    const inputClienteNombre = document.getElementById(
+        "clienteNuevoNombre",
+    ) as HTMLInputElement;
+    const inputClienteCedula = document.getElementById(
+        "clienteNuevoCedula",
+    ) as HTMLInputElement;
+    const inputClienteTelefono = document.getElementById(
+        "clienteNuevoTelefono",
+    ) as HTMLInputElement;
+
+    let clientesListados: Cliente[] = [];
+    let clienteDeLaVenta: Cliente | null = null;
+    let cargaClientesSeq = 0;
+    let busquedaClientesTimer: ReturnType<typeof setTimeout> | null = null;
+    let registrandoCliente = false;
+
+    function idCliente(valor: unknown) {
+        if (!valor) return "";
+        return String(valor).trim();
     }
 
-     // Elementos del DOM
+    function textoOpcionCliente(cliente: Cliente) {
+        return `${String(cliente.nombre || "").toUpperCase()} - ${cliente.cedula}`;
+    }
 
-    const btnAbrirMenuClienteNuevo = document.getElementById("abrirMenuClienteNuevo") as HTMLSpanElement;
-    const btnAgregarClienteNuevo = document.getElementById("btnAgregarClienteNuevo") as HTMLButtonElement;
-    const btnImprimirFacturacion = document.getElementById("imprimirFacturacion") as HTMLButtonElement;
+    function clientesParaSelect(clientes: Cliente[]) {
+        if (!clienteDeLaVenta) return clientes;
+        const id = idCliente(clienteDeLaVenta.id);
+        return [
+            clienteDeLaVenta,
+            ...clientes.filter((cliente) => idCliente(cliente.id) !== id),
+        ];
+    }
 
-    // Eventos
-    document.addEventListener("DOMContentLoaded", () => {
-        rellenarSelectClientes();
-        rellenarSelectProductos();
-        actualizarVisibilidadTabla();
+    function renderOpcionesClientes(clientes: Cliente[]) {
+        const lista = clientesParaSelect(clientes);
+        const seleccionado =
+            idCliente(clienteDeLaVenta?.id) || idCliente(selectClientes.value);
+        selectClientes.innerHTML = "";
 
-        const barcodeInput = document.getElementById("barcodeInput") as HTMLInputElement;
-        initBarcodeScanner(barcodeInput, async (codigo) => {
-            await seleccionarPorCodigoBarras(codigo);
-        }, { refocusInput: false });
-    }); 
-    
-    // cargar clientes y productos al iniciar
-    async function rellenarSelectClientes() {
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Selecciona un cliente";
+        defaultOption.disabled = true;
+        selectClientes.appendChild(defaultOption);
 
-        const selectClientes = document.getElementById("cliente") as HTMLSelectElement;
-        const busqueda = document.getElementById("busquedaClientes") as HTMLInputElement;
+        if (lista.length === 0) {
+            const noResultsOption = document.createElement("option");
+            noResultsOption.value = "";
+            noResultsOption.textContent =
+                "— Sin coincidencias para la búsqueda —";
+            noResultsOption.disabled = true;
+            selectClientes.appendChild(noResultsOption);
+            defaultOption.selected = true;
+            return;
+        }
 
-        let clientesListados : Cliente[] = [];
+        lista.forEach((cliente) => {
+            const option = document.createElement("option");
+            option.value = idCliente(cliente.id);
+            option.textContent = textoOpcionCliente(cliente);
+            selectClientes.appendChild(option);
+        });
+
+        if (
+            seleccionado &&
+            lista.some((cliente) => idCliente(cliente.id) === seleccionado)
+        ) {
+            selectClientes.value = seleccionado;
+            return;
+        }
+
+        defaultOption.selected = true;
+    }
+
+    async function cargarClientes(filtro = "") {
+        const seq = ++cargaClientesSeq;
+        const params = new URLSearchParams({ limit: filtro ? "80" : "500" });
+        if (filtro) params.set("search", filtro);
 
         try {
-            const response = await fetch("/api/clientes");
+            const response = await fetch(`/api/clientes?${params.toString()}`);
             const data = await response.json();
-
-            clientesListados = data;
-
-            // Función para renderizar opciones
-            const renderOpciones = (clientes : Cliente[]) => {
-                selectClientes.innerHTML = ""; // Limpiar opciones previas
-
-                // Opción inicial vacía
-                const defaultOption = document.createElement("option");
-                defaultOption.value = "";
-                defaultOption.textContent = "Selecciona un cliente";
-                defaultOption.disabled = true;
-                defaultOption.selected = true;
-                selectClientes.appendChild(defaultOption);
-
-                // Mensaje si no hay registros para esa busqueda
-                if (clientes.length === 0) {
-                    const noResultsOption = document.createElement("option");
-                    noResultsOption.value = "";
-                    noResultsOption.textContent = "— Sin coincidencias para la búsqueda —";
-                    noResultsOption.disabled = true;
-                    selectClientes.appendChild(noResultsOption);
-                    return;
-                }
-
-                clientes.forEach(cliente => {
-                    const option = document.createElement("option") as HTMLOptionElement;
-                    option.value = (cliente.id).toString();
-                    option.textContent = `${cliente.nombre.toUpperCase()} - ${cliente.cedula}`;
-                    selectClientes.appendChild(option);
-                });
-            };
-
-            // Render inicial
-            renderOpciones(clientesListados);
-
-            // Listener de búsqueda
-            busqueda.addEventListener("input", () => {
-                const filtro = busqueda.value.trim();
-
-                if (!filtro) {
-                    renderOpciones(clientesListados);
-                    return;
-                }
-
-                const clientesFiltrados = clientesListados.filter(cliente =>
-                    String(cliente.cedula || "").includes(filtro)
-                );
-
-                renderOpciones(clientesFiltrados);
-            });
-
+            if (seq !== cargaClientesSeq) return;
+            clientesListados = Array.isArray(data) ? data : [];
+            renderOpcionesClientes(clientesListados);
         } catch (error) {
+            if (seq !== cargaClientesSeq) return;
             console.error("Error al cargar los clientes:", error);
+            mostrarError("No se pudieron cargar los clientes");
         }
     }
 
-    let productosListados : Producto[] = [];
-    let renderOpcionesProductos : ((productos: Producto[]) => void) | null = null;
-
-    async function rellenarSelectProductos() {
-
-        const busqueda = document.getElementById("busquedaProductos") as HTMLInputElement;
-        const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
-
-        try {
-
-            const response = await fetch("/api/productos");
-            const data = await response.json();
-
-            productosListados = data;
-
-            const renderOpciones = (productos : Producto[]) => {
-                productoSelect.innerHTML = ""; // Limpiar opciones previas
-
-                // Opción inicial vacía
-                const defaultOption = document.createElement("option");
-                defaultOption.value = "";
-                defaultOption.textContent = "Selecciona un producto";
-                defaultOption.disabled = true;
-                defaultOption.selected = true;
-                productoSelect.appendChild(defaultOption);
-
-                // Mensaje si no hay registros para esa busqueda
-                if (productos.length === 0) {
-                    const noResultsOption = document.createElement("option");
-                    noResultsOption.value = "";
-                    noResultsOption.textContent = "— Sin coincidencias para la búsqueda —";
-                    noResultsOption.disabled = true;
-                    productoSelect.appendChild(noResultsOption);
-                    return;
-                }
-
-                productos.forEach(producto => {
-                    const option = document.createElement("option");
-                    option.value = producto.id.toString();
-                    option.textContent = `${producto.codigo.toUpperCase()} - ${producto.nombre} - ${producto.stock} ${producto.unidad_medida} - ${producto.venta} COP`;
-                    productoSelect.appendChild(option);
-                });
-            };
-
-            renderOpcionesProductos = renderOpciones;
-
-            // Render inicial
-            renderOpciones(productosListados);
-
-            // Listener de búsqueda
-            busqueda.addEventListener("input", () => {
-                const filtro = busqueda.value.trim().toLowerCase();
-
-                if (!filtro) {
-                    renderOpciones(productosListados);
-                    return;
-                }
-
-                const productosFiltrados = productosListados.filter(producto => {
-                    const nombre = String(producto.nombre || "").toLowerCase();
-                    const codigo = String(producto.codigo || "").toLowerCase();
-                    return nombre.includes(filtro) || codigo.includes(filtro);
-                });
-
-                renderOpciones(productosFiltrados);
-            });
-
-
-        } catch (error) {
-            console.error("Error al cargar los productos:", error);
+    function seleccionarClienteEnVenta(cliente: Cliente) {
+        if (busquedaClientesTimer) {
+            clearTimeout(busquedaClientesTimer);
+            busquedaClientesTimer = null;
         }
+
+        clienteDeLaVenta = {
+            id: cliente.id,
+            nombre: cliente.nombre,
+            cedula: cliente.cedula,
+            telefono: cliente.telefono,
+        };
+
+        const id = idCliente(clienteDeLaVenta.id);
+        const yaListado = clientesListados.some(
+            (item) => idCliente(item.id) === id,
+        );
+        if (!yaListado) {
+            clientesListados = [clienteDeLaVenta, ...clientesListados];
+        } else {
+            clientesListados = clientesListados.map((item) =>
+                idCliente(item.id) === id
+                    ? (clienteDeLaVenta as Cliente)
+                    : item,
+            );
+        }
+
+        busquedaClientes.value = "";
+        cargaClientesSeq += 1;
+        renderOpcionesClientes(clientesListados);
+        selectClientes.value = id;
+        selectClientes.dispatchEvent(new Event("change"));
     }
 
-    // Seleccionar productos y mostrar input de precio
-    const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
-    const precioInput = document.getElementById("precio") as HTMLInputElement;
+    function cerrarPanelClienteNuevo() {
+        moduloAgregarCliente.style.display = "none";
+        btnAbrirMenuClienteNuevo.textContent = "+";
+        inputClienteNombre.value = "";
+        inputClienteCedula.value = "";
+        inputClienteTelefono.value = "";
+    }
+
+    async function rellenarSelectClientes() {
+        await cargarClientes(busquedaClientes.value.trim());
+    }
 
     productoSelect.addEventListener("change", async () => {
         const productoId = productoSelect.value;
+        const panelSeriales = document.getElementById(
+            "panelSerialesVenta",
+        ) as HTMLDivElement;
+        const listaSeriales = document.getElementById(
+            "listaSerialesVenta",
+        ) as HTMLDivElement;
+        const cantidadInput = document.getElementById(
+            "cantidad",
+        ) as HTMLInputElement;
 
         if (!productoId) {
+            productoActualEnFormulario = null;
             precioInput.value = "";
+            panelSeriales.style.display = "none";
+            listaSeriales.innerHTML = "";
+            cantidadInput.readOnly = false;
+            cantidadInput.value = "";
+            await actualizarReferenciaPrecio();
             return;
         }
 
@@ -566,335 +1241,934 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
             const response = await fetch(`/api/productos/${productoId}`);
 
             if (!response.ok) {
-                console.error("Error al obtener el producto:", response.status);
+                productoActualEnFormulario = null;
                 precioInput.value = "";
+                panelSeriales.style.display = "none";
+                listaSeriales.innerHTML = "";
+                cantidadInput.readOnly = false;
+                await actualizarReferenciaPrecio();
                 return;
             }
 
             const producto = await response.json();
+            await aplicarPrecioProducto(producto);
 
-            if (typeof producto.venta === "number") {
-                precioInput.value = producto.venta.toFixed(2);
+            if (
+                producto.serialesDisponibles &&
+                producto.serialesDisponibles.length > 0
+            ) {
+                panelSeriales.style.display = "grid";
+                serialesDisponiblesMemoria = [...producto.serialesDisponibles];
+                serialesSeleccionadosMemoria = [];
+                listaSeriales.innerHTML = "";
+                moduloSeriales.cargarSeriales(serialesDisponiblesMemoria);
+                cantidadInput.readOnly = true;
+                cantidadInput.value = "0";
             } else {
-                precioInput.value = "";
+                panelSeriales.style.display = "none";
+                const ls = document.getElementById("dropdownSeriales");
+                if (ls) ls.innerHTML = "";
+                cantidadInput.readOnly = false;
+                cantidadInput.value = "";
+                serialesDisponiblesMemoria = [];
+                serialesSeleccionadosMemoria = [];
+                if (moduloSeriales) {
+                    moduloSeriales.cargarSeriales([]);
+                }
             }
-
         } catch (error) {
             console.error("Error de red o parsing:", error);
+            productoActualEnFormulario = null;
             precioInput.value = "";
+            panelSeriales.style.display = "none";
+            listaSeriales.innerHTML = "";
+            cantidadInput.readOnly = false;
+            await actualizarReferenciaPrecio();
         }
     });
 
-    // Agregar productos a la tabla y mostrar
-    const btnagregarProducto = document.getElementById("agregarProducto") as HTMLButtonElement;
-    let productosSeleccionados : Producto[] = [];
+    precioInput.addEventListener("input", () => {
+        actualizarReferenciaPrecio();
+    });
 
-    function flashBarcodeError() {
-        const container = document.querySelector('.barcode-container') as HTMLDivElement;
-        container?.classList.add('barcode-error');
-        setTimeout(() => container?.classList.remove('barcode-error'), 400);
-    }
+    const btnagregarProducto = document.getElementById(
+        "agregarProducto",
+    ) as HTMLButtonElement;
+    let productosSeleccionados: ProductoSeleccionado[] = [];
 
-    function actualizarVisibilidadTabla() {
-        const tablaProductos = document.getElementById("listaProductos") as HTMLTableSectionElement;
-        const emptyState = document.getElementById("emptyProductos") as HTMLDivElement;
-        const panelProductos = document.getElementById("panelProductos") as HTMLDivElement;
-        const btnConfirmacion = document.getElementById("btnConfirmacion") as HTMLButtonElement;
-        const hayProductos = tablaProductos.children.length > 0;
+    async function renderizarTablaProductos() {
+        const theader = document.getElementById(
+            "headerTablaProductos",
+        ) as HTMLTableSectionElement;
+        const btnConfirmacion = document.getElementById(
+            "btnConfirmacion",
+        ) as HTMLButtonElement;
+        const tablaProductos = document.getElementById(
+            "listaProductos",
+        ) as HTMLTableSectionElement;
+        const tasas = await obtenerTasas();
+        const esNota = esModoNotaEntrega();
 
-        emptyState.classList.toggle("hidden", hayProductos);
-        panelProductos.classList.toggle("hidden", !hayProductos);
-        btnConfirmacion.style.display = hayProductos ? "inline-block" : "none";
-        btnConfirmacion.disabled = !hayProductos;
-    }
+        tablaProductos.innerHTML = "";
 
-    async function seleccionarPorCodigoBarras(codigo: string) {
-        const producto = await buscarProductoPorCodigo(codigo);
-
-        if (!producto) {
-            mostrarError(`Producto no encontrado: ${codigo}`);
-            flashBarcodeError();
-            document.getElementById("barcodeInput")?.focus();
+        if (productosSeleccionados.length === 0) {
+            theader.style.opacity = "0";
+            btnConfirmacion.style.display = "none";
+            btnConfirmacion.disabled = true;
             return;
         }
 
-        const busqueda = document.getElementById("busquedaProductos") as HTMLInputElement;
-        const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
+        theader.style.opacity = "1";
+        btnConfirmacion.style.display = "inline-block";
+        btnConfirmacion.disabled = false;
 
-        busqueda.value = "";
-        renderOpcionesProductos?.(productosListados);
-
-        productoSelect.value = String(producto.id);
-        productoSelect.dispatchEvent(new Event("change", { bubbles: true }));
-
-        if (!cantidadInput.value || Number(cantidadInput.value) <= 0) {
-            cantidadInput.value = "1";
-        }
-
-        cantidadInput.focus();
-        cantidadInput.select();
-    }
-
-    async function agregarProductoAVenta(producto: any, cantidad: number, precio: number) {
-        if (!producto || producto.stock === undefined) {
-            mostrarError('Producto no encontrado o sin stock disponible');
-            return;
-        }
-
-        if (isNaN(cantidad) || Number(cantidad) <= 0) {
-            mostrarError("Ingresa una cantidad válida mayor a cero");
-            return;
-        }
-
-        if (isNaN(precio) || Number(precio) <= 0) {
-            mostrarError("El precio del producto no es válido");
-            return;
-        }
-
-        const existente = productosSeleccionados.find(p => p.codigo === producto.codigo);
-        const cantidadTotal = existente ? existente.cantidad + cantidad : cantidad;
-
-        if (Number(cantidadTotal) > producto.stock) {
-            mostrarError(`Cantidad insuficiente en stock. Stock disponible: ${producto.stock}`);
-            return;
-        }
-
-        const { tasaCopUsd, tasaBcvUsd, recargoBcv } = await obtenerTasasPrecios();
-        const pventaBcv = producto.pventa_bcv != null
-            ? Number(producto.pventa_bcv)
-            : calcularPventaBcv(precio, tasaCopUsd, recargoBcv);
-        const lineas = lineasPrecio(precio, cantidadTotal, pventaBcv, tasaCopUsd, tasaBcvUsd);
-
-        if (existente) {
-            existente.cantidad = cantidadTotal;
-            existente.precio = precio;
-            existente.pventa_bcv = pventaBcv;
-
-            const fila = document.querySelector(`tr[data-codigo="${producto.codigo}"]`) as HTMLTableRowElement;
-            if (fila) {
-                fila.querySelector('[data-label="Cantidad"]')!.textContent = `${cantidadTotal} U.`;
-                const celdasSubtotal = fila.querySelectorAll('td')[3];
-                const lineasAct = lineasPrecio(precio, cantidadTotal, pventaBcv, tasaCopUsd, tasaBcvUsd);
-                celdasSubtotal.innerHTML = lineasAct.subtotal;
-            }
-        } else {
-            const tablaProductos = document.getElementById("listaProductos") as HTMLTableSectionElement;
+        productosSeleccionados.forEach((item) => {
             const fila = document.createElement("tr");
-            fila.dataset.codigo = producto.codigo;
 
-            fila.innerHTML = `
-                <td data-label="Producto">
-                    ${producto.nombre.toUpperCase()}
-                    <br />
-                    ${producto.codigo}
-                </td>
-                <td data-label="P. Unitario">
-                    ${lineas.unitario}
-                </td>
-                <td data-label="Cantidad">${cantidad} U.</td>
-                <td>${lineas.subtotal}</td>
-            `;
+            if (esNota) {
+                const unitDivUsd = +Number(item.precio_divisas).toFixed(4);
+                const unitCop = redondearCOP(unitDivUsd * tasas.cop);
+                const subDivUsd = +(unitDivUsd * item.cantidad).toFixed(4);
+                const subCop = redondearCOP(subDivUsd * tasas.cop);
 
-            const tdAcciones = document.createElement('td');
-            tdAcciones.classList.add('acciones');
+                const badgeNota = `<span style="font-size:0.65rem; padding:1px 6px; border-radius:99px; background:rgba(16,185,129,0.15); color:#047857; font-weight:700;">SIN IVA · NOTA ENTREGA</span>`;
 
-            const btnEliminar = document.createElement('button');
-            btnEliminar.classList.add('btn-eliminar');
-            btnEliminar.textContent = 'DEL';
-            btnEliminar.addEventListener('click', () => {
-                fila.remove();
-                productosSeleccionados = productosSeleccionados.filter(p => p.codigo !== producto.codigo);
-                actualizarVisibilidadTabla();
+                fila.innerHTML = `
+                    <td data-label="Producto">
+                        <strong>${item.nombre.toUpperCase()}</strong> ${badgeNota}
+                        <br />
+                        <span style="font-size: 0.78rem; color: var(--text-muted);">${item.codigo}</span>
+                    </td>
+                    <td data-label="Precio Unitario">
+                        <strong>$${formatearDecimal(unitDivUsd, 2, 4)} USD</strong>
+                        <br />
+                        <span style="font-size: 0.78rem; color: var(--secondary-color);">${unitCop.toLocaleString("es-CO")} COP</span>
+                    </td>
+                    <td data-label="Cantidad">${item.cantidad} U.</td>
+                    <td data-label="Subtotal">
+                        <strong>$${formatearDecimal(subDivUsd, 2, 4)} USD</strong>
+                        <br />
+                        <span style="font-size: 0.78rem; color: var(--secondary-color);">${subCop.toLocaleString("es-CO")} COP</span>
+                    </td>
+                `;
+            } else {
+                const precioUnitarioBcv = +Number(item.precio).toFixed(4);
+                const subtotalBaseUsd = +(
+                    precioUnitarioBcv * item.cantidad
+                ).toFixed(4);
+                const subtotalBaseBs = redondearBS(subtotalBaseUsd * tasas.bs);
+                const unitBaseBs = redondearBS(precioUnitarioBcv * tasas.bs);
+
+                const etiquetaFiscal = item.exento_iva
+                    ? `<span style="font-size:0.65rem; padding:1px 6px; border-radius:99px; background:rgba(16,185,129,0.15); color:#047857; font-weight:700;">EXENTO (E)</span>`
+                    : `<span style="font-size:0.65rem; padding:1px 6px; border-radius:99px; background:rgba(37,99,235,0.12); color:#1d4ed8; font-weight:700;">+IVA (${tasas.iva_porcentaje}%)</span>`;
+
+                fila.innerHTML = `
+                    <td data-label="Producto">
+                        <strong>${item.nombre.toUpperCase()}</strong> ${etiquetaFiscal}
+                        <br />
+                        <span style="font-size: 0.78rem; color: var(--text-muted);">${item.codigo}</span>
+                    </td>
+                    <td data-label="Precio Unitario">
+                        <strong>${unitBaseBs.toFixed(4)} Bs</strong>
+                    </td>
+                    <td data-label="Cantidad">${item.cantidad} U.</td>
+                    <td data-label="Subtotal">
+                        <strong>${subtotalBaseBs.toFixed(4)} Bs</strong>
+                    </td>
+                `;
+            }
+
+            const tdAcciones = document.createElement("td");
+            tdAcciones.classList.add("acciones");
+
+            const btnEliminar = document.createElement("button");
+            btnEliminar.type = "button";
+            btnEliminar.classList.add("btn-eliminar");
+            ponerIcono(btnEliminar, "eliminar");
+            btnEliminar.addEventListener("click", () => {
+                productosSeleccionados = productosSeleccionados.filter(
+                    (p) => p.codigo !== item.codigo,
+                );
+                renderizarTablaProductos();
+                recalcularTotalesFiscales();
             });
 
             tdAcciones.appendChild(btnEliminar);
             fila.appendChild(tdAcciones);
             tablaProductos.appendChild(fila);
+        });
+    }
+
+    async function actualizarModoDocumentoUI() {
+        const esNota = esModoNotaEntrega();
+        if (lblPrecioInput) {
+            lblPrecioInput.textContent = esNota
+                ? "Precio en Divisas por unidad (USD -> COP · Sin IVA)"
+                : "Base Imponible por unidad (USD -> Bs)";
+        }
+        if (avisoModalidadFiscal) {
+            if (esNota) {
+                avisoModalidadFiscal.style.background =
+                    "rgba(16, 185, 129, 0.1)";
+                avisoModalidadFiscal.style.borderColor =
+                    "rgba(16, 185, 129, 0.3)";
+                avisoModalidadFiscal.style.color = "#065f46";
+                avisoModalidadFiscal.innerHTML =
+                    "💵 <strong>Nota de Entrega en Divisas:</strong> Se calcula según <code>precio_divisas</code> en USD y su equivalente en COP a Tasa COP, <strong>sin IVA ni retenciones</strong>. Emite Nota de Entrega numerada.";
+            } else {
+                avisoModalidadFiscal.style.background =
+                    "rgba(37, 99, 235, 0.08)";
+                avisoModalidadFiscal.style.borderColor =
+                    "rgba(37, 99, 235, 0.2)";
+                avisoModalidadFiscal.style.color = "#1e40af";
+                avisoModalidadFiscal.innerHTML =
+                    "📌 <strong>Factura Fiscal SENIAT (Bs):</strong> Se emite en Bolívares más IVA. Queda numerada correlativamente y <strong>no puede ser cancelada ni eliminada</strong> (solo admite Nota de Crédito / Devolución).";
+            }
+        }
+
+        const tituloTabla = document.getElementById("tituloTablaSeleccionados");
+        const thPrecioUnitario = document.getElementById("thPrecioUnitario");
+        const thSubtotalCol = document.getElementById("thSubtotalCol");
+        const eyebrowPaso2 = document.getElementById("eyebrowPaso2");
+        const tituloPaso2 = document.getElementById("tituloPaso2");
+        const btnFinalizarEl = document.getElementById("btnFinalizar");
+
+        if (tituloTabla) {
+            tituloTabla.textContent = esNota
+                ? "Productos seleccionados (Nota de Entrega en Divisas · Sin IVA)"
+                : "Productos seleccionados (Factura en Bs)";
+        }
+        if (thPrecioUnitario)
+            thPrecioUnitario.textContent = esNota
+                ? "Precio Unit. Divisas (USD / COP)"
+                : "Precio Unitario (Bs)";
+        if (thSubtotalCol)
+            thSubtotalCol.textContent = esNota
+                ? "Subtotal Divisas"
+                : "Subtotal (Bs)";
+        if (eyebrowPaso2)
+            eyebrowPaso2.textContent = esNota
+                ? "Finalizar Nota de Entrega"
+                : "Finalizar Factura Fiscal";
+        if (tituloPaso2)
+            tituloPaso2.textContent = esNota
+                ? "Cliente y Pago en Divisas (Sin IVA)"
+                : "Cliente, Retenciones de IVA y Pago";
+        if (btnFinalizarEl)
+            btnFinalizarEl.textContent = esNota
+                ? "Emitir Nota de Entrega (Divisas)"
+                : "Emitir Factura Fiscal (Bs)";
+
+        if (productoActualEnFormulario) {
+            await aplicarPrecioProducto(productoActualEnFormulario);
+        } else {
+            await actualizarReferenciaPrecio();
+        }
+
+        await renderizarTablaProductos();
+        recalcularTotalesFiscales();
+
+        const pagosEyebrow = document.getElementById("pagosEyebrow");
+        if (pagosEyebrow) {
+            pagosEyebrow.textContent = esNota
+                ? "Puedes combinar USD y COP (solo divisas). El total cubierto debe coincidir con la nota de entrega."
+                : "Puedes combinar USD, COP y Bs. El total cubierto debe coincidir con la venta.";
+        }
+
+        if (esNota && Array.isArray(pagosVenta) && pagosVenta.some((p: any) => p.moneda === "BS")) {
+            pagosVenta.splice(
+                0,
+                pagosVenta.length,
+                ...pagosVenta.filter((p: any) => p.moneda !== "BS"),
+            );
+            renderPagosVenta();
+        }
+        rellenarMonedasPago();
+    }
+
+    tipoDocumentoSelect?.addEventListener("change", () => {
+        actualizarModoDocumentoUI();
+    });
+
+    btnagregarProducto.addEventListener("click", async (e: Event) => {
+        e.preventDefault();
+
+        const productoId = productoSelect.value;
+        const cantidadInput = document.getElementById(
+            "cantidad",
+        ) as HTMLInputElement;
+        const cantidad = parseFloat(
+            (cantidadInput.value || "").replace(",", "."),
+        );
+        const precioIngresado = parseFloat(
+            (precioInput.value || "").replace(",", "."),
+        );
+        const esNota = esModoNotaEntrega();
+
+        try {
+            const response = await fetch(`/api/productos/${productoId}`);
+            if (!response.ok) {
+                throw new Error(
+                    "Error al obtener el producto: " + response.status,
+                );
+            }
+            const producto = await response.json();
+
+            if (!producto || !producto.stock) {
+                mostrarError("Producto no encontrado o sin stock disponible");
+                return;
+            }
+
+            let serialesSeleccionados: string[] = [];
+            if (
+                producto.serialesDisponibles &&
+                producto.serialesDisponibles.length > 0
+            ) {
+                serialesSeleccionados = [...serialesSeleccionadosMemoria];
+
+                if (serialesSeleccionados.length === 0) {
+                    mostrarError(
+                        "Debe seleccionar al menos un serial para vender este producto.",
+                    );
+                    return;
+                }
+                if (serialesSeleccionados.length !== cantidad) {
+                    mostrarError(
+                        "La cantidad no coincide con los seriales seleccionados.",
+                    );
+                    return;
+                }
+            }
+
+            if (isNaN(cantidad) || Number(cantidad) <= 0) {
+                mostrarError("Ingresa una cantidad válida mayor a cero");
+                return;
+            }
+
+            if (isNaN(precioIngresado) || Number(precioIngresado) <= 0) {
+                mostrarError("El precio del producto no es válido");
+                return;
+            }
+
+            if (Number(cantidad) > producto.stock) {
+                mostrarError(
+                    `Cantidad insuficiente en stock. Stock disponible: ${producto.stock}`,
+                );
+                return;
+            }
+
+            const pBcvCatalogo =
+                Number(producto.precio_bcv ?? producto.venta) ||
+                precioIngresado;
+            const pDivCatalogo =
+                Number(producto.precio_divisas) > 0
+                    ? Number(producto.precio_divisas)
+                    : pBcvCatalogo;
+
+            const precioUnitarioBcv = esNota
+                ? +pBcvCatalogo.toFixed(4)
+                : +precioIngresado.toFixed(4);
+            const precioUnitarioDivisas = esNota
+                ? +precioIngresado.toFixed(4)
+                : +pDivCatalogo.toFixed(4);
+            const exentoIva = Number(producto.exento_iva) ? 1 : 0;
+
+            productoSelect.value = "";
+            cantidadInput.value = "";
+            precioInput.value = "";
+            productoActualEnFormulario = null;
+            await actualizarReferenciaPrecio();
+            reiniciarBusquedaProductos();
+            enfocarBusquedaProductos();
 
             productosSeleccionados.push({
                 id: producto.id,
                 nombre: producto.nombre,
                 codigo: producto.codigo,
-                precio: precio,
-                pventa_bcv: pventaBcv,
+                precio: precioUnitarioBcv,
+                precio_divisas: precioUnitarioDivisas,
+                exento_iva: exentoIva,
                 cantidad: cantidad,
                 stock: producto.stock,
                 costo: producto.costo,
                 venta: producto.venta,
-                unidad_medida: producto.unidad_medida
+                unidad_medida: producto.unidad_medida,
+                serialesSeleccionados: serialesSeleccionados,
             });
-        }
 
-        actualizarVisibilidadTabla();
-
-        productoSelect.value = "";
-        cantidadInput.value = "1";
-        precioInput.value = "";
-    }
-
-    const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
-
-    btnagregarProducto.addEventListener("click", async (e : Event) => {
-        e.preventDefault();
-
-        const productoId = productoSelect.value;
-        const cantidad = parseFloat(cantidadInput.value.replace(",", "."));
-        const precio = parseFloat(precioInput.value.replace(",", "."));
-
-        if (!productoId) {
-            mostrarError("Selecciona un producto");
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/productos/${productoId}`);
-            if (!response.ok) {
-                throw new Error('Error al obtener el producto: ' + response.status);
-            }
-            const producto = await response.json();
-            await agregarProductoAVenta(producto, cantidad, precio);
+            await renderizarTablaProductos();
+            recalcularTotalesFiscales();
         } catch (error) {
             console.error("Error al obtener el producto:", error);
+            return;
         }
     });
 
-    // Boton para concretar la venta que abre el módulo de clientes y tipo de pago
-    const btnConfirmacion = document.getElementById("btnConfirmacion") as HTMLButtonElement;
+    const btnConfirmacion = document.getElementById(
+        "btnConfirmacion",
+    ) as HTMLButtonElement;
 
     let totalDeVenta = 0;
+    let tasasVenta = {
+        cop: 0,
+        bs: 0,
+        iva_porcentaje: 16,
+        retencion_iva_porcentaje: 75,
+    };
+    let pagosVenta: {
+        moneda: string;
+        metodo: string;
+        monto: number;
+        monto_base: number;
+    }[] = [];
+
+    const tipoPagoSelect = document.getElementById(
+        "tipoPago",
+    ) as HTMLSelectElement;
+    const grupoRetencionIva = document.getElementById(
+        "grupoRetencionIva",
+    ) as HTMLDivElement;
+    const retencionIvaSelect = document.getElementById(
+        "retencionIvaSelect",
+    ) as HTMLSelectElement;
+    const campoComprobanteRetencion = document.getElementById(
+        "campoComprobanteRetencion",
+    ) as HTMLDivElement;
+    const comprobanteRetencionInput = document.getElementById(
+        "comprobanteRetencion",
+    ) as HTMLInputElement;
+
+    const moduloPagosVenta = document.getElementById(
+        "moduloPagosVenta",
+    ) as HTMLDivElement;
+    const avisoPagoCredito = document.getElementById(
+        "avisoPagoCredito",
+    ) as HTMLParagraphElement;
+    const pagoMonedaSelect = document.getElementById(
+        "pagoMoneda",
+    ) as HTMLSelectElement;
+    const pagoMetodoSelect = document.getElementById(
+        "pagoMetodo",
+    ) as HTMLSelectElement;
+    const pagoMontoInput = document.getElementById(
+        "pagoMonto",
+    ) as HTMLInputElement;
+    const listaPagosVenta = document.getElementById(
+        "listaPagosVenta",
+    ) as HTMLTableSectionElement;
+    const pagosVentaTablaWrap = document.getElementById(
+        "pagosVentaTablaWrap",
+    ) as HTMLDivElement;
+    const pagosCubierto = document.getElementById(
+        "pagosCubierto",
+    ) as HTMLElement;
+    const pagosFalta = document.getElementById("pagosFalta") as HTMLElement;
+    const pagosVentaResumen = document.getElementById(
+        "pagosVentaResumen",
+    ) as HTMLDivElement;
+
+    function recalcularTotalesFiscales() {
+        const esNota = esModoNotaEntrega();
+        const ivaPorc = esNota ? 0 : Number(tasasVenta.iva_porcentaje) || 16;
+        const retPorc = esNota ? 0 : Number(retencionIvaSelect?.value) || 0;
+
+        if (grupoRetencionIva) {
+            grupoRetencionIva.style.display = esNota ? "none" : "flex";
+        }
+        if (campoComprobanteRetencion) {
+            campoComprobanteRetencion.style.display =
+                !esNota && retPorc > 0 ? "block" : "none";
+        }
+
+        let subtotalBaseUsd = 0;
+        let subtotalExentoUsd = 0;
+        let totalDivisasUsd = 0;
+
+        for (const p of productosSeleccionados) {
+            if (p.exento_iva) {
+                subtotalExentoUsd += p.precio * p.cantidad;
+            } else {
+                subtotalBaseUsd += p.precio * p.cantidad;
+            }
+            totalDivisasUsd += p.precio_divisas * p.cantidad;
+        }
+
+        subtotalBaseUsd = +subtotalBaseUsd.toFixed(4);
+        subtotalExentoUsd = +subtotalExentoUsd.toFixed(4);
+        totalDivisasUsd = +totalDivisasUsd.toFixed(4);
+
+        const tBcv = Number(tasasVenta.bs) || 0;
+        const tCop = Number(tasasVenta.cop) || 0;
+
+        const filaBaseGravada = document.getElementById(
+            "filaBaseGravada",
+        ) as HTMLElement;
+        const filaExento = document.getElementById("filaExento") as HTMLElement;
+        const filaIva = document.getElementById("filaIva") as HTMLElement;
+        const filaRetencion = document.getElementById(
+            "filaRetencion",
+        ) as HTMLElement;
+        const separadorFiscal = document.getElementById(
+            "separadorFiscal",
+        ) as HTMLElement;
+        const lblTituloLiquidacion = document.getElementById(
+            "lblTituloLiquidacion",
+        ) as HTMLElement;
+        const lblTotalAPagar = document.getElementById(
+            "lblTotalAPagar",
+        ) as HTMLElement;
+        const filaRefSecundaria = document.getElementById(
+            "filaRefSecundaria",
+        ) as HTMLElement;
+        const lblRefSecundaria = document.getElementById(
+            "lblRefSecundaria",
+        ) as HTMLElement;
+
+        if (esNota) {
+            totalDeVenta = totalDivisasUsd;
+            const totalCop = redondearCOP(totalDivisasUsd * tCop);
+
+            if (lblTituloLiquidacion)
+                lblTituloLiquidacion.textContent =
+                    "Resumen de Nota de Entrega en Divisas (Sin IVA)";
+            if (filaBaseGravada) filaBaseGravada.style.display = "none";
+            if (filaExento) filaExento.style.display = "none";
+            if (filaIva) filaIva.style.display = "none";
+            if (filaRetencion) filaRetencion.style.display = "none";
+            if (separadorFiscal) separadorFiscal.style.display = "none";
+            if (filaRefSecundaria) filaRefSecundaria.style.display = "flex";
+
+            if (lblTotalAPagar)
+                lblTotalAPagar.textContent = "TOTAL NOTA DE ENTREGA (DIVISAS):";
+            (
+                document.getElementById("totalDeVenta") as HTMLElement
+            ).textContent = `$${totalDivisasUsd.toFixed(4)} USD`;
+            if (lblRefSecundaria)
+                lblRefSecundaria.textContent =
+                    "Equivalente en Pesos (COP):";
+            (
+                document.getElementById("resumenRefDivisas") as HTMLElement
+            ).textContent = `${totalCop.toLocaleString("es-CO")} COP (Sin IVA)`;
+
+            renderPagosVenta();
+            return;
+        }
+
+        if (lblTituloLiquidacion)
+            lblTituloLiquidacion.textContent = "Resumen de Factura";
+        if (filaBaseGravada) filaBaseGravada.style.display = "flex";
+        if (filaIva) filaIva.style.display = "flex";
+        if (separadorFiscal) separadorFiscal.style.display = "block";
+        if (filaRefSecundaria) filaRefSecundaria.style.display = "none";
+        if (lblTotalAPagar)
+            lblTotalAPagar.textContent = "TOTAL FACTURA:";
+
+        const ivaUsd = +(subtotalBaseUsd * (ivaPorc / 100)).toFixed(4);
+        const retencionUsd = +(ivaUsd * (retPorc / 100)).toFixed(4);
+        const netoPagarUsd = +(
+            subtotalBaseUsd +
+            subtotalExentoUsd +
+            ivaUsd -
+            retencionUsd
+        ).toFixed(4);
+
+        totalDeVenta = netoPagarUsd;
+
+        const baseBs = redondearBS(subtotalBaseUsd * tBcv);
+        const exentoBs = redondearBS(subtotalExentoUsd * tBcv);
+        const ivaBs = redondearBS(ivaUsd * tBcv);
+        const retBs = redondearBS(retencionUsd * tBcv);
+        const netoBs = redondearBS(netoPagarUsd * tBcv);
+
+        (
+            document.getElementById("lblIvaPorcentaje") as HTMLElement
+        ).textContent = String(ivaPorc);
+        (
+            document.getElementById("resumenBaseGravada") as HTMLElement
+        ).textContent = `${formatearDecimal(baseBs, 2, 4)} Bs`;
+
+        if (subtotalExentoUsd > 0) {
+            filaExento.style.display = "flex";
+            (
+                document.getElementById("resumenExento") as HTMLElement
+            ).textContent = `${formatearDecimal(exentoBs, 2, 4)} Bs`;
+        } else {
+            filaExento.style.display = "none";
+        }
+
+        (document.getElementById("resumenIva") as HTMLElement).textContent =
+            `${formatearDecimal(ivaBs, 2, 4)} Bs`;
+
+        if (retPorc > 0 && retencionUsd > 0) {
+            filaRetencion.style.display = "flex";
+            (
+                document.getElementById("lblRetPorcentaje") as HTMLElement
+            ).textContent = String(retPorc);
+            (
+                document.getElementById("resumenRetencion") as HTMLElement
+            ).textContent = `-${formatearDecimal(retBs, 2, 4)} Bs`;
+        } else {
+            filaRetencion.style.display = "none";
+        }
+
+        (document.getElementById("totalDeVenta") as HTMLElement).textContent =
+            `${formatearDecimal(netoBs, 2, 4)} Bs`;
+
+        renderPagosVenta();
+    }
+
+    retencionIvaSelect?.addEventListener("change", recalcularTotalesFiscales);
+
+    function rellenarMetodosPago() {
+        const moneda = pagoMonedaSelect.value;
+        const metodos = metodosDeMoneda(moneda);
+        const actual = pagoMetodoSelect.value;
+        pagoMetodoSelect.innerHTML = metodos
+            .map(
+                (metodo: { id: string; etiqueta: string }) =>
+                    `<option value="${metodo.id}">${metodo.etiqueta}</option>`,
+            )
+            .join("");
+        if (metodos.some((metodo: { id: string }) => metodo.id === actual)) {
+            pagoMetodoSelect.value = actual;
+        }
+    }
+
+    function rellenarMonedasPago() {
+        const monedas = monedasPagoDisponibles(tasasVenta, {
+            soloDivisas: esModoNotaEntrega(),
+        });
+        const actual = pagoMonedaSelect.value;
+        pagoMonedaSelect.innerHTML = monedas
+            .map(
+                (moneda: { id: string; etiqueta: string }) =>
+                    `<option value="${moneda.id}">${moneda.etiqueta}</option>`,
+            )
+            .join("");
+        if (monedas.some((moneda: { id: string }) => moneda.id === actual)) {
+            pagoMonedaSelect.value = actual;
+        } else if (monedas[0]) {
+            pagoMonedaSelect.value = monedas[0].id;
+        }
+        rellenarMetodosPago();
+        sugerirMontoRestante();
+    }
+
+    function monedaBasePagoActual() {
+        return monedaBase === "COP"
+            ? (esModoNotaEntrega() ? "COP" : "BS")
+            : monedaBase;
+    }
+
+    function resumenActualPagos() {
+        return resumenPagos(pagosVenta, totalDeVenta, monedaBasePagoActual(), tasasVenta);
+    }
+
+    function sugerirMontoRestante() {
+        const { restante, completo } = resumenActualPagos();
+        if (completo || restante <= 0) {
+            pagoMontoInput.value = "";
+            pagoMontoInput.placeholder = "0";
+            return;
+        }
+
+        const moneda = pagoMonedaSelect.value;
+        const sugerido = montoRestanteEnMoneda(
+            restante,
+            moneda,
+            monedaBasePagoActual(),
+            tasasVenta,
+        );
+        pagoMontoInput.placeholder =
+            moneda === "COP"
+                ? String(Math.round(sugerido) || 0)
+                : (sugerido || 0).toFixed(2);
+    }
+
+    function renderPagosVenta() {
+        const resumen = resumenActualPagos();
+        const basePago = monedaBasePagoActual();
+        pagosCubierto.textContent = resumen.cubiertoTexto;
+        pagosFalta.textContent = resumen.completo ? "0" : resumen.restanteTexto;
+        pagosVentaResumen.classList.toggle("is-completo", resumen.completo);
+        pagosVentaTablaWrap.hidden = pagosVenta.length === 0;
+        listaPagosVenta.innerHTML = "";
+
+        pagosVenta.forEach((pago, indice) => {
+            const fila = document.createElement("tr");
+            fila.innerHTML = `
+                <td data-label="Método">${etiquetaPago(pago.moneda, pago.metodo)}</td>
+                <td data-label="Recibido">${formatearMoneda(pago.monto, pago.moneda)}</td>
+                <td data-label="Equivalente">${formatearMoneda(pago.monto_base, basePago)}</td>
+                <td class="acciones"></td>
+            `;
+            const btnEliminar = document.createElement("button");
+            btnEliminar.type = "button";
+            btnEliminar.classList.add("btn-eliminar");
+            ponerIcono(btnEliminar, "eliminar");
+            btnEliminar.addEventListener("click", () => {
+                pagosVenta.splice(indice, 1);
+                renderPagosVenta();
+            });
+            fila.querySelector(".acciones")?.appendChild(btnEliminar);
+            listaPagosVenta.appendChild(fila);
+        });
+
+        sugerirMontoRestante();
+    }
+
+    function mostrarPanelPagos() {
+        const tipo = tipoPagoSelect.value;
+        moduloPagosVenta.hidden = tipo !== "contado";
+        avisoPagoCredito.hidden = tipo !== "credito";
+        if (tipo === "contado") {
+            rellenarMonedasPago();
+            renderPagosVenta();
+        }
+    }
+
+    function agregarPagoVenta() {
+        const basePago = monedaBasePagoActual();
+        const linea = parsearLineaPago(
+            {
+                moneda: pagoMonedaSelect.value,
+                metodo: pagoMetodoSelect.value,
+                monto: pagoMontoInput.value,
+            },
+            basePago,
+            tasasVenta,
+        );
+
+        if (!linea.ok) {
+            mostrarError(linea.error);
+            return;
+        }
+
+        const pagoNuevo = linea.pago;
+        const cubierto =
+            pagosVenta.reduce((acc, pago) => acc + pago.monto_base, 0) +
+            pagoNuevo.monto_base;
+        const exceso = cubierto - totalDeVenta;
+        if (exceso > toleranciaPago(basePago)) {
+            mostrarError(
+                `Los pagos exceden el total por ${formatearMoneda(exceso, basePago)}`,
+            );
+            return;
+        }
+
+        pagosVenta.push({
+            moneda: pagoNuevo.moneda,
+            metodo: pagoNuevo.metodo,
+            monto: pagoNuevo.monto,
+            monto_base: pagoNuevo.monto_base,
+        });
+        pagoMontoInput.value = "";
+        renderPagosVenta();
+    }
+
+    tipoPagoSelect.addEventListener("change", mostrarPanelPagos);
+    pagoMonedaSelect.addEventListener("change", () => {
+        rellenarMetodosPago();
+        sugerirMontoRestante();
+    });
+    document
+        .getElementById("btnAgregarPago")
+        ?.addEventListener("click", agregarPagoVenta);
+    pagoMontoInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            agregarPagoVenta();
+        }
+    });
 
     btnConfirmacion.addEventListener("click", async () => {
-        
-        // Abrir modulo de clientes y tipo de pago
-        const moduloDatosCompletar = document.getElementById("moduloDatosCompletar") as HTMLDivElement;
+        const moduloDatosCompletar = document.getElementById(
+            "moduloDatosCompletar",
+        ) as HTMLDivElement;
         moduloDatosCompletar.style.display = "flex";
 
-        // Bloquear el boton anterior
         btnConfirmacion.disabled = true;
-        btnConfirmacion.textContent = "Procesando...";
+        btnConfirmacion.textContent = "Facturación lista abajo";
 
-        const { tasaCopUsd, tasaBcvUsd } = await obtenerTasasPrecios();
+        const tasas = await obtenerTasas();
+        tasasVenta = tasas;
+        pagosVenta = [];
+        recalcularTotalesFiscales();
+        mostrarPanelPagos();
 
-        const totalCop = productosSeleccionados.map(p => p.precio * p.cantidad).reduce((a, b) => a + b, 0);
-        const totalUsd = tasaCopUsd > 0 ? totalCop / tasaCopUsd : 0;
-        const totalBs = calcularTotalBsBcv(productosSeleccionados, tasaBcvUsd);
+        moduloDatosCompletar.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+    });
 
-        const totalTexto = document.getElementById("totalDeVenta") as HTMLParagraphElement;
-        totalTexto.innerHTML = `
-            <strong>Total de la venta:</strong><br />
-            ${Math.ceil(totalCop)} COP<br />
-            ${totalUsd.toFixed(2)} USD (pago en divisas)<br />
-            ${totalBs.toFixed(2)} Bs (pago en bolívares)
-        `;
-        totalDeVenta = totalCop;
+    const infoCreditoCliente = document.getElementById(
+        "infoCreditoCliente",
+    ) as HTMLDivElement;
+    const montoCreditoCliente = document.getElementById(
+        "montoCreditoCliente",
+    ) as HTMLElement;
 
+    selectClientes.addEventListener("change", async () => {
+        const id = idCliente(selectClientes.value);
+        if (!id) {
+            infoCreditoCliente.style.display = "none";
+            return;
+        }
+
+        const encontrado =
+            clientesParaSelect(clientesListados).find(
+                (cliente) => idCliente(cliente.id) === id,
+            ) || null;
+        clienteDeLaVenta = encontrado;
+
+        try {
+            const res = await fetch(
+                `/api/devoluciones/notasCredito?cliente_id=${id}`,
+            );
+            if (res.ok) {
+                const data = await res.json();
+                if (data.saldo_total > 0) {
+                    montoCreditoCliente.textContent = `${data.saldo_total.toFixed(4)} USD`;
+                    infoCreditoCliente.style.display = "block";
+                } else {
+                    infoCreditoCliente.style.display = "none";
+                }
+            }
+        } catch (e) {
+            console.error("Error buscando notas de crédito", e);
+            infoCreditoCliente.style.display = "none";
+        }
+    });
+
+    busquedaClientes.addEventListener("input", () => {
+        if (busquedaClientesTimer) clearTimeout(busquedaClientesTimer);
+        busquedaClientesTimer = setTimeout(() => {
+            cargarClientes(busquedaClientes.value.trim());
+        }, 250);
     });
 
     btnAbrirMenuClienteNuevo.addEventListener("click", (e) => {
         e.preventDefault();
-        const moduloAgregarCliente = document.getElementById("moduloAgregarClienteNuevo") as HTMLDivElement;
+        const abierto = moduloAgregarCliente.style.display === "grid";
+        moduloAgregarCliente.style.display = abierto ? "none" : "grid";
+        btnAbrirMenuClienteNuevo.textContent = abierto ? "+" : "−";
+        if (!abierto) {
+            inputClienteNombre.focus();
+        }
+    });
 
-        moduloAgregarCliente.style.display = 
-            moduloAgregarCliente.style.display === "none" ? "flex" : "none";
-        btnAbrirMenuClienteNuevo.textContent = 
-            moduloAgregarCliente.style.display === "flex" ? "-" : "+";
-    }); 
-    
-    // abrir el modulo de cliente nuevo
     btnAgregarClienteNuevo.addEventListener("click", agregarClienteNuevo);
 
-    async function agregarClienteNuevo(event : Event) {
-
-        event.preventDefault();
-
-        const nombre = (document.getElementById('nombre') as HTMLInputElement).value;
-        const telefono = (document.getElementById('telefono') as HTMLInputElement).value;
-        const cedulaText = (document.getElementById('cedula') as HTMLInputElement).value;
-
-        // Validar campos vacios
-        if (nombre === '' || telefono === '' || cedulaText === '') {
-            mostrarError('Todos los campos son obligatorios');
-            return;
+    moduloAgregarCliente.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            agregarClienteNuevo(e);
         }
+    });
 
-        // Validar formato de teléfono
-        const telefonoRegex = /^\d+$/; 
-        if (!telefonoRegex.test(telefono)) {
-            mostrarError('El número de teléfono debe contener solo números');
-            return;
-        }
-
-        // Validar cedula
-        const cedulaRegex = /^[1-9]\d*$/;
-        if (!cedulaRegex.test(cedulaText)) {
-            mostrarError("La cédula debe ser un número entero positivo mayor a cero");
-            return;
-        }
-
-        // Parsear cedula
-        const cedula = parseInt(cedulaText);
-
-        // Enviar datos al servidor
-        const response = await fetch("/api/clientes", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ nombre, telefono, cedula })
-        });
-
-        // Verificar si la respuesta es exitosa
-        if (!response.ok) {
-            if (response.status === 409) {
-                const mensaje = await response.text();
-                mostrarError(mensaje);
-            } else {
-                mostrarError('Error al agregar cliente: ' + response.status);
-            }
-            return;
-        }
-
-        const data = await response.json();
-        const clienteAgregado = data.cliente[0];
-        
-        // Agregar el nuevo cliente al select
-        const selectClientes = document.getElementById("cliente") as HTMLSelectElement;
-        const option = document.createElement("option");
-        option.value = clienteAgregado.id;
-        option.textContent = `${clienteAgregado.nombre.toUpperCase()} - ${clienteAgregado.cedula}`;
-        selectClientes.appendChild(option);
-        option.selected = true; // Seleccionar el nuevo cliente
-
-        // cerrar el módulo de agregar cliente y limpiar campos
-        (document.getElementById('nombre') as HTMLInputElement).value = '';
-        (document.getElementById('telefono') as HTMLInputElement).value = '';
-        (document.getElementById('cedula') as HTMLInputElement).value = '';
-        btnAbrirMenuClienteNuevo.textContent = "+";
-        const moduloAgregarCliente = document.getElementById("moduloAgregarClienteNuevo") as HTMLDivElement;
-        moduloAgregarCliente.style.display = "none";
-
-        mostrarMensaje('Cliente agregado exitosamente');
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", iniciarPagina);
+    } else {
+        iniciarPagina();
     }
 
-    // Enviar datos al servidor y concretar venta
-    const btnFinalizar = document.getElementById("btnFinalizar") as HTMLButtonElement;
+    async function agregarClienteNuevo(event: Event) {
+        event.preventDefault();
 
-    btnFinalizar.addEventListener("click", async e => {
+        if (registrandoCliente) return;
 
-        e.preventDefault();
+        const validado = validarCliente({
+            nombre: inputClienteNombre.value,
+            telefono: inputClienteTelefono.value,
+            cedula: inputClienteCedula.value,
+        });
 
-        // Traer informacion necesaria
-        const fecha = (document.getElementById('fecha') as HTMLInputElement).value;
-        const tipoPago = (document.getElementById('tipoPago') as HTMLSelectElement).value;
-        const clienteId = (document.getElementById('cliente') as HTMLSelectElement).value;
-
-        // Validaciones
-        if (!fecha || !tipoPago || !clienteId) {
-            mostrarError("Todos los campos son obligatorios");
+        if (!validado.ok) {
+            mostrarError(validado.error);
             return;
         }
 
-        if(fecha === '' || tipoPago === '' || clienteId === '') {
+        registrandoCliente = true;
+        btnAgregarClienteNuevo.disabled = true;
+        const textoBoton = btnAgregarClienteNuevo.textContent;
+        btnAgregarClienteNuevo.textContent = "Registrando...";
+
+        try {
+            const response = await fetch("/api/clientes", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(validado.cliente),
+            });
+
+            const raw = await response.text();
+            let data: any = null;
+            try {
+                data = raw ? JSON.parse(raw) : null;
+            } catch {}
+
+            if (!response.ok) {
+                mostrarError(
+                    data?.error ||
+                        data?.message ||
+                        raw ||
+                        `Error al agregar cliente: ${response.status}`,
+                );
+                return;
+            }
+
+            const clienteAgregado = Array.isArray(data?.cliente)
+                ? data.cliente[0]
+                : data?.cliente;
+            if (!clienteAgregado?.id) {
+                mostrarError(
+                    "El cliente se guardó, pero no se pudo seleccionar. Recarga e inténtalo de nuevo.",
+                );
+                return;
+            }
+
+            seleccionarClienteEnVenta(clienteAgregado);
+            cerrarPanelClienteNuevo();
+            mostrarMensaje(data?.message || "Cliente agregado exitosamente.");
+        } catch (error) {
+            console.error("Error al agregar cliente:", error);
+            mostrarError("Error al agregar el cliente. Inténtalo de nuevo.");
+        } finally {
+            registrandoCliente = false;
+            btnAgregarClienteNuevo.disabled = false;
+            btnAgregarClienteNuevo.textContent =
+                textoBoton || "Registrar cliente";
+        }
+    }
+
+    const btnFinalizar = document.getElementById(
+        "btnFinalizar",
+    ) as HTMLButtonElement;
+
+    btnFinalizar.addEventListener("click", async (e) => {
+        e.preventDefault();
+
+        const fecha = (document.getElementById("fecha") as HTMLInputElement)
+            .value;
+        const tipoPago = (
+            document.getElementById("tipoPago") as HTMLSelectElement
+        ).value;
+        const clienteId =
+            idCliente(clienteDeLaVenta?.id) || idCliente(selectClientes.value);
+        const tipo_documento = esModoNotaEntrega() ? "nota_entrega" : "factura";
+        const retencion_iva_porcentaje =
+            tipo_documento === "nota_entrega"
+                ? 0
+                : Number(retencionIvaSelect?.value) || 0;
+        const comprobante_retencion =
+            tipo_documento === "nota_entrega"
+                ? ""
+                : (comprobanteRetencionInput?.value || "").trim();
+
+        if (!fecha || !tipoPago || !clienteId) {
             mostrarError("Todos los campos son obligatorios");
             return;
         }
@@ -909,90 +2183,176 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
             return;
         }
 
-        // Crear venta y se guarda
-        try  {
+        const pagosValidados = validarPagosVenta({
+            tipoPago,
+            pagos: pagosVenta,
+            totalBase: totalDeVenta,
+            monedaBase: monedaBasePagoActual(),
+            tasas: tasasVenta,
+            soloDivisas: esModoNotaEntrega(),
+        });
 
-            const response = await fetch("/api/ventas", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    fecha,
-                    tipoPago,
-                    clienteId,
-                    totalDeVenta
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error("Error al crear la venta");
-            }
-
-            const data = await response.json();
-
-            // Recuperamos el id
-            const ventaId = data.ventaId;
-
-            // Agregar los productos a detalle
-            for (const producto of productosSeleccionados) {
-
-                const { codigo, nombre, precio, cantidad, id } : Producto = producto;
-                let idProducto = id;
-
-                const esDecimalPositivo: RegExp = /^\d+(\.\d+)?$/;
-
-                const cantidadString: string = cantidad.toString();
-                const precioString: string = precio.toString();
-
-                const cantidadValida: boolean =
-                esDecimalPositivo.test(cantidadString) && Number.isFinite(parseFloat(cantidadString)) && parseFloat(cantidadString) > 0;
-                const precioUnitarioValido: boolean =
-                esDecimalPositivo.test(precioString) && Number.isFinite(parseFloat(precioString)) && parseFloat(precioString) >= 0;
-
-                if (!codigo || !nombre || !precioUnitarioValido || !cantidadValida) {
-                    mostrarError("Faltan datos válidos del producto");
-                    continue;
-                }
-
-                try {
-                    const responseDetalles = await fetch("/api/detalleVentas", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            ventaId,
-                            idProducto,
-                            codigo,
-                            nombre,
-                            precio,
-                            cantidad
-                        })
-                    });
-
-                    if (!responseDetalles.ok) {
-                        throw new Error("Error al guardar detalle");
-                    }
-
-                } catch (error) {
-                    console.error("Error en detalle:", error);
-                    mostrarError(`Error al guardar producto ${codigo}`);
-                }
-            }
-
-            // mostrar mensaje de exito, bloquear btnFinalizar y mostrar btnImprimirFacturacion
-            mostrarMensaje('Venta finalizada correctamente. Puede imprimir el comprobante');
-
-            setTimeout(() => {
-                window.location.href = `/ventas/${ventaId}`;
-            }, 1750);
-
-        } catch (error) {
-            console.error("Error al crear la venta:", error);
-            mostrarError("Error al crear la venta. Por favor, inténtalo de nuevo.");
+        if (!pagosValidados.ok) {
+            mostrarError(pagosValidados.error);
             return;
         }
 
+        const chkFlete = document.getElementById("chkFlete") as HTMLInputElement;
+        const fleteMontoInput = document.getElementById("fleteMonto") as HTMLInputElement;
+        const tiene_flete = Boolean(chkFlete?.checked);
+        const flete_monto = parseFloat((fleteMontoInput?.value || "0").replace(",", ".")) || 0;
+
+        if (tiene_flete && flete_monto <= 0) {
+            mostrarError("Si marcas el campo de flete, debes ingresar un monto válido mayor a 0.");
+            fleteMontoInput?.focus();
+            return;
+        }
+
+        try {
+            const response = await fetch("/api/ventas/completa", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    fecha,
+                    tipo_documento,
+                    tipoPago,
+                    clienteId,
+                    totalDeVenta,
+                    retencion_iva_porcentaje,
+                    comprobante_retencion,
+                    tiene_flete,
+                    flete_monto: tiene_flete ? flete_monto : 0,
+                    pagos: pagosValidados.pagos,
+                    productos: productosSeleccionados.map(
+                        ({
+                            codigo,
+                            nombre,
+                            precio,
+                            precio_divisas,
+                            exento_iva,
+                            cantidad,
+                            id,
+                            serialesSeleccionados,
+                        }) => ({
+                            idProducto: id,
+                            codigo,
+                            nombre,
+                            precio,
+                            precio_bcv: precio,
+                            precio_divisas,
+                            exento_iva,
+                            cantidad,
+                            seriales: serialesSeleccionados,
+                        }),
+                    ),
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                mostrarError(data.error || "Error al crear la venta");
+                return;
+            }
+
+            mostrarMensaje(
+                tipo_documento === "nota_entrega"
+                    ? "¡Nota de Entrega emitida correctamente!"
+                    : "¡Factura Fiscal emitida correctamente!",
+            );
+
+            setTimeout(() => {
+                window.location.href = `/ventas/${data.ventaId}`;
+            }, 1500);
+        } catch (error) {
+            console.error("Error al crear la venta:", error);
+            mostrarError(
+                "Error al crear la venta. Por favor, inténtalo de nuevo.",
+            );
+            return;
+        }
     });
+
+    const chkFleteToggle = document.getElementById("chkFlete") as HTMLInputElement;
+    const grpFleteMonto = document.getElementById("grpFleteMonto") as HTMLElement;
+    const fleteMontoEl = document.getElementById("fleteMonto") as HTMLInputElement;
+    chkFleteToggle?.addEventListener("change", () => {
+        if (grpFleteMonto) grpFleteMonto.style.display = chkFleteToggle.checked ? "block" : "none";
+        if (chkFleteToggle.checked) {
+            fleteMontoEl?.focus();
+        } else if (fleteMontoEl) {
+            fleteMontoEl.value = "";
+        }
+    });
+
+    // --- Lógica del Buscador/Multiselect de Seriales ---
+    const selectSeriales = document.getElementById(
+        "dropdownSeriales",
+    ) as HTMLSelectElement;
+    const listaSerialesVenta = document.getElementById(
+        "listaSerialesVenta",
+    ) as HTMLDivElement;
+
+    selectSeriales?.addEventListener("change", () => {
+        const serial = selectSeriales.value;
+        if (serial && !serialesSeleccionadosMemoria.includes(serial)) {
+            serialesSeleccionadosMemoria.push(serial);
+            renderizarTagsSeriales();
+            actualizarOpcionesSeriales();
+
+            if (moduloSeriales) {
+                moduloSeriales.reset();
+            }
+        }
+    });
+
+    function actualizarOpcionesSeriales() {
+        if (!moduloSeriales) return;
+        const disponibles = serialesDisponiblesMemoria.filter(
+            (s) => !serialesSeleccionadosMemoria.includes(s),
+        );
+        moduloSeriales.cargarSeriales(disponibles);
+    }
+
+    function renderizarTagsSeriales() {
+        if (!listaSerialesVenta) return;
+
+        listaSerialesVenta.innerHTML = serialesSeleccionadosMemoria
+            .map(
+                (s) =>
+                    `<div class="serial-tag">
+                ${s}
+                <div class="serial-tag-remove" data-serial="${s}" title="Remover serial">✕</div>
+            </div>`,
+            )
+            .join("");
+
+        const cantidadInput = document.getElementById(
+            "cantidad",
+        ) as HTMLInputElement;
+        if (cantidadInput && cantidadInput.readOnly) {
+            cantidadInput.value =
+                serialesSeleccionadosMemoria.length.toString();
+        }
+
+        listaSerialesVenta
+            .querySelectorAll(".serial-tag-remove")
+            .forEach((btn) => {
+                btn.addEventListener("click", (e) => {
+                    const s = (e.target as HTMLElement).getAttribute(
+                        "data-serial",
+                    );
+                    if (s) {
+                        serialesSeleccionadosMemoria =
+                            serialesSeleccionadosMemoria.filter(
+                                (item) => item !== s,
+                            );
+                        renderizarTagsSeriales();
+                        actualizarOpcionesSeriales();
+                    }
+                });
+            });
+    }
 </script>

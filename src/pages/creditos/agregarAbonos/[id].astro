@@ -1,178 +1,401 @@
 ---
-import Layout from '../../../layouts/Layout.astro';
-import { verificarToken } from '@/utils/auth.js';
+import Layout from "../../../layouts/Layout.astro";
+import { verificarToken } from "@/utils/auth.js";
 
 const usuario = verificarToken(Astro.request);
 if (!usuario) {
-    return Astro.redirect('/login');
+    return Astro.redirect("/login");
 }
 
-const {id} = Astro.params;
-const fechaVenezuela = new Intl.DateTimeFormat('es-VE', {
-        timeZone: 'America/Caracas',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).format(new Date());
+const { id } = Astro.params;
+const fechaVenezuela = new Intl.DateTimeFormat("es-VE", {
+    timeZone: "America/Caracas",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+}).format(new Date());
 
-// Convertir de formato DD/MM/YYYY a YYYY-MM-DD
-const [dia, mes, ano] = fechaVenezuela.split('/');
+const [dia, mes, ano] = fechaVenezuela.split("/");
 const fechaCompleta = `${ano}-${mes}-${dia}`;
 ---
 
 <Layout>
-    <h1>AGREGAR ABONO</h1>
+    <header class="page-header">
+        <p class="eyebrow">Cuentas por cobrar</p>
+        <h1>Registrar abono</h1>
+        <p class="page-intro">
+            Registra el pago con moneda, método y monto recibido para actualizar
+            el saldo pendiente.
+        </p>
+    </header>
 
     <div class="btn-add_container">
-        <a class="btn-add" href=`/creditos/${id}`>Regresar</a>
+        <a class="btn-add" href={`/creditos/${id}`}>Regresar</a>
     </div>
 
-    <section class="datos-cliente">
-        <p>Saldo pendiente de pagar: <span id="pendiente"></span> COP / <span id="pendienteCOP"></span> USD</p>
+    <section class="abono-summary-card" aria-live="polite">
+        <div class="summary-icon" aria-hidden="true">$</div>
+        <div>
+            <p class="summary-eyebrow">Saldo pendiente</p>
+            <p class="summary-amount">
+                <span id="pendiente">—</span>
+            </p>
+            <p class="summary-subtext" id="pendienteRef">—</p>
+        </div>
     </section>
 
-    <div class="form-container">
+    <section class="form-container page-form abono-form">
         <form id="formulario">
-            <input type="date" name="fecha" id="fecha" value={fechaCompleta}>
-            <input type="text" name="montoAbono" id="montoAbono" placeholder="¿Cuánto desea abonar en COP?" />
-            <button type="submit">Registrar Abono</button>
+            <div class="form-field">
+                <label for="fecha">Fecha del abono</label>
+                <input
+                    type="date"
+                    name="fecha"
+                    id="fecha"
+                    value={fechaCompleta}
+                />
+            </div>
+
+            <div class="form-field">
+                <label for="pagoMoneda">Moneda</label>
+                <select id="pagoMoneda" name="pagoMoneda"></select>
+            </div>
+
+            <div class="form-field">
+                <label for="pagoMetodo">Método de pago</label>
+                <select id="pagoMetodo" name="pagoMetodo"></select>
+            </div>
+
+            <div class="form-field">
+                <label for="montoAbono">Monto recibido</label>
+                <input
+                    type="text"
+                    name="montoAbono"
+                    id="montoAbono"
+                    placeholder="0"
+                    inputmode="decimal"
+                    autocomplete="off"
+                />
+                <p class="field-hint" id="montoCopPreview">
+                    El equivalente se mostrará al ingresar el monto.
+                </p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit">Registrar abono</button>
+            </div>
         </form>
-    </div>
+    </section>
 
     <div id="mensaje"></div>
-    <div id="overlay" class="overlay oculto"> 
+    <div id="overlay" class="overlay oculto">
         <div id="modal" class="modal"></div>
     </div>
 </Layout>
 
 <style>
-    .datos-cliente {
-        min-width: 280px;
-        max-width: 320px;
-        padding: 1rem;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        background-color: #f9f9f9;
-        box-shadow: 0 0 4px rgba(0,0,0,0.1);
+    .abono-summary-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.15rem;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(
+            135deg,
+            rgba(254, 243, 199, 0.55),
+            rgba(253, 230, 138, 0.35)
+        );
+        border: 1px solid rgba(217, 119, 6, 0.18);
+        box-shadow: var(--shadow-card);
+        max-width: 480px;
     }
 
-    span {
-        font-weight: 700;
-        font-size: 1rem
+    .summary-icon {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #b45309, #d97706);
+        color: #fff;
+        font-family: "Archivo Black", sans-serif;
+        font-size: 1.35rem;
+        flex-shrink: 0;
+        box-shadow: 0 10px 22px rgba(180, 83, 9, 0.25);
     }
-    
-    p {
-        font-size: .85rem;
+
+    .summary-eyebrow {
+        margin: 0 0 0.2rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #92400e;
+    }
+
+    .summary-amount {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: var(--primary-strong);
+        line-height: 1.1;
+    }
+
+    .summary-amount small {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-muted);
+    }
+
+    .abono-form {
+        max-width: 640px;
+        margin-left: 0;
+    }
+
+    .summary-subtext {
+        margin: 0.3rem 0 0;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .field-hint {
+        margin: 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+        .abono-summary-card {
+            max-width: none;
+        }
     }
 </style>
 
 <script>
+    import {
+        mostrarError,
+        mostrarMensaje,
+        confirmarAccion,
+    } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import {
+        formatearMoneda,
+        obtenerMonedaBase,
+        textoTotal,
+        toleranciaPago,
+    } from "@/utils/helpers/tasas.js";
+    import {
+        etiquetaPago,
+        metodosDeMoneda,
+        montoRestanteEnMoneda,
+        monedasPagoDisponibles,
+        parsearLineaPago,
+    } from "@/utils/helpers/metodosPago.js";
 
-    import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
-    import { cambioUSDaCOP } from '@/utils/helpers/cambioMoneda.js';
-
-    // Rellenar campos con los datos existentes
     const id = location.pathname.split("/").pop() as string;
-    const saldoPendiente = document.querySelector('#pendiente') as HTMLElement;
-    const saldoPendienteCOP = document.querySelector('#pendienteCOP') as HTMLElement;
+    const saldoPendiente = document.querySelector("#pendiente") as HTMLElement;
+    const saldoPendienteRef = document.querySelector(
+        "#pendienteRef",
+    ) as HTMLElement;
+    const montoPreview = document.querySelector(
+        "#montoCopPreview",
+    ) as HTMLParagraphElement;
+    const montoAbonoInput = document.querySelector(
+        "#montoAbono",
+    ) as HTMLInputElement;
+    const pagoMonedaSelect = document.querySelector(
+        "#pagoMoneda",
+    ) as HTMLSelectElement;
+    const pagoMetodoSelect = document.querySelector(
+        "#pagoMetodo",
+    ) as HTMLSelectElement;
+    const formulario = document.getElementById("formulario") as HTMLFormElement;
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    const monedaBase = obtenerMonedaBase();
+    let tasasActuales = { cop: 0, bs: 0 };
+    let saldoMaximo = 0;
 
+    function rellenarMetodos() {
+        const moneda = pagoMonedaSelect.value;
+        const metodos = metodosDeMoneda(moneda);
+        const actual = pagoMetodoSelect.value;
+        pagoMetodoSelect.innerHTML = metodos
+            .map(
+                (metodo: { id: string; etiqueta: string }) =>
+                    `<option value="${metodo.id}">${metodo.etiqueta}</option>`,
+            )
+            .join("");
+        if (metodos.some((metodo: { id: string }) => metodo.id === actual)) {
+            pagoMetodoSelect.value = actual;
+        }
+    }
+
+    function rellenarMonedas() {
+        const monedas = monedasPagoDisponibles(tasasActuales);
+        const actual = pagoMonedaSelect.value;
+        pagoMonedaSelect.innerHTML = monedas
+            .map(
+                (moneda: { id: string; etiqueta: string }) =>
+                    `<option value="${moneda.id}">${moneda.etiqueta}</option>`,
+            )
+            .join("");
+        if (monedas.some((moneda: { id: string }) => moneda.id === actual)) {
+            pagoMonedaSelect.value = actual;
+        } else if (monedas[0]) {
+            pagoMonedaSelect.value = monedas[0].id;
+        }
+        rellenarMetodos();
+        actualizarVistaMonto();
+    }
+
+    function actualizarVistaMonto() {
+        const sugerido = montoRestanteEnMoneda(
+            saldoMaximo,
+            pagoMonedaSelect.value,
+            monedaBase,
+            tasasActuales,
+        );
+        montoAbonoInput.placeholder =
+            pagoMonedaSelect.value === "COP"
+                ? String(Math.round(sugerido) || 0)
+                : (sugerido || 0).toFixed(4);
+
+        const linea = parsearLineaPago(
+            {
+                moneda: pagoMonedaSelect.value,
+                metodo: pagoMetodoSelect.value,
+                monto: montoAbonoInput.value,
+            },
+            monedaBase,
+            tasasActuales,
+        );
+
+        if (!linea.ok) {
+            montoPreview.textContent =
+                saldoMaximo > 0
+                    ? `Saldo pendiente: ${formatearMoneda(saldoMaximo, monedaBase)}`
+                    : "El equivalente se mostrará al ingresar el monto.";
+            return;
+        }
+
+        const resto = Math.max(0, saldoMaximo - linea.pago.monto_base);
+        montoPreview.textContent = `Equivale a ${formatearMoneda(linea.pago.monto_base, monedaBase)}. Quedaría ${formatearMoneda(resto, monedaBase)} pendiente.`;
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
         try {
-
             const response = await fetch(`/api/creditos/${id}`);
             const data = await response.json();
-
-            const saldo = data.credito.saldo_pendiente.toFixed(2);
-            saldoPendiente.textContent = saldo;
-
-            // Obtener tasa de cambio
-            const tasa = await cambioUSDaCOP();
-
-            saldoPendienteCOP.textContent = (parseFloat(saldo) / tasa).toFixed(2).toString();
-
-        } catch (error){
-            console.error('Error al cargar datos de crédito o tasa:', error);
-            saldoPendiente.textContent = '—';
-            saldoPendienteCOP.textContent = '—';
+            tasasActuales = await obtenerTasas();
+            saldoMaximo = Number(data.credito.saldo_pendiente);
+            saldoPendiente.textContent = formatearMoneda(
+                saldoMaximo,
+                monedaBase,
+            );
+            saldoPendienteRef.textContent = textoTotal(
+                saldoMaximo,
+                monedaBase,
+                tasasActuales,
+            );
+            rellenarMonedas();
+        } catch (error) {
+            console.error("Error al cargar datos de crédito o tasa:", error);
+            saldoPendiente.textContent = "—";
+            saldoPendienteRef.textContent = "—";
         }
     });
 
-    const formulario = document.getElementById('formulario') as HTMLFormElement;
+    pagoMonedaSelect.addEventListener("change", () => {
+        rellenarMetodos();
+        actualizarVistaMonto();
+    });
+    pagoMetodoSelect.addEventListener("change", actualizarVistaMonto);
+    montoAbonoInput.addEventListener("input", actualizarVistaMonto);
 
-    formulario.addEventListener('submit', async (event : Event) => { 
+    formulario.addEventListener("submit", async (event: Event) => {
         event.preventDefault();
 
-        const montoAbonoInput = document.querySelector('#montoAbono') as HTMLInputElement;
-        const fechaInput = document.querySelector('#fecha') as HTMLInputElement;
+        const fecha = (
+            document.querySelector("#fecha") as HTMLInputElement
+        ).value?.trim();
+        const linea = parsearLineaPago(
+            {
+                moneda: pagoMonedaSelect.value,
+                metodo: pagoMetodoSelect.value,
+                monto: montoAbonoInput.value,
+            },
+            monedaBase,
+            tasasActuales,
+        );
 
-        const raw = montoAbonoInput.value.trim().replace(',', '.');
-        const montoAbono = parseFloat(raw);
-
-        const fecha = fechaInput.value?.trim();
-
-        // Validar monto
-        if (!montoAbonoInput.value || isNaN(montoAbono) || montoAbono <= 0) {
-            mostrarError('Debe ingresar un monto válido mayor a cero');
+        if (!linea.ok) {
+            mostrarError(linea.error);
             return;
         }
-        // Validar fecha
+
+        if (linea.pago.monto_base > saldoMaximo + toleranciaPago(monedaBase)) {
+            mostrarError(
+                `El abono no puede superar el saldo pendiente (${formatearMoneda(saldoMaximo, monedaBase)})`,
+            );
+            return;
+        }
+
         if (!fecha) {
-            mostrarError('Debe seleccionar una fecha válida');
-            return;
-        }
-        // Validar formato de fecha (opcional, si esperas YYYY-MM-DD)
-        const fechaValida = /^\d{4}-\d{2}-\d{2}$/.test(fecha);
-        if (!fechaValida) {
-            mostrarError('El formato de fecha no es válido');
-            return;
-        }
-        // Validación de fecha futura (opcional)
-        const hoy = new Date().toISOString().split('T')[0];
-        if (fecha > hoy) {
-            mostrarError('La fecha no puede ser futura');
+            mostrarError("Debe seleccionar una fecha válida");
             return;
         }
 
-        // Confirmacion
-        const confirmar = confirm(`¿Desea abonar ${montoAbono} COP?`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+            mostrarError("El formato de fecha no es válido");
+            return;
+        }
+
+        const hoy = new Date().toISOString().split("T")[0];
+        if (fecha > hoy) {
+            mostrarError("La fecha no puede ser futura");
+            return;
+        }
+
+        const confirmar = await confirmarAccion(
+            `¿Registrar ${formatearMoneda(linea.pago.monto, linea.pago.moneda)} por ${etiquetaPago(linea.pago.moneda, linea.pago.metodo)}?`,
+            { titulo: "Registrar abono", textoAceptar: "Registrar" },
+        );
         if (!confirmar) return;
 
-        // Enviar datos al servidor
         const response = await fetch("/api/abonos/agregarAbono", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ id, fecha, montoAbono }),
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id,
+                fecha,
+                moneda: linea.pago.moneda,
+                metodo: linea.pago.metodo,
+                monto: linea.pago.monto,
+            }),
         });
 
+        const raw = await response.text();
+        let data: any = null;
+        try {
+            data = raw ? JSON.parse(raw) : null;
+        } catch {}
+
         if (!response.ok) {
-            const mensaje = await response.text();
-            switch (response.status) {
-                case 400:
-                    mostrarError('Datos inválidos: ' + mensaje);
-                    break;
-                case 404:
-                    mostrarError('Crédito no encontrado');
-                    break;
-                case 409:
-                    mostrarError(mensaje);
-                    break;
-                case 500:
-                    mostrarError('Error interno del servidor');
-                    break;
-                default:
-                    mostrarError('Error inesperado: ' + response.status);
-            }
+            mostrarError(
+                data?.message ||
+                    data?.error ||
+                    raw ||
+                    `Error ${response.status}`,
+            );
             return;
         }
 
-        const data = await response.json();
         mostrarMensaje(data.message);
 
         if (data.venta_actualizada) {
-            mostrarMensaje('La venta fue completada con este abono');
+            mostrarMensaje("La venta fue completada con este abono");
             return setTimeout(() => {
                 window.location.href = `/creditos/`;
             }, 2000);
@@ -181,6 +404,5 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         setTimeout(() => {
             window.location.href = `/creditos/${id}`;
         }, 1000);
-
     });
 </script>

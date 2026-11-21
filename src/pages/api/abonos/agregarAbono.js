@@ -1,75 +1,183 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
+import { executeInTx, withTransaction } from '@/utils/dbTransaction';
+import { obtenerMonedaBase, toleranciaPago } from '@/utils/helpers/tasas.js';
+import { parsearLineaPago } from '@/utils/helpers/metodosPago.js';
+import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
+
+const jsonHeaders = { 'Content-Type': 'application/json' };
+
+async function tasasDelDia() {
+    const result = await db.execute('SELECT valor, bs FROM tasa WHERE id = 1');
+    const row = result.rows?.[0];
+    return {
+        cop: Number(row?.valor) || 0,
+        bs: Number(row?.bs) || 0,
+    };
+}
 
 export async function POST({ request }) {
 
     const usuario = await verificarToken(request);
     if (!usuario) {
-        return new Response('Unauthorized', { status: 401 });
+        return new Response(JSON.stringify({ message: 'No autorizado' }), { status: 401, headers: jsonHeaders });
     }
 
     try {
         const body = await request.json();
-        const { id, fecha, montoAbono } = body;
+        const { id, fecha, moneda, metodo, monto } = body;
+        const montoAbono = body.montoAbono ?? monto;
 
-        // Validar datos
-        if (!id || !fecha || isNaN(montoAbono) || montoAbono <= 0) {
+        if (!id || !fecha) {
             return new Response(JSON.stringify({ message: 'Datos inválidos' }), {
-                headers: { 'Content-Type': 'application/json' },
+                headers: jsonHeaders,
                 status: 400
             });
         }
 
-        // Traer el credito
-        const credito = await db.execute('SELECT saldo_pendiente, id_venta FROM creditos WHERE id = ?',[id]);
+        const creditoInfoRes = await db.execute({
+            sql: `SELECT c.saldo_pendiente, c.id_venta, v.tipo_documento, v.tasa_bcv
+                  FROM creditos c
+                  JOIN ventas v ON c.id_venta = v.id
+                  WHERE c.id = ?`,
+            args: [id],
+        });
 
-        // Validar credito
-        if (!credito?.rows?.length) {
+        if (!creditoInfoRes?.rows?.length) {
             return new Response(JSON.stringify({ message: 'Crédito no encontrado' }), {
-                headers: { 'Content-Type': 'application/json' },
+                headers: jsonHeaders,
                 status: 404
             });
         }
 
-        // Actualizar el saldo pendiente del credito
-        const { saldo_pendiente, id_venta } = credito.rows[0];
-        const saldoActual = Number(saldo_pendiente);
-        const nuevoSaldo = saldoActual - montoAbono;
+        const creditoInfo = creditoInfoRes.rows[0];
+        const tasas = await tasasDelDia();
+        const monedaBaseSistema = obtenerMonedaBase();
+        const monedaBase = (monedaBaseSistema === 'COP' && creditoInfo.tipo_documento === 'factura' && Number(creditoInfo.tasa_bcv) > 0)
+            ? 'BS'
+            : monedaBaseSistema;
 
-        // Validar que el abono no exceda el saldo
-        if (montoAbono > saldo_pendiente) {
-            return new Response('El abono excede el saldo pendiente', { status: 409 });
+        const linea = parsearLineaPago({
+            moneda: moneda || 'USD',
+            metodo,
+            monto: montoAbono,
+        }, monedaBase, tasas);
+
+        if (!linea.ok) {
+            return new Response(JSON.stringify({ message: linea.error }), {
+                headers: jsonHeaders,
+                status: 400
+            });
         }
 
-        // Agregar el abono
-        await db.execute('INSERT INTO abonos_credito (id_credito, fecha, monto) VALUES (?, ?, ?)',[id, fecha, montoAbono]);
+        const pago = linea.pago;
 
-        // Actualizar saldo pendiente en el credito
-        await db.execute('UPDATE creditos SET saldo_pendiente = ? WHERE id = ?',[nuevoSaldo, id]);
+        const resultado = await withTransaction(db, async (tx) => {
+            const credito = await executeInTx(
+                tx,
+                'SELECT saldo_pendiente, id_venta FROM creditos WHERE id = ?',
+                [id]
+            );
 
-        let ventaActualizada = false;
+            if (!credito?.rows?.length) {
+                throw Object.assign(new Error('Crédito no encontrado'), { status: 404 });
+            }
 
-        // Si el saldo llega a 0, marcar la venta como completada
-        if (nuevoSaldo <= 0 && id_venta) {
-            await db.execute('UPDATE ventas SET estado = ? WHERE id = ?', ['completado', id_venta]);
-            ventaActualizada = true;
-        }
+            const { saldo_pendiente, id_venta } = credito.rows[0];
+            const saldoActual = Number(saldo_pendiente);
+            const montoBase = Number(pago.monto_base);
 
-        // Respuesta final
+            if (montoBase > saldoActual + toleranciaPago(monedaBase)) {
+                throw Object.assign(new Error('El abono excede el saldo pendiente'), { status: 409 });
+            }
+
+            const nuevoSaldo = Math.max(0, saldoActual - montoBase);
+
+            await executeInTx(
+                tx,
+                `INSERT INTO abonos_credito
+                    (id_credito, fecha, monto, moneda, metodo, monto_recibido, moneda_base, tasa_cop, tasa_bs)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    id,
+                    fecha,
+                    montoBase,
+                    pago.moneda,
+                    pago.metodo,
+                    pago.monto,
+                    pago.moneda_base,
+                    pago.tasa_cop,
+                    pago.tasa_bs,
+                ]
+            );
+
+            if (id_venta) {
+                await executeInTx(
+                    tx,
+                    `INSERT INTO pagos_venta
+                        (id_venta, moneda, metodo, monto, monto_base, moneda_base, tasa_cop, tasa_bs)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        id_venta,
+                        pago.moneda,
+                        pago.metodo,
+                        pago.monto,
+                        pago.monto_base,
+                        pago.moneda_base,
+                        pago.tasa_cop,
+                        pago.tasa_bs,
+                    ]
+                );
+            }
+
+            await executeInTx(
+                tx,
+                'UPDATE creditos SET saldo_pendiente = ? WHERE id = ?',
+                [nuevoSaldo, id]
+            );
+
+            let ventaActualizada = false;
+
+            if (nuevoSaldo <= 0.001 && id_venta) {
+                await executeInTx(
+                    tx,
+                    'UPDATE ventas SET estado = ? WHERE id = ?',
+                    ['completado', id_venta]
+                );
+                ventaActualizada = true;
+            }
+
+            await registrarBitacoraEnTx(tx, {
+                usuario,
+                accion: ACCIONES.ABONO,
+                entidad: 'abonos_credito',
+                entidadId: id,
+                detalle: `Crédito #${id} · abono ${montoBase} ${pago.moneda_base} · saldo ${nuevoSaldo}`,
+            });
+
+            return { nuevoSaldo, ventaActualizada };
+        });
+
         return new Response(JSON.stringify({
             message: 'Abono registrado correctamente',
-            saldo_pendiente: nuevoSaldo,
-            venta_actualizada: ventaActualizada
+            saldo_pendiente: resultado.nuevoSaldo,
+            venta_actualizada: resultado.ventaActualizada
         }), {
-            headers: { 'Content-Type': 'application/json' },
+            headers: jsonHeaders,
             status: 200
         });
 
     } catch (error) {
-        console.error('Error al registrar abono:', error);
-        return new Response(JSON.stringify({ message: 'Error interno del servidor' }), {
-        headers: { 'Content-Type': 'application/json' },
-        status: 500
+        const status = error.status ?? 500;
+        const message = status === 500 ? 'Error interno del servidor' : error.message;
+
+        if (status === 500) {
+            console.error('Error al registrar abono:', error);
+        }
+
+        return new Response(JSON.stringify({ message }), {
+            headers: jsonHeaders,
+            status
         });
-}
+    }
 }

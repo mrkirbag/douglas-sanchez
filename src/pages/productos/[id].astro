@@ -1,13 +1,13 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import { verificarToken } from '@/utils/auth.js';
+import Layout from "../../layouts/Layout.astro";
+import { verificarToken } from "@/utils/auth.js";
 
 const usuario = verificarToken(Astro.request);
 if (!usuario) {
-    return Astro.redirect('/login');
+    return Astro.redirect("/login");
 }
-if (usuario.rol !== 'admin') {
-    return Astro.redirect('/'); 
+if (usuario.rol !== "admin") {
+    return Astro.redirect("/dashboard");
 }
 ---
 
@@ -22,135 +22,405 @@ if (usuario.rol !== 'admin') {
         <form id="formulario">
             <div>
                 <label for="codigo">Código</label>
-                <input type="text" name="codigo" id="codigo" placeholder="Código del Producto" />
+                <input
+                    type="text"
+                    name="codigo"
+                    id="codigo"
+                    placeholder="Código del Producto"
+                />
             </div>
             <div>
                 <label for="nombre">Nombre</label>
-                <input type="text" name="nombre" id="nombre" placeholder="Nombre" />
+                <input
+                    type="text"
+                    name="nombre"
+                    id="nombre"
+                    placeholder="Nombre"
+                />
+            </div>
+            <div>
+                <label for="descripcion">Descripción</label>
+                <textarea
+                    name="descripcion"
+                    id="descripcion"
+                    placeholder="Descripción del Producto"
+                    rows="3"></textarea>
             </div>
             <div>
                 <label for="unidad_medida">Unidad de medida</label>
-                <input type="text" name="unidad_medida" id="unidad_medida" placeholder="Unidad de Medida (ej. kg, lt, und)" />
+                <select name="unidad_medida" id="unidad_medida">
+                    <option value="unidades">Unidades</option>
+                    <option value="litros">Litros</option>
+                    <option value="kilogramos">Kilogramos</option>
+                    <option value="cajas">Cajas</option>
+                    <option value="metros">Metros</option>
+                </select>
             </div>
             <div>
                 <label for="stock">Stock actual</label>
-                <input type="text" name="stock" id="stock" placeholder="Cantidad de Stock Inicial" min="0"/>
+                <input type="text" name="stock" id="stock" readonly />
+                <p class="campo-ayuda">
+                    El stock se ajusta con Agregar o Sacar en el listado de
+                    productos.
+                </p>
             </div>
             <div>
-                <label for="costo">Precio de costo</label>
-                <input type="text" name="costo" id="costo" placeholder="Precio de Costo en USD" min="0"/>
+                <label for="costo">Precio de costo / compra (USD)</label>
+                <input
+                    type="text"
+                    name="costo"
+                    id="costo"
+                    placeholder="Precio de Costo en USD"
+                    min="0"
+                />
             </div>
             <div>
-                <label for="venta">Precio de venta</label>
-                <input type="text" name="venta" id="venta" placeholder="Precio de Venta en USD" min="0"/>
+                <label for="precio_divisas">Precio Divisas (USD → Tasa COP)</label>
+                <input
+                    type="text"
+                    name="precio_divisas"
+                    id="precio_divisas"
+                    placeholder="Precio en Divisas USD"
+                    min="0"
+                />
+                <p class="campo-ayuda" id="previewDivisas">Equivalente en COP: —</p>
+            </div>
+            <div>
+                <label for="precio_bcv">Precio BCV / Base Imponible (USD → Tasa BCV)</label>
+                <input
+                    type="text"
+                    name="precio_bcv"
+                    id="precio_bcv"
+                    placeholder="Precio BCV (Base Imponible) en USD"
+                    min="0"
+                />
+                <p class="campo-ayuda" id="previewBcv">Equivalente en Bs: —</p>
+            </div>
+            <div style="grid-column: 1 / -1;">
+                <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; font-weight:700;">
+                    <input type="checkbox" id="exento_iva" name="exento_iva" style="width:auto;" />
+                    <span>Producto Exento de IVA (No aplica alícuota de IVA al facturar)</span>
+                </label>
+            </div>
+
+            <div
+                id="seriales-container"
+                style="display: none; border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 1rem; grid-column: 1 / -1;"
+            >
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 1rem;">
+                    <div>
+                        <label style="font-weight: 700; margin-bottom: 0.2rem; display: block;">Seriales del Producto</label>
+                        <p class="campo-ayuda" id="seriales-ayuda" style="margin: 0;">
+                            Modifica los seriales existentes o agrega los que falten. El total debe coincidir con el stock actual (<span id="stock-badge" style="font-weight: 700;">0</span>).
+                        </p>
+                    </div>
+                    <button type="button" id="btn-agregar-serial" class="btn-add-serial">
+                        + Agregar Serial
+                    </button>
+                </div>
+                <div
+                    id="seriales-list"
+                    style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem;"
+                >
+                </div>
             </div>
 
             <button type="submit">Actualizar</button>
         </form>
     </section>
 
-    <div id="overlay" class="overlay oculto"> 
+    <div id="overlay" class="overlay oculto">
         <div id="modal" class="modal"></div>
     </div>
-    
 </Layout>
 
 <script>
+    import { mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { calcularBcvDesdeCop, convertirPrecioDivisas, convertirPrecioBcv, formatearMoneda, obtenerMonedaBase } from "@/utils/helpers/tasas.js";
 
-    import { mostrarError, mostrarMensaje } from '@/utils/helpers/mensajes.js';
-
-    // Rellenar campos con los datos existentes
     const id = location.pathname.split("/").pop() as string;
     const nombre = document.querySelector("#nombre") as HTMLInputElement;
     const codigo = document.querySelector("#codigo") as HTMLInputElement;
-    const unidadMedida = document.querySelector("#unidad_medida") as HTMLInputElement;
+    const unidadMedida = document.querySelector("#unidad_medida") as HTMLSelectElement;
     const stock = document.querySelector("#stock") as HTMLInputElement;
     const costo = document.querySelector("#costo") as HTMLInputElement;
-    const venta = document.querySelector("#venta") as HTMLInputElement;
-    
-    document.addEventListener('DOMContentLoaded', rellenarCampos);
+    const precioDivisas = document.querySelector("#precio_divisas") as HTMLInputElement;
+    const precioBcv = document.querySelector("#precio_bcv") as HTMLInputElement;
+    const exentoIva = document.querySelector("#exento_iva") as HTMLInputElement;
+    const previewDivisas = document.querySelector("#previewDivisas") as HTMLElement;
+    const previewBcv = document.querySelector("#previewBcv") as HTMLElement;
+    const descripcion = document.querySelector("#descripcion") as HTMLTextAreaElement;
+    const serialesContainer = document.querySelector("#seriales-container") as HTMLDivElement;
+    const serialesList = document.querySelector("#seriales-list") as HTMLDivElement;
+    const stockBadge = document.querySelector("#stock-badge") as HTMLElement;
+    const btnAgregarSerial = document.querySelector("#btn-agregar-serial") as HTMLButtonElement;
 
-    async function rellenarCampos(){
+    let tasasActuales = { cop: 0, bs: 0, iva_porcentaje: 16 };
 
+    function actualizarPreviews() {
+        const valDiv = parseFloat((precioDivisas.value || '').replace(',', '.'));
+        if (Number.isFinite(valDiv) && valDiv > 0) {
+            const { usd, cop } = convertirPrecioDivisas(valDiv, tasasActuales);
+            if (obtenerMonedaBase() === 'COP') {
+                const sugeridoBs = calcularBcvDesdeCop(valDiv, tasasActuales);
+                const txtSugerido = sugeridoBs > 0 ? ` · Sugerido BCV: ${formatearMoneda(sugeridoBs, 'BS')}` : '';
+                previewDivisas.textContent = `Equivalente en Divisas (USD): ${formatearMoneda(usd, 'USD')}${txtSugerido}`;
+            } else {
+                previewDivisas.textContent = `Equivalente a Tasa COP: ${formatearMoneda(cop, 'COP')}`;
+            }
+        } else {
+            previewDivisas.textContent = obtenerMonedaBase() === 'COP'
+                ? 'Equivalente en Divisas (USD): —'
+                : 'Equivalente en COP: —';
+        }
+
+        const valBcv = parseFloat((precioBcv.value || '').replace(',', '.'));
+        if (Number.isFinite(valBcv) && valBcv > 0) {
+            const calc = convertirPrecioBcv(valBcv, tasasActuales, { exento: exentoIva.checked });
+            if (obtenerMonedaBase() === 'COP') {
+                if (calc.exento) {
+                    previewBcv.textContent = `Ref. USD BCV (Exento): ${formatearMoneda(calc.baseUsd, 'USD')}`;
+                } else {
+                    previewBcv.textContent = `Ref. USD BCV: ${formatearMoneda(calc.baseUsd, 'USD')} · Con IVA (${calc.alicuota}%): ${formatearMoneda(calc.totalBs, 'BS')} (${formatearMoneda(calc.totalUsd, 'USD')})`;
+                }
+            } else if (calc.exento) {
+                previewBcv.textContent = `Base Exenta en Bs: ${formatearMoneda(calc.baseBs, 'BS')}`;
+            } else {
+                previewBcv.textContent = `Base Bs: ${formatearMoneda(calc.baseBs, 'BS')} · Con IVA (${calc.alicuota}%): ${formatearMoneda(calc.totalBs, 'BS')}`;
+            }
+        } else {
+            previewBcv.textContent = obtenerMonedaBase() === 'COP' ? 'Ref. USD BCV: —' : 'Equivalente en Bs: —';
+        }
+    }
+
+    let bcvEditadoManual = false;
+
+    precioDivisas.addEventListener("input", () => {
+        if (obtenerMonedaBase() === 'COP' && !bcvEditadoManual) {
+            const valDiv = parseFloat((precioDivisas.value || '').replace(',', '.'));
+            if (Number.isFinite(valDiv) && valDiv > 0) {
+                const sugeridoBs = calcularBcvDesdeCop(valDiv, tasasActuales);
+                precioBcv.value = sugeridoBs > 0 ? String(sugeridoBs) : '';
+            } else {
+                precioBcv.value = '';
+            }
+        }
+        actualizarPreviews();
+    });
+    precioBcv.addEventListener("input", () => {
+        bcvEditadoManual = precioBcv.value.trim().length > 0;
+        actualizarPreviews();
+    });
+    exentoIva.addEventListener("change", actualizarPreviews);
+
+    function agregarInputSerial(valor = "") {
+        const index = serialesList.children.length + 1;
+        const row = document.createElement("div");
+        row.className = "serial-row";
+        row.style.display = "flex";
+        row.style.gap = "0.5rem";
+        row.style.alignItems = "center";
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.name = "seriales[]";
+        input.className = "serial-input";
+        input.placeholder = `Serial #${index}`;
+        input.value = valor;
+        input.style.flex = "1";
+
+        const btnRemove = document.createElement("button");
+        btnRemove.type = "button";
+        btnRemove.className = "btn-remove-serial";
+        btnRemove.innerHTML = "&times;";
+        btnRemove.title = "Eliminar serial";
+        btnRemove.style.padding = "0.4rem 0.7rem";
+        btnRemove.style.background = "rgba(239, 68, 68, 0.1)";
+        btnRemove.style.color = "var(--danger-color, #ef4444)";
+        btnRemove.style.border = "1px solid rgba(239, 68, 68, 0.25)";
+        btnRemove.style.borderRadius = "8px";
+        btnRemove.style.cursor = "pointer";
+        btnRemove.style.fontWeight = "bold";
+        btnRemove.style.fontSize = "1rem";
+
+        btnRemove.addEventListener("click", () => {
+            row.remove();
+            renumerarSeriales();
+        });
+
+        row.appendChild(input);
+        row.appendChild(btnRemove);
+        serialesList.appendChild(row);
+    }
+
+    function renumerarSeriales() {
+        const inputs = serialesList.querySelectorAll(".serial-input") as NodeListOf<HTMLInputElement>;
+        inputs.forEach((inp, idx) => {
+            inp.placeholder = `Serial #${idx + 1}`;
+        });
+    }
+
+    btnAgregarSerial?.addEventListener("click", () => {
+        agregarInputSerial("");
+    });
+
+    document.addEventListener("DOMContentLoaded", rellenarCampos);
+
+    async function rellenarCampos() {
+        tasasActuales = await obtenerTasas();
         const response = await fetch(`/api/productos/${id}`);
         const producto = await response.json();
 
-        codigo.value = producto.codigo || '';
-        nombre.value = producto.nombre || '';
-        unidadMedida.value = producto.unidad_medida || '';
+        codigo.value = producto.codigo || "";
+        nombre.value = producto.nombre || "";
+        const existingVal = producto.unidad_medida
+            ? producto.unidad_medida.toLowerCase()
+            : "unidades";
+        const match = Array.from(unidadMedida.options).some(
+            (opt) => opt.value === existingVal,
+        );
+        if (match) {
+            unidadMedida.value = existingVal;
+        } else {
+            const opt = document.createElement("option");
+            opt.value = existingVal;
+            opt.text = existingVal.charAt(0).toUpperCase() + existingVal.slice(1);
+            unidadMedida.appendChild(opt);
+            unidadMedida.value = existingVal;
+        }
         stock.value = producto.stock;
         costo.value = producto.costo;
-        venta.value = producto.venta;
+        precioDivisas.value = producto.precio_divisas ?? producto.venta ?? "";
+        precioBcv.value = producto.precio_bcv ?? producto.venta ?? "";
+        exentoIva.checked = Boolean(Number(producto.exento_iva));
+        descripcion.value = producto.descripcion || "";
+
+        actualizarPreviews();
+
+        const stockNum = Math.floor(parseFloat(producto.stock) || 0);
+        if (stockBadge) stockBadge.textContent = String(stockNum);
+
+        const usaSeriales = producto.usaSeriales || (producto.serialesDisponibles && producto.serialesDisponibles.length > 0);
+
+        if (usaSeriales) {
+            serialesContainer.style.display = "block";
+            serialesList.innerHTML = "";
+            const disponibles = producto.serialesDisponibles || [];
+
+            disponibles.forEach((serial: string) => {
+                agregarInputSerial(serial);
+            });
+
+            const faltantes = Math.max(0, stockNum - disponibles.length);
+            for (let i = 0; i < faltantes; i++) {
+                agregarInputSerial("");
+            }
+        }
     }
 
-    const formulario = document.getElementById('formulario') as HTMLFormElement;
+    const formulario = document.getElementById("formulario") as HTMLFormElement;
 
-    formulario.addEventListener('submit', async (event : SubmitEvent) => { 
-        
+    formulario.addEventListener("submit", async (event: Event) => {
         event.preventDefault();
-        
+
         const formData = new FormData(formulario);
-        const id = location.pathname.split("/").pop();
 
-        const codigo = formData.get('codigo') as string;
-        const nombre = formData.get('nombre') as string;
-        const stockString = formData.get('stock') as string;
-        const costoString = formData.get('costo') as string;
-        const ventaString = formData.get('venta') as string;
-        const unidadMedida = formData.get('unidad_medida') as string;
+        const codigoVal = (formData.get("codigo") as string || "").trim();
+        const nombreVal = (formData.get("nombre") as string || "").trim();
+        const stockString = (formData.get("stock") as string || "").trim();
+        const costoString = (formData.get("costo") as string || "").trim();
+        const divisasString = (formData.get("precio_divisas") as string || "").trim();
+        const bcvString = (formData.get("precio_bcv") as string || "").trim();
+        const unidadMedidaVal = (formData.get("unidad_medida") as string || "").trim();
+        const descripcionStr = (formData.get("descripcion") as string || "").trim();
 
-
-        // Validar campos vacios
-        if (codigo === '' || nombre === '' || stockString === '' || costoString === '' || ventaString === '' || unidadMedida === '') {
-            mostrarError('Todos los campos son obligatorios');
+        if (!codigoVal || !nombreVal || !stockString || !costoString || !divisasString || !bcvString || !unidadMedidaVal) {
+            mostrarError("Todos los campos son obligatorios");
             return;
         }
 
-        // Validar stock
         const normalizado = stockString.replace(",", ".");
         const stockValido = /^\d+(\.\d+)?$/.test(normalizado);
         const stockNumero = parseFloat(normalizado);
 
-        if (!stockValido || isNaN(stockNumero) || stockNumero <= 0) {
-            mostrarError("La cantidad en stock debe ser un número positivo mayor a 0 (se permiten decimales con . o ,)");
+        if (!stockValido || isNaN(stockNumero) || stockNumero < 0) {
+            mostrarError("La cantidad en stock debe ser un número positivo");
             return;
         }
 
-        // Validar costo
-        const costoNum = parseFloat(costoString.replace(',', '.'));
+        const costoNum = parseFloat(costoString.replace(",", "."));
         if (isNaN(costoNum) || costoNum <= 0) {
-            mostrarError('El costo debe ser un número positivo mayor a 0');
+            mostrarError("El costo debe ser un número positivo mayor a 0");
             return;
         }
 
-        // Validar precio venta
-        const ventaNum = parseFloat(ventaString.replace(',', '.'));
-        if (isNaN(ventaNum) || ventaNum <= 0) {
-            mostrarError('El precio de venta debe ser un número positivo mayor a 0');
+        const divisasNum = parseFloat(divisasString.replace(",", "."));
+        if (isNaN(divisasNum) || divisasNum <= 0) {
+            mostrarError("El Precio Divisas debe ser un número positivo mayor a 0");
             return;
         }
 
-        // Parseo
-        const stock = stockNumero;
-        const costo = costoNum;
-        const venta = ventaNum;
+        const bcvNum = parseFloat(bcvString.replace(",", "."));
+        if (isNaN(bcvNum) || bcvNum <= 0) {
+            mostrarError("El Precio BCV debe ser un número positivo mayor a 0");
+            return;
+        }
 
-        // Enviar datos al servidor
+        let seriales: string[] | undefined = undefined;
+        if (serialesContainer.style.display === "block") {
+            const inputs = document.querySelectorAll(".serial-input") as NodeListOf<HTMLInputElement>;
+            const serialesListRaw = Array.from(inputs).map((inp) => inp.value.trim());
+
+            if (serialesListRaw.length > 0 || stockNumero > 0) {
+                if (serialesListRaw.length !== stockNumero) {
+                    mostrarError(
+                        `La cantidad de seriales (${serialesListRaw.length}) debe coincidir exactamente con el stock actual (${stockNumero})`,
+                    );
+                    return;
+                }
+                const vacios = serialesListRaw.some((s) => !s);
+                if (vacios) {
+                    mostrarError("Hay seriales vacíos. Por favor ingresa el serial para todas las unidades.");
+                    return;
+                }
+                const repetidos = new Set(serialesListRaw.map(s => s.toLowerCase()));
+                if (repetidos.size !== serialesListRaw.length) {
+                    mostrarError("No se permiten seriales duplicados.");
+                    return;
+                }
+                seriales = serialesListRaw;
+            }
+        }
+
         const response = await fetch("/api/productos", {
-            method: 'PUT',
+            method: "PUT",
             headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
             },
-            body: JSON.stringify({ id, codigo, nombre, stock, costo, venta, unidad_medida: unidadMedida }),
+            body: JSON.stringify({
+                id,
+                codigo: codigoVal,
+                nombre: nombreVal,
+                descripcion: descripcionStr,
+                stock: stockNumero,
+                costo: costoNum,
+                venta: bcvNum,
+                precio_divisas: divisasNum,
+                precio_bcv: bcvNum,
+                exento_iva: exentoIva.checked ? 1 : 0,
+                unidad_medida: unidadMedidaVal,
+                seriales,
+            }),
         });
 
-        // Verificar si la respuesta es exitosa
         if (!response.ok) {
             if (response.status === 409) {
                 const mensaje = await response.text();
                 mostrarError(mensaje);
             } else {
-                mostrarError('Error al editar producto: ' + response.status);
+                const errorTexto = await response.text();
+                mostrarError(errorTexto || "Error al editar producto: " + response.status);
             }
             return;
         }
@@ -158,7 +428,37 @@ if (usuario.rol !== 'admin') {
         const data = await response.json();
         mostrarMensaje(data.message);
         setTimeout(() => {
-            window.location.href = '/productos';
+            window.location.href = "/productos";
         }, 1000);
     });
 </script>
+
+<style>
+    .btn-add-serial {
+        background: rgba(var(--primary-rgb), 0.1);
+        color: var(--primary-color);
+        border: 1px solid rgba(var(--primary-rgb), 0.2);
+        padding: 0.4rem 0.85rem;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 150ms ease;
+    }
+
+    .btn-add-serial:hover {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .campo-ayuda {
+        margin-top: 0.4rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    input[readonly] {
+        background: var(--surface-soft);
+        cursor: default;
+    }
+</style>

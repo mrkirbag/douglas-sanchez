@@ -1,10 +1,9 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
+import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
 import xlsx from 'xlsx';
 
 export async function GET({ request }) {
-    
-    // Verificar token
     const usuario = await verificarToken(request);
     if (!usuario) {
         return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
@@ -14,11 +13,32 @@ export async function GET({ request }) {
     }
 
     try {
-
-        const result = await db.execute("SELECT codigo, nombre, stock, unidad_medida, costo, venta, pventa_bcv FROM productos WHERE estatus = 'activo'");
-        const productos = result.rows;
+        await ensureFiscalSchema(db);
+        const result = await db.execute(
+            "SELECT codigo, nombre, stock, unidad_medida, costo, precio_divisas, precio_bcv, exento_iva FROM productos WHERE estatus = 'activo'"
+        );
+        const productos = result.rows.map((p) => ({
+            codigo: p.codigo,
+            nombre: p.nombre,
+            cantidad: p.stock,
+            unidad_medida: p.unidad_medida,
+            costo_usd: p.costo,
+            precio_divisas_usd: Number(p.precio_divisas) || Number(p.venta) || 0,
+            precio_bcv_usd: Number(p.precio_bcv) || Number(p.venta) || 0,
+            exento_iva: Number(p.exento_iva) ? 'SI' : 'NO',
+        }));
 
         const worksheet = xlsx.utils.json_to_sheet(productos);
+        worksheet['!cols'] = [
+            { wch: 16 },
+            { wch: 36 },
+            { wch: 12 },
+            { wch: 16 },
+            { wch: 14 },
+            { wch: 20 },
+            { wch: 18 },
+            { wch: 12 },
+        ];
 
         const workbook = xlsx.utils.book_new();
         xlsx.utils.book_append_sheet(workbook, worksheet, 'Productos');
