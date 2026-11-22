@@ -26,6 +26,7 @@ export async function GET({ request }) {
                 cliente_cedula_rif,
                 cliente_telefono,
                 cliente_direccion,
+                COALESCE(moneda, 'DIVISAS') AS moneda,
                 total
              FROM cotizaciones
              WHERE fecha = ?

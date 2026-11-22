@@ -121,14 +121,22 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                         </div>
 
                         <div class="form-field">
+                            <label for="monedaCotizacion">Moneda de cotización</label>
+                            <select id="monedaCotizacion">
+                                <option value="DIVISAS">Divisas (COP / Ref. USD)</option>
+                                <option value="BS">Bolívares (Bs)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
                             <label for="cantidad">Cantidad</label>
                             <input type="number" min="1" id="cantidad" placeholder="Ej. 2"/>
                         </div>
 
                         <div class="form-field">
-                            <label for="precio">Precio por unidad (USD)</label>
+                            <label for="precio">Precio</label>
                             <input type="text" id="precio" placeholder="0.00"/>
-                            <span class="precio-referencia" id="precioReferencia">Referencia: 0 COP</span>
+                            <span class="precio-referencia" id="precioReferencia">Referencia: 0.00 USD</span>
                         </div>
 
                         <div class="form-actions producto-module_actions">
@@ -145,7 +153,7 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                     <p class="eyebrow">Detalle</p>
                     <h2>Productos cotizados</h2>
                 </div>
-                <p class="table-caption">Revisa cantidades y subtotales antes de imprimir.</p>
+                <p class="table-caption">Precios a la tasa del día.</p>
             </div>
 
             <div class="table-wrap">
@@ -176,15 +184,23 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 
         <section class="cotizacion-footer" id="cotizacionFooter" hidden>
             <section class="total-box" id="totalResumen">
-                <p class="total-box_label">Total de la cotización</p>
+                <p class="total-box_label">Total de la cotización · Precios a la tasa del día</p>
                 <div class="total-box_values">
-                    <div>
-                        <span class="total-box_caption">USD</span>
-                        <strong id="totalUSD">0.00</strong>
+                    <div id="rowBaseImponible">
+                        <span class="total-box_caption">Base Imponible</span>
+                        <strong id="baseImponible">0</strong>
                     </div>
-                    <div>
-                        <span class="total-box_caption">COP</span>
+                    <div id="rowIva">
+                        <span class="total-box_caption" id="lblIva">IVA (16%)</span>
+                        <strong id="ivaMonto">0</strong>
+                    </div>
+                    <div id="rowTotalPrincipal">
+                        <span class="total-box_caption" id="lblTotalPrincipal">Total COP</span>
                         <strong id="totalCOP">0</strong>
+                    </div>
+                    <div id="rowTotalReferencia">
+                        <span class="total-box_caption">Ref. Total USD</span>
+                        <strong id="totalUSD">0.00</strong>
                     </div>
                 </div>
             </section>
@@ -531,8 +547,8 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 
 <script >
 
-    import { cambioUSDaCOP } from "@/utils/helpers/cambioMoneda";
-    import { formatearDecimal } from "@/utils/helpers/tasas.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda";
+    import { convertirPrecioDivisas, formatearDecimal, formatearMoneda } from "@/utils/helpers/tasas.js";
     import { mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes";
     import { ponerIcono } from '@/utils/helpers/iconosAccion.js';
     import { validarCliente } from '@/utils/clienteValidaciones.js';
@@ -545,16 +561,20 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
     let moduloProductos: ReturnType<typeof crearModuloProductos> | null = null;
     let productosSeleccionados: ProductoSeleccionado[] = [];
     let totalDeCotizacion = 0;
+    let productoActual: any = null;
 
     interface ProductoSeleccionado {
         id: number;
         codigo: string;
         nombre: string;
         precio: number;
+        precioDivisas: number;
+        precioBcv: number;
         cantidad: number;
         subtotal: number;
     }
 
+    const monedaCotizacionSelect = document.getElementById("monedaCotizacion") as HTMLSelectElement;
     const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
     const precioInput = document.getElementById("precio") as HTMLInputElement;
     const precioReferencia = document.getElementById("precioReferencia") as HTMLSpanElement;
@@ -638,6 +658,7 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                     clienteCedulaRif: cedulaRif,
                     clienteTelefono: telefono,
                     clienteDireccion: direccion,
+                    moneda: monedaCotizacionSelect.value === 'BS' ? 'BS' : 'DIVISAS',
                     totalDeCotizacion,
                     productos: productosSeleccionados.map(({ id, codigo, nombre, precio, cantidad }) => ({
                         idProducto: id,
@@ -667,28 +688,39 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         }
     });
 
-    function actualizarReferenciaPrecio(tasa: number) {
-        const precio = parseFloat(precioInput.value);
+    function esModoBs() {
+        return monedaCotizacionSelect?.value === 'BS';
+    }
 
-        if (isNaN(precio) || precio <= 0) {
-            precioReferencia.textContent = 'Referencia: 0 COP';
+    async function actualizarReferenciaPrecio() {
+        const precio = parseFloat((precioInput.value || '').replace(',', '.'));
+        const tasas = await obtenerTasas();
+
+        if (esModoBs()) {
+            precioReferencia.textContent = 'Precio en Bolívares (Bs)';
             return;
         }
 
-        precioReferencia.textContent = `Referencia: ${Math.ceil(precio * tasa)} COP`;
+        if (isNaN(precio) || precio <= 0) {
+            precioReferencia.textContent = 'Referencia: 0.00 USD';
+            return;
+        }
+
+        const { usd } = convertirPrecioDivisas(precio, tasas);
+        precioReferencia.textContent = `Referencia: ${formatearMoneda(usd, 'USD')}`;
     }
 
-    async function aplicarPrecioProducto(producto: Producto) {
-        const venta = parseFloat(String(producto.venta ?? ''));
-
-        if (!Number.isNaN(venta) && venta > 0) {
-            precioInput.value = String(+venta.toFixed(4));
-            const tasa = await cambioUSDaCOP();
-            actualizarReferenciaPrecio(tasa);
-        } else {
+    async function aplicarPrecioDeProductoActual() {
+        if (!productoActual) {
             precioInput.value = "";
-            actualizarReferenciaPrecio(await cambioUSDaCOP());
+            await actualizarReferenciaPrecio();
+            return;
         }
+        const elegido = esModoBs()
+            ? Number(productoActual.precio_bcv ?? productoActual.venta ?? 0)
+            : Number(productoActual.precio_divisas ?? productoActual.venta ?? 0);
+        precioInput.value = elegido > 0 ? String(+elegido.toFixed(2)) : "";
+        await actualizarReferenciaPrecio();
     }
 
     function iniciarModuloProductos() {
@@ -717,9 +749,21 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         enfocarDatosCliente();
     }
 
-    precioInput.addEventListener('input', async () => {
-        const tasa = await cambioUSDaCOP();
-        actualizarReferenciaPrecio(tasa);
+    precioInput.addEventListener('input', () => {
+        actualizarReferenciaPrecio();
+    });
+
+    monedaCotizacionSelect?.addEventListener('change', async () => {
+        const modoBs = esModoBs();
+        for (const item of productosSeleccionados) {
+            const nuevoPrecio = modoBs ? item.precioBcv : item.precioDivisas;
+            if (nuevoPrecio > 0) {
+                item.precio = +nuevoPrecio.toFixed(2);
+                item.subtotal = +(item.precio * item.cantidad).toFixed(2);
+            }
+        }
+        await aplicarPrecioDeProductoActual();
+        await renderTablaProductos();
     });
 
     interface Producto {
@@ -735,7 +779,7 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         unidad_medida: string;
     }
 
-    function actualizarResumen(cantidadItems: number, totalUSD = 0, totalCOP = 0) {
+    function actualizarResumen(cantidadItems: number, totalPrincipal = 0, totalUSD = 0) {
         const resumen = document.getElementById('resumenCotizacion') as HTMLParagraphElement;
         const resumenItems = document.getElementById('resumenItems') as HTMLParagraphElement;
         if (!resumen || !resumenItems) return;
@@ -751,7 +795,9 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
             : `${cantidadItems} productos en la cotización`;
 
         resumen.textContent = textoItems;
-        resumenItems.textContent = `Total estimado: ${formatearDecimal(totalUSD, 2, 4)} USD · ${totalCOP} COP`;
+        resumenItems.textContent = esModoBs()
+            ? `Total con IVA estimado: ${formatearMoneda(totalPrincipal, 'BS')}`
+            : `Total con IVA estimado: ${formatearMoneda(totalPrincipal, 'COP')} · ${formatearMoneda(totalUSD, 'USD')}`;
     }
 
     const btnReiniciar = document.querySelector('#reiniciar') as HTMLButtonElement;
@@ -760,13 +806,12 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
     });
 
     productoSelect.addEventListener("change", async () => {
-
         const productoId = productoSelect.value;
-        const tasa = await cambioUSDaCOP();
 
         if (!productoId) {
+            productoActual = null;
             precioInput.value = "";
-            actualizarReferenciaPrecio(tasa);
+            await actualizarReferenciaPrecio();
             return;
         }
 
@@ -775,28 +820,19 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
 
             if (!response.ok) {
                 console.error("Error al obtener el producto:", response.status);
+                productoActual = null;
                 precioInput.value = "";
-                actualizarReferenciaPrecio(tasa);
+                await actualizarReferenciaPrecio();
                 return;
             }
 
-            const producto = await response.json();
-
-            if (typeof producto.venta === "number") {
-                precioInput.value = String(+producto.venta.toFixed(4));
-                actualizarReferenciaPrecio(tasa);
-            } else if (producto.venta != null && producto.venta !== '') {
-                precioInput.value = String(+parseFloat(String(producto.venta)).toFixed(4));
-                actualizarReferenciaPrecio(tasa);
-            } else {
-                precioInput.value = "";
-                actualizarReferenciaPrecio(tasa);
-            }
-
+            productoActual = await response.json();
+            await aplicarPrecioDeProductoActual();
         } catch (error) {
             console.error("Error de red o parsing:", error);
+            productoActual = null;
             precioInput.value = "";
-            actualizarReferenciaPrecio(tasa);
+            await actualizarReferenciaPrecio();
         }
     });
 
@@ -837,17 +873,26 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
                 return;
             }
 
-            let productoSeleccionado = {
+            let productoSeleccionado: ProductoSeleccionado = {
                 id: producto.id,
                 codigo: producto.codigo,
                 nombre: producto.nombre,
-                cantidad,
                 precio,
-                subtotal: (precio * cantidad)
-            }
+                precioDivisas: esModoBs() ? Number(producto.precio_divisas ?? producto.venta ?? 0) : precio,
+                precioBcv: esModoBs() ? precio : Number(producto.precio_bcv ?? producto.venta ?? 0),
+                cantidad,
+                subtotal: +(precio * cantidad).toFixed(2),
+            };
 
             productosSeleccionados.push(productoSeleccionado);
-            mostrarProductosEnTabla(productoSeleccionado)
+            await renderTablaProductos();
+            productoActual = null;
+            productoSelect.value = "";
+            cantidadInput.value = "";
+            precioInput.value = "";
+            await actualizarReferenciaPrecio();
+            reiniciarBusquedaProductos();
+            enfocarBusquedaProductos();
             
         } catch (error) {
             console.error("Error al obtener el producto:", error);
@@ -855,90 +900,115 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         }
     });
 
-    async function mostrarProductosEnTabla(productoSeleccionado : ProductoSeleccionado) {
-        
+    async function renderTablaProductos() {
         const tbody = document.querySelector('#listaProductos') as HTMLTableSectionElement;
-        const cantidadInput = document.getElementById("cantidad") as HTMLInputElement;
-        const productoSelect = document.getElementById("productoSelect") as HTMLSelectElement;
-        const precioInput = document.getElementById("precio") as HTMLInputElement;
+        if (!tbody) return;
 
-        const tasa = await cambioUSDaCOP();
-        let precioPesos = Math.ceil(tasa * productoSeleccionado.precio);
-        let subtotalPesos = Math.ceil(tasa * productoSeleccionado.subtotal);
+        tbody.innerHTML = '';
+        const tasas = await obtenerTasas();
+        const modoBs = esModoBs();
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td data-label="Producto">
-                <strong>${productoSeleccionado.nombre.toUpperCase()}</strong>
-                <br />
-                <span class="monto-cop">${productoSeleccionado.codigo.toUpperCase()}</span>
-            </td>
-            <td data-label="Precio por Unidad">
-                <span class="monto-usd">${formatearDecimal(productoSeleccionado.precio, 2, 4)} USD</span>
-                <br />
-                <span class="monto-cop">${precioPesos} COP</span>
-            </td>
-            <td data-label="Cantidad">${productoSeleccionado.cantidad}</td>
-            <td data-label="Subtotal">
-                <span class="subtotal monto-usd">${formatearDecimal(productoSeleccionado.subtotal, 2, 4)} USD</span>
-                <br />
-                <span class="monto-cop">${subtotalPesos} COP</span>
-            </td>
-        `;
+        for (const productoSeleccionado of productosSeleccionados) {
+            const tr = document.createElement('tr');
+            let precioHtml = '';
+            let subtotalHtml = '';
 
-        const tdAcciones = document.createElement('td');
-        tdAcciones.classList.add('acciones');
-
-        const btnEliminar = document.createElement('button');
-        btnEliminar.type = 'button';
-        btnEliminar.classList.add('btn-eliminar');
-        ponerIcono(btnEliminar, 'eliminar');
-        btnEliminar.addEventListener('click', () => {
-            productosSeleccionados = productosSeleccionados.filter(p => p.codigo !== productoSeleccionado.codigo);
-            tr.remove();
-            totalizar();
-            if (tbody && tbody.querySelectorAll('tr').length <= 0) {
-                toggleCotizacionActiva(false);
+            if (modoBs) {
+                precioHtml = `<span class="monto-usd">${formatearMoneda(productoSeleccionado.precio, 'BS')}</span>`;
+                subtotalHtml = `<span class="subtotal monto-usd">${formatearMoneda(productoSeleccionado.subtotal, 'BS')}</span>`;
+            } else {
+                const { usd: pUsd, cop: pCop } = convertirPrecioDivisas(productoSeleccionado.precio, tasas);
+                const { usd: sUsd, cop: sCop } = convertirPrecioDivisas(productoSeleccionado.subtotal, tasas);
+                precioHtml = `
+                    <span class="monto-cop">${formatearMoneda(pCop, 'COP')}</span>
+                    <br />
+                    <span class="monto-usd">${formatearMoneda(pUsd, 'USD')}</span>
+                `;
+                subtotalHtml = `
+                    <span class="subtotal monto-cop">${formatearMoneda(sCop, 'COP')}</span>
+                    <br />
+                    <span class="monto-usd">${formatearMoneda(sUsd, 'USD')}</span>
+                `;
             }
-        });
 
-        tdAcciones.appendChild(btnEliminar);
-        tr.appendChild(tdAcciones);
-        tbody.appendChild(tr);
+            tr.innerHTML = `
+                <td data-label="Producto">
+                    <strong>${productoSeleccionado.nombre.toUpperCase()}</strong>
+                    <br />
+                    <span class="monto-cop">${productoSeleccionado.codigo.toUpperCase()}</span>
+                </td>
+                <td data-label="Precio por Unidad">${precioHtml}</td>
+                <td data-label="Cantidad">${productoSeleccionado.cantidad}</td>
+                <td data-label="Subtotal">${subtotalHtml}</td>
+            `;
 
-        if (tbody && tbody.querySelectorAll('tr').length > 0) {
-            toggleCotizacionActiva(true);
+            const tdAcciones = document.createElement('td');
+            tdAcciones.classList.add('acciones');
+
+            const btnEliminar = document.createElement('button');
+            btnEliminar.type = 'button';
+            btnEliminar.classList.add('btn-eliminar');
+            ponerIcono(btnEliminar, 'eliminar');
+            btnEliminar.addEventListener('click', () => {
+                productosSeleccionados = productosSeleccionados.filter(p => p.codigo !== productoSeleccionado.codigo);
+                renderTablaProductos();
+            });
+
+            tdAcciones.appendChild(btnEliminar);
+            tr.appendChild(tdAcciones);
+            tbody.appendChild(tr);
         }
 
-        productoSelect.value = "";
-        cantidadInput.value = "";
-        precioInput.value = "";
-        precioReferencia.textContent = 'Referencia: 0 COP';
-        reiniciarBusquedaProductos();
-        enfocarBusquedaProductos();
-
-        totalizar();
+        toggleCotizacionActiva(productosSeleccionados.length > 0);
+        await totalizar();
     }
 
     async function totalizar() {
         const totalResumen = document.querySelector('#totalResumen') as HTMLElement;
+        const rowBaseImponible = document.querySelector('#rowBaseImponible') as HTMLElement;
+        const rowIva = document.querySelector('#rowIva') as HTMLElement;
+        const baseImponibleNode = document.querySelector('#baseImponible') as HTMLElement;
+        const lblIva = document.querySelector('#lblIva') as HTMLElement;
+        const ivaMontoNode = document.querySelector('#ivaMonto') as HTMLElement;
+        const lblTotalPrincipal = document.querySelector('#lblTotalPrincipal') as HTMLElement;
+        const rowTotalReferencia = document.querySelector('#rowTotalReferencia') as HTMLElement;
         const totalUSDNode = document.querySelector('#totalUSD') as HTMLElement;
         const totalCOPNode = document.querySelector('#totalCOP') as HTMLElement;
 
-        const totalUSD = productosSeleccionados.reduce(
+        const baseImponible = productosSeleccionados.reduce(
             (suma, producto) => suma + (producto.precio * producto.cantidad),
             0
         );
 
-        const tasa = await cambioUSDaCOP();
-        const totalCOP = Math.ceil(tasa * totalUSD);
+        const tasas = await obtenerTasas();
+        const ivaPorc = Number.isFinite(Number(tasas.iva_porcentaje)) ? Number(tasas.iva_porcentaje) : 16;
+        const modoBs = esModoBs();
 
-        totalResumen?.classList.toggle('is-empty', totalUSD <= 0);
-        if (totalUSDNode) totalUSDNode.textContent = formatearDecimal(totalUSD, 2, 4);
-        if (totalCOPNode) totalCOPNode.textContent = totalCOP.toString();
-        totalDeCotizacion = totalUSD;
+        totalResumen?.classList.toggle('is-empty', baseImponible <= 0);
+        totalDeCotizacion = +baseImponible.toFixed(2);
 
-        actualizarResumen(productosSeleccionados.length, totalUSD, totalCOP);
+        if (modoBs) {
+            const ivaValor = +(baseImponible * (ivaPorc / 100)).toFixed(2);
+            const totalConIva = +(baseImponible + ivaValor).toFixed(2);
+            if (rowBaseImponible) rowBaseImponible.style.display = '';
+            if (rowIva) rowIva.style.display = '';
+            if (lblIva) lblIva.textContent = `IVA (${ivaPorc}%)`;
+            if (baseImponibleNode) baseImponibleNode.textContent = formatearMoneda(baseImponible, 'BS');
+            if (ivaMontoNode) ivaMontoNode.textContent = formatearMoneda(ivaValor, 'BS');
+            if (lblTotalPrincipal) lblTotalPrincipal.textContent = 'Total Bs';
+            if (totalCOPNode) totalCOPNode.textContent = formatearMoneda(totalConIva, 'BS');
+            if (rowTotalReferencia) rowTotalReferencia.style.display = 'none';
+            actualizarResumen(productosSeleccionados.length, totalConIva, 0);
+        } else {
+            const { usd: totalUSD, cop: totalCOP } = convertirPrecioDivisas(baseImponible, tasas);
+            if (rowBaseImponible) rowBaseImponible.style.display = 'none';
+            if (rowIva) rowIva.style.display = 'none';
+            if (lblTotalPrincipal) lblTotalPrincipal.textContent = 'Total COP';
+            if (totalCOPNode) totalCOPNode.textContent = formatearMoneda(totalCOP, 'COP');
+            if (rowTotalReferencia) rowTotalReferencia.style.display = '';
+            if (totalUSDNode) totalUSDNode.textContent = formatearMoneda(totalUSD, 'USD');
+            actualizarResumen(productosSeleccionados.length, totalCOP, totalUSD);
+        }
     }
 
 </script>

@@ -34,7 +34,7 @@
         <!-- Total a devolver -->
         <div class="devolucion-total" id="devolucionTotalBox" style="display: none;">
             <span class="devolucion-total_label">Total a devolver</span>
-            <strong class="devolucion-total_value" id="devolucionTotalValue">$0.00</strong>
+            <strong class="devolucion-total_value" id="devolucionTotalValue">0.00</strong>
         </div>
 
         <!-- Motivo -->
@@ -339,6 +339,8 @@
 
 <script>
     import { mostrarMensaje, mostrarError } from '@/utils/helpers/mensajes.js';
+    import { obtenerTasas } from '@/utils/helpers/cambioMoneda.js';
+    import { convertirPrecioDivisas, formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
     const overlay = document.getElementById('overlayDevolucion') as HTMLDivElement;
     const loading = document.getElementById('devolucionLoading') as HTMLDivElement;
@@ -365,6 +367,8 @@
     let ventaIdActual: number | null = null;
     let clienteIdActual: number | null = null;
     let productosVenta: ProductoVenta[] = [];
+    let monedaVentaActual = 'BS';
+    let tasasActuales = { cop: 0, bs: 0 };
 
     function cerrarModal() {
         overlay.classList.remove('visible');
@@ -389,7 +393,12 @@
             }
         });
 
-        totalValue.textContent = `$${total.toFixed(4)}`;
+        if (monedaVentaActual === 'COP') {
+            const { usd, cop } = convertirPrecioDivisas(total, tasasActuales);
+            totalValue.textContent = `${formatearMoneda(cop, 'COP')} (${formatearMoneda(usd, 'USD')})`;
+        } else {
+            totalValue.textContent = formatearMoneda(total, 'BS');
+        }
         return total;
     }
 
@@ -422,13 +431,16 @@
         actionsBox.style.display = 'none';
 
         try {
+            tasasActuales = await obtenerTasas();
             const res = await fetch(`/api/ventas/${ventaId}`);
             if (!res.ok) throw new Error('No se pudo obtener la venta');
 
             const data = await res.json();
             productosVenta = data.productos || [];
+            const tipoDoc = data.venta?.tipo_documento || 'factura';
+            monedaVentaActual = (obtenerMonedaBase() === 'COP' && tipoDoc === 'nota_entrega') ? 'COP' : 'BS';
 
-            subtitle.textContent = `Venta #${ventaId} · ${data.cliente?.nombre?.toUpperCase() || 'Cliente'}`;
+            subtitle.textContent = `Venta #${ventaId} · ${data.cliente?.nombre?.toUpperCase() || 'Cliente'} (${monedaVentaActual === 'COP' ? 'Divisas COP' : 'Bs'})`;
 
             loading.style.display = 'none';
 
@@ -443,6 +455,7 @@
             productosVenta.forEach((producto, index) => {
                 const item = document.createElement('div');
                 item.className = 'devolucion-item';
+                const puTexto = formatearMoneda(Number(producto.precio_unitario) || 0, monedaVentaActual);
                 item.innerHTML = `
                     <input type="checkbox"
                         id="devItem${index}"
@@ -455,7 +468,7 @@
                     />
                     <label for="devItem${index}">
                         <span class="devolucion-item_nombre">${producto.codigo_producto.toUpperCase()} — ${producto.nombre_producto.toUpperCase()}</span>
-                        <span class="devolucion-item_detalle">P.U. $${producto.precio_unitario.toFixed(4)} · Vendido: ${producto.cantidad}</span>
+                        <span class="devolucion-item_detalle">P.U. ${puTexto} · Vendido: ${producto.cantidad}</span>
                     </label>
                     <div class="devolucion-item_cantidad">
                         <input type="number" id="devCant${index}" value="${producto.cantidad}" min="0.01" max="${producto.cantidad}" step="0.01" />

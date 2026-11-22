@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
+import { obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
 export async function GET({ request }) {
 
@@ -26,45 +27,46 @@ export async function GET({ request }) {
     try {
         await ensureFiscalSchema(db);
 
-        const tasaRes = await db.execute('SELECT valor, bs FROM tasa WHERE id = 1');
+        const tasaRes = await db.execute('SELECT valor, bs, cop_a_bs FROM tasa WHERE id = 1');
         const tasaRow = tasaRes.rows?.[0] || {};
         const tasaCopActual = Number(tasaRow.valor) || 0;
         const tasaBcvActual = Number(tasaRow.bs) || 0;
+        const copABs = Number(tasaRow.cop_a_bs) || 3;
+        const monedaBase = obtenerMonedaBase();
+        const factorFacturaACop = monedaBase === 'COP' ? copABs : 1;
 
         const ventasContado = await db.execute(
             `SELECT COUNT(*) AS ventas_contado,
-                    COALESCE(SUM(total), 0) AS total_contado,
-                    COALESCE(SUM(COALESCE(subtotal_base, total)), 0) AS base_imponible,
-                    COALESCE(SUM(COALESCE(subtotal_exento, 0)), 0) AS monto_exento,
-                    COALESCE(SUM(COALESCE(iva_monto, 0)), 0) AS monto_iva,
-                    COALESCE(SUM(COALESCE(retencion_iva_monto, 0)), 0) AS monto_retencion_iva
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN total ELSE total * ? END), 0) AS total_contado
                 FROM ventas
                 WHERE tipo_pago = 'contado'
                 AND estado IN ('completado', 'devuelto')
                 AND nota_entrega_origen_id IS NULL
                 AND DATE(fecha) BETWEEN ? AND ?
-            `, [desde, hasta]
+            `, [factorFacturaACop, desde, hasta]
         );
 
         const ventasCredito = await db.execute(
-            `SELECT COUNT(*) AS ventas_credito, COALESCE(SUM(total), 0) AS total_credito
+            `SELECT COUNT(*) AS ventas_credito,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN total ELSE total * ? END), 0) AS total_credito
                 FROM ventas
                 WHERE tipo_pago = 'credito'
                 AND estado IN ('completado', 'pendiente')
                 AND nota_entrega_origen_id IS NULL
                 AND DATE(fecha) BETWEEN ? AND ?
-            `, [desde, hasta]
+            `, [factorFacturaACop, desde, hasta]
         );
 
         const abonos = await db.execute(
-            `SELECT COUNT(*) AS abonos_realizados, COALESCE(SUM(monto), 0) AS total_abonos
+            `SELECT COUNT(*) AS abonos_realizados,
+                    COALESCE(SUM(CASE WHEN COALESCE(moneda_base, 'COP') = 'BS' THEN monto * ? ELSE monto END), 0) AS total_abonos
                 FROM abonos_credito
                 WHERE DATE(fecha) BETWEEN ? AND ?
-            `, [desde, hasta]
+            `, [factorFacturaACop, desde, hasta]
         );
 
         const ganancia = await db.execute(
-            `SELECT COALESCE(SUM((dv.precio_unitario - p.costo) * dv.cantidad), 0) AS ganancia_neta
+            `SELECT COALESCE(SUM(((CASE WHEN v.tipo_documento = 'nota_entrega' THEN dv.precio_unitario ELSE dv.precio_unitario * ? END) - p.costo) * dv.cantidad), 0) AS ganancia_neta
                 FROM detalle_venta dv
                 JOIN productos p ON p.codigo = dv.codigo_producto
                 JOIN ventas v ON v.id = dv.id_venta
@@ -72,15 +74,16 @@ export async function GET({ request }) {
                 AND v.estado IN ('completado', 'devuelto')
                 AND v.nota_entrega_origen_id IS NULL
                 AND DATE(v.fecha) BETWEEN ? AND ?
-            `, [desde, hasta]
+            `, [factorFacturaACop, desde, hasta]
         );
 
         const devoluciones = await db.execute(
-            `SELECT COALESCE(SUM(monto_total), 0) AS salidas_efectivo
-                FROM devoluciones
-                WHERE tipo_resolucion = 'EFECTIVO'
-                AND DATE(fecha_creacion) BETWEEN ? AND ?
-            `, [desde, hasta]
+            `SELECT COALESCE(SUM(CASE WHEN COALESCE(v.tipo_documento, 'factura') = 'nota_entrega' THEN d.monto_total ELSE d.monto_total * ? END), 0) AS salidas_efectivo
+                FROM devoluciones d
+                LEFT JOIN ventas v ON v.id = d.id_venta
+                WHERE d.tipo_resolucion = 'EFECTIVO'
+                AND DATE(d.fecha_creacion) BETWEEN ? AND ?
+            `, [factorFacturaACop, desde, hasta]
         );
 
         const fletesRes = await db.execute(
@@ -95,35 +98,57 @@ export async function GET({ request }) {
         );
 
         const notasUsadas = await db.execute(
-            `SELECT COALESCE(SUM(pv.monto_base), 0) AS total_notas
+            `SELECT COALESCE(SUM(CASE WHEN COALESCE(pv.moneda_base, 'COP') = 'BS' THEN pv.monto_base * ? ELSE pv.monto_base END), 0) AS total_notas
                 FROM pagos_venta pv
                 JOIN ventas v ON v.id = pv.id_venta
                 WHERE pv.metodo = 'nota_credito'
                 AND DATE(v.fecha) BETWEEN ? AND ?
-            `, [desde, hasta]
+            `, [factorFacturaACop, desde, hasta]
         );
 
-        const fiscalResumen = await db.execute(
-            `SELECT
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN 1 ELSE 0 END), 0) AS facturas_bs_count,
-                COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN 1 ELSE 0 END), 0) AS notas_entrega_count,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(subtotal_base, total) ELSE 0 END), 0) AS base_imponible_usd,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(subtotal_base, total) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS base_imponible_bs,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(subtotal_exento, 0) ELSE 0 END), 0) AS exento_usd,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(subtotal_exento, 0) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS exento_bs,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(iva_monto, 0) ELSE 0 END), 0) AS iva_usd,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(iva_monto, 0) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS iva_bs,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(retencion_iva_monto, 0) ELSE 0 END), 0) AS retencion_iva_usd,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(retencion_iva_monto, 0) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS retencion_iva_bs,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN total ELSE 0 END), 0) AS total_facturado_bcv_usd,
-                COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(total * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS total_facturado_bs,
-                COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN total ELSE 0 END), 0) AS total_notas_entrega_usd,
-                COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN ROUND(total * (CASE WHEN tasa_cop > 0 THEN tasa_cop ELSE ? END), 0) ELSE 0 END), 0) AS total_notas_entrega_cop
-             FROM ventas
-             WHERE estado IN ('completado', 'devuelto', 'pendiente')
-               AND DATE(fecha) BETWEEN ? AND ?`,
-            [tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaCopActual, desde, hasta]
-        );
+        const fiscalResumen = monedaBase === 'COP'
+            ? await db.execute(
+                `SELECT
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN 1 ELSE 0 END), 0) AS facturas_bs_count,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN 1 ELSE 0 END), 0) AS notas_entrega_count,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(subtotal_base, total) / NULLIF(CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END, 0), 2) ELSE 0 END), 0) AS base_imponible_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(subtotal_base, total) ELSE 0 END), 0) AS base_imponible_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(subtotal_exento, 0) / NULLIF(CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END, 0), 2) ELSE 0 END), 0) AS exento_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(subtotal_exento, 0) ELSE 0 END), 0) AS exento_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(iva_monto, 0) / NULLIF(CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END, 0), 2) ELSE 0 END), 0) AS iva_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(iva_monto, 0) ELSE 0 END), 0) AS iva_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(retencion_iva_monto, 0) / NULLIF(CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END, 0), 2) ELSE 0 END), 0) AS retencion_iva_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(retencion_iva_monto, 0) ELSE 0 END), 0) AS retencion_iva_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(total / NULLIF(CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END, 0), 2) ELSE 0 END), 0) AS total_facturado_bcv_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN total ELSE 0 END), 0) AS total_facturado_bs,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN ROUND(total / NULLIF(CASE WHEN tasa_cop > 0 THEN tasa_cop ELSE ? END, 0), 2) ELSE 0 END), 0) AS total_notas_entrega_usd,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN total ELSE 0 END), 0) AS total_notas_entrega_cop
+                 FROM ventas
+                 WHERE estado IN ('completado', 'devuelto', 'pendiente')
+                   AND DATE(fecha) BETWEEN ? AND ?`,
+                [tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaCopActual, desde, hasta]
+            )
+            : await db.execute(
+                `SELECT
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN 1 ELSE 0 END), 0) AS facturas_bs_count,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN 1 ELSE 0 END), 0) AS notas_entrega_count,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(subtotal_base, total) ELSE 0 END), 0) AS base_imponible_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(subtotal_base, total) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS base_imponible_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(subtotal_exento, 0) ELSE 0 END), 0) AS exento_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(subtotal_exento, 0) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS exento_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(iva_monto, 0) ELSE 0 END), 0) AS iva_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(iva_monto, 0) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS iva_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN COALESCE(retencion_iva_monto, 0) ELSE 0 END), 0) AS retencion_iva_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(COALESCE(retencion_iva_monto, 0) * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS retencion_iva_bs,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN total ELSE 0 END), 0) AS total_facturado_bcv_usd,
+                    COALESCE(SUM(CASE WHEN COALESCE(tipo_documento, 'factura') = 'factura' THEN ROUND(total * (CASE WHEN tasa_bcv > 0 THEN tasa_bcv ELSE ? END), 2) ELSE 0 END), 0) AS total_facturado_bs,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN total ELSE 0 END), 0) AS total_notas_entrega_usd,
+                    COALESCE(SUM(CASE WHEN tipo_documento = 'nota_entrega' THEN ROUND(total * (CASE WHEN tasa_cop > 0 THEN tasa_cop ELSE ? END), 0) ELSE 0 END), 0) AS total_notas_entrega_cop
+                 FROM ventas
+                 WHERE estado IN ('completado', 'devuelto', 'pendiente')
+                   AND DATE(fecha) BETWEEN ? AND ?`,
+                [tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaBcvActual, tasaCopActual, desde, hasta]
+            );
 
         // Respuesta estructurada
         const ventasContadoRow = ventasContado.rows[0] || {};

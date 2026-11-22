@@ -15,7 +15,7 @@ if (usuario.rol !== 'admin') {
     <header class="page-header">
         <p class="eyebrow">Inventario</p>
         <h1>Agregar producto</h1>
-        <p class="page-intro">Crea un producto con su costo de compra en USD, su <strong>Precio Divisas</strong> (reflejado en COP) y su <strong>Precio BCV</strong> (Base Imponible para facturación en Bs).</p>
+        <p class="page-intro">Crea un producto con su <strong>Precio Compra</strong> y <strong>Precio Venta Divisas</strong> en COP; el <strong>Precio BCV (Bs)</strong> se calcula automáticamente con la tasa del día.</p>
     </header>
 
     <div class="btn-add_container">
@@ -77,38 +77,38 @@ if (usuario.rol !== 'admin') {
             </div>
 
             <div class="form-field">
-                <label for="costo">Precio de costo / compra (USD)</label>
+                <label for="costo">Precio Compra (COP)</label>
                 <input
                     type="text"
                     name="costo"
                     id="costo"
-                    placeholder="Ej. 2.50"
+                    placeholder="Ej. 5000"
                     min="0"
                 />
             </div>
 
             <div class="form-field">
-                <label for="precio_divisas">Precio Divisas (USD → Tasa COP)</label>
+                <label for="precio_divisas">Precio Venta Divisas (COP)</label>
                 <input
                     type="text"
                     name="precio_divisas"
                     id="precio_divisas"
-                    placeholder="Ej. 4.00"
+                    placeholder="Ej. 8000"
                     min="0"
                 />
-                <span class="precio-preview" id="previewDivisas">Equivalente en COP: —</span>
+                <span class="precio-preview" id="previewDivisas">Equivalente en Divisas (USD): —</span>
             </div>
 
             <div class="form-field">
-                <label for="precio_bcv">Precio BCV / Base Imponible (USD → Tasa BCV)</label>
+                <label for="precio_bcv">Precio BCV (Bs · Calculado automático)</label>
                 <input
                     type="text"
                     name="precio_bcv"
                     id="precio_bcv"
-                    placeholder="Ej. 4.50"
+                    placeholder="Ej. 2730.38"
                     min="0"
                 />
-                <span class="precio-preview" id="previewBcv">Equivalente en Bs: —</span>
+                <span class="precio-preview" id="previewBcv">Ref. USD BCV: —</span>
             </div>
 
             <div class="form-field toggle-field">

@@ -34,9 +34,11 @@ export async function GET({ request }) {
                 d.motivo,
                 d.fecha_creacion,
                 c.nombre  AS cliente_nombre,
-                c.cedula  AS cliente_cedula
+                c.cedula  AS cliente_cedula,
+                COALESCE(v.tipo_documento, 'factura') AS tipo_documento
             FROM devoluciones d
             JOIN clientes c ON c.id = d.cliente_id
+            LEFT JOIN ventas v ON v.id = d.id_venta
             WHERE DATE(d.fecha_creacion) = ?
             ORDER BY d.fecha_creacion DESC`,
             [fecha]

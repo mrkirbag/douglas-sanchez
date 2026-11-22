@@ -65,36 +65,36 @@ if (usuario.rol !== "admin") {
                 </p>
             </div>
             <div>
-                <label for="costo">Precio de costo / compra (USD)</label>
+                <label for="costo">Precio Compra (COP)</label>
                 <input
                     type="text"
                     name="costo"
                     id="costo"
-                    placeholder="Precio de Costo en USD"
+                    placeholder="Precio de Compra en COP"
                     min="0"
                 />
             </div>
             <div>
-                <label for="precio_divisas">Precio Divisas (USD → Tasa COP)</label>
+                <label for="precio_divisas">Precio Venta Divisas (COP)</label>
                 <input
                     type="text"
                     name="precio_divisas"
                     id="precio_divisas"
-                    placeholder="Precio en Divisas USD"
+                    placeholder="Precio Venta Divisas en COP"
                     min="0"
                 />
-                <p class="campo-ayuda" id="previewDivisas">Equivalente en COP: —</p>
+                <p class="campo-ayuda" id="previewDivisas">Equivalente en Divisas (USD): —</p>
             </div>
             <div>
-                <label for="precio_bcv">Precio BCV / Base Imponible (USD → Tasa BCV)</label>
+                <label for="precio_bcv">Precio BCV (Bs · Calculado automático)</label>
                 <input
                     type="text"
                     name="precio_bcv"
                     id="precio_bcv"
-                    placeholder="Precio BCV (Base Imponible) en USD"
+                    placeholder="Precio BCV en Bs"
                     min="0"
                 />
-                <p class="campo-ayuda" id="previewBcv">Equivalente en Bs: —</p>
+                <p class="campo-ayuda" id="previewBcv">Ref. USD BCV: —</p>
             </div>
             <div style="grid-column: 1 / -1;">
                 <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; font-weight:700;">

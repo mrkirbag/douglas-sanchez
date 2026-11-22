@@ -10,6 +10,7 @@ import {
     normalizarId,
 } from '@/utils/cotizacionValidaciones';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
+import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -20,6 +21,7 @@ export async function POST({ request }) {
     }
 
     try {
+        await ensureFiscalSchema(db);
         const body = await request.json();
         const {
             fecha,
@@ -27,8 +29,10 @@ export async function POST({ request }) {
             clienteCedulaRif,
             clienteTelefono,
             clienteDireccion,
+            moneda: monedaBody = 'DIVISAS',
             productos,
         } = body;
+        const moneda = String(monedaBody).toUpperCase() === 'BS' ? 'BS' : 'DIVISAS';
 
         if (!fecha) {
             return new Response(JSON.stringify({ error: 'Faltan datos de la cotización' }), { status: 400, headers: jsonHeaders });
@@ -86,9 +90,9 @@ export async function POST({ request }) {
             const cotizacionResult = await executeInTx(
                 tx,
                 `INSERT INTO cotizaciones
-                    (fecha, cliente_nombre, cliente_cedula_rif, cliente_telefono, cliente_direccion, total)
-                 VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-                [fecha, nombre, cedulaRif, telefono, direccion, totalCalculado]
+                    (fecha, cliente_nombre, cliente_cedula_rif, cliente_telefono, cliente_direccion, moneda, total)
+                 VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+                [fecha, nombre, cedulaRif, telefono, direccion, moneda, totalCalculado]
             );
 
             const idCotizacion = normalizarId(cotizacionResult.rows[0].id);

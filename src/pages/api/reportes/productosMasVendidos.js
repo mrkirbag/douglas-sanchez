@@ -35,7 +35,8 @@ export async function GET({ request }) {
                         WHERE v.estado IN ('completado', 'devuelto', 'pendiente')
                             AND DATE(v.fecha) BETWEEN ? AND ?
                         GROUP BY vd.codigo_producto, p.nombre
-                        ORDER BY cantidad_total DESC;
+                        ORDER BY cantidad_total DESC
+                        LIMIT 5;
                     `;
 
     const queryBottom = `
@@ -50,7 +51,8 @@ export async function GET({ request }) {
                             WHERE v.estado IN ('completado', 'devuelto', 'pendiente')
                                 AND DATE(v.fecha) BETWEEN ? AND ?
                             GROUP BY vd.codigo_producto, p.nombre
-                            ORDER BY cantidad_total ASC;
+                            ORDER BY cantidad_total ASC
+                            LIMIT 5;
                         `;
 
     try {

@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS cotizaciones (
     cliente_cedula_rif TEXT    NOT NULL,
     cliente_telefono   TEXT    NOT NULL,
     cliente_direccion  TEXT    NOT NULL,
+    moneda             TEXT    NOT NULL DEFAULT 'DIVISAS',
     total              REAL    NOT NULL CHECK (total >= 0)
 );
 

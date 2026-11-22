@@ -37,16 +37,19 @@ export async function GET({ request }) {
         // Desglose FIFO (ordenado por fecha de creación)
         const notasResult = await db.execute(
             `SELECT
-                id,
-                id_venta,
-                monto_total,
-                saldo_disponible,
-                fecha_creacion
-             FROM devoluciones
-             WHERE cliente_id = ?
-               AND tipo_resolucion = 'NOTA_CREDITO'
-               AND saldo_disponible > 0
-             ORDER BY fecha_creacion ASC`,
+                d.id,
+                d.id_venta,
+                d.monto_total,
+                d.saldo_disponible,
+                d.fecha_creacion,
+                COALESCE(v.tipo_documento, 'factura') AS tipo_documento,
+                CASE WHEN COALESCE(v.tipo_documento, 'factura') = 'nota_entrega' THEN 'COP' ELSE 'BS' END AS moneda
+             FROM devoluciones d
+             LEFT JOIN ventas v ON v.id = d.id_venta
+             WHERE d.cliente_id = ?
+               AND d.tipo_resolucion = 'NOTA_CREDITO'
+               AND d.saldo_disponible > 0
+             ORDER BY d.fecha_creacion ASC`,
             [clienteId]
         );
 

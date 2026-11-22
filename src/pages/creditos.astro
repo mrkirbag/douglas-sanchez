@@ -165,7 +165,7 @@ const fechaHoy = new Date()
                                 <th>Fecha</th>
                                 <th>Venta / Doc</th>
                                 <th>Método</th>
-                                <th>Monto (USD)</th>
+                                <th>Monto</th>
                                 <th>Recibido</th>
                             </tr>
                         </thead>
@@ -183,6 +183,13 @@ const fechaHoy = new Date()
     import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
     import { metodosDeMoneda, etiquetaMetodo } from "@/utils/helpers/metodosPago.js";
+    import {
+        convertirAMonedaBase,
+        convertirPrecio,
+        formatearMoneda,
+        obtenerMonedaBase,
+        toleranciaPago,
+    } from "@/utils/helpers/tasas.js";
 
     document.addEventListener("DOMContentLoaded", async () => {
         const tbody = document.getElementById("tbodyCxc");
@@ -209,20 +216,28 @@ const fechaHoy = new Date()
         let clientes = [];
         let clienteActual = null;
         const tasas = await obtenerTasas();
+        const monedaBase = obtenerMonedaBase();
+        const tolerancia = toleranciaPago(monedaBase);
+
+        function fmtBase(val) {
+            return formatearMoneda(Number(val) || 0, monedaBase);
+        }
 
         function actualizarResumenGlobal() {
             const totalPendiente = clientes.reduce((acc, c) => acc + c.saldo_pendiente_usd, 0);
             const totalAbonado = clientes.reduce((acc, c) => acc + c.total_abonado_usd, 0);
-            const conDeuda = clientes.filter((c) => c.saldo_pendiente_usd > 0.01).length;
+            const conDeuda = clientes.filter((c) => c.saldo_pendiente_usd > tolerancia).length;
 
-            statPorCobrar.textContent = `$${totalPendiente.toFixed(4)}`;
+            statPorCobrar.textContent = fmtBase(totalPendiente);
             statClientes.textContent = String(conDeuda);
-            statAbonado.textContent = `$${totalAbonado.toFixed(4)}`;
+            statAbonado.textContent = fmtBase(totalAbonado);
 
+            const conv = convertirPrecio(totalPendiente, monedaBase, tasas);
             const partes = [];
-            if (tasas.bs > 0) partes.push(`${(totalPendiente * tasas.bs).toFixed(4)} Bs`);
-            if (tasas.cop > 0) partes.push(`${Math.ceil(totalPendiente * tasas.cop).toLocaleString("es-CO")} COP`);
-            statPorCobrarSec.textContent = partes.join(" · ") || "USD";
+            if (monedaBase !== "USD" && conv.usd > 0) partes.push(formatearMoneda(conv.usd, "USD"));
+            if (monedaBase !== "BS" && conv.bs > 0) partes.push(formatearMoneda(conv.bs, "BS"));
+            if (monedaBase !== "COP" && conv.cop > 0) partes.push(formatearMoneda(conv.cop, "COP"));
+            statPorCobrarSec.textContent = partes.join(" · ") || monedaBase;
         }
 
         function renderTabla() {
@@ -230,7 +245,7 @@ const fechaHoy = new Date()
             const soloPendientes = filtroEstado.value === "pendientes";
 
             const filtrados = clientes.filter((c) => {
-                if (soloPendientes && c.saldo_pendiente_usd <= 0.01) return false;
+                if (soloPendientes && c.saldo_pendiente_usd <= tolerancia) return false;
                 if (!term) return true;
                 return (
                     c.nombre.toLowerCase().includes(term) ||
@@ -250,7 +265,7 @@ const fechaHoy = new Date()
 
             filtrados.forEach((c) => {
                 const tr = document.createElement("tr");
-                const tieneDeuda = c.saldo_pendiente_usd > 0.01;
+                const tieneDeuda = c.saldo_pendiente_usd > tolerancia;
                 const badge = tieneDeuda
                     ? `<span class="badge-pendiente">PENDIENTE</span>`
                     : `<span class="badge-pagada">SALDADA</span>`;
@@ -264,10 +279,10 @@ const fechaHoy = new Date()
                         <strong>${c.total_ventas}</strong> venta(s)
                         ${c.ventas_pendientes > 0 ? `<br/><small style="color:#b45309;">${c.ventas_pendientes} pendiente(s)</small>` : ""}
                     </td>
-                    <td data-label="Total Deuda">$${c.total_deuda_usd.toFixed(4)}</td>
-                    <td data-label="Abonado">$${c.total_abonado_usd.toFixed(4)}</td>
+                    <td data-label="Total Deuda">${fmtBase(c.total_deuda_usd)}</td>
+                    <td data-label="Abonado">${fmtBase(c.total_abonado_usd)}</td>
                     <td data-label="Saldo Pendiente">
-                        <strong style="color:${tieneDeuda ? "#dc2626" : "#15803d"};">$${c.saldo_pendiente_usd.toFixed(4)}</strong>
+                        <strong style="color:${tieneDeuda ? "#dc2626" : "#15803d"};">${fmtBase(c.saldo_pendiente_usd)}</strong>
                     </td>
                     <td data-label="Estado">${badge}</td>
                 `;
@@ -302,17 +317,12 @@ const fechaHoy = new Date()
         function actualizarEquivAbono() {
             const val = parseFloat((abonoMonto.value || "").replace(",", "."));
             const mon = abonoMoneda.value;
-            if (!Number.isFinite(val) || val <= 0 || mon === "USD") {
+            if (!Number.isFinite(val) || val <= 0 || mon === monedaBase) {
                 abonoEquiv.textContent = "";
                 return;
             }
-            if (mon === "BS" && tasas.bs > 0) {
-                abonoEquiv.textContent = `Equivale a $${(val / tasas.bs).toFixed(4)} USD (Tasa ${tasas.bs})`;
-            } else if (mon === "COP" && tasas.cop > 0) {
-                abonoEquiv.textContent = `Equivale a $${(val / tasas.cop).toFixed(4)} USD (Tasa ${tasas.cop})`;
-            } else {
-                abonoEquiv.textContent = "";
-            }
+            const equiv = convertirAMonedaBase(val, mon, monedaBase, tasas);
+            abonoEquiv.textContent = equiv > 0 ? `Equivale a ${fmtBase(equiv)}` : "";
         }
 
         function abrirModalCliente(idCliente) {
@@ -322,24 +332,25 @@ const fechaHoy = new Date()
 
             document.getElementById("modalCliNombre").textContent = c.nombre.toUpperCase();
             document.getElementById("modalCliDoc").textContent = [c.cedula, c.telefono].filter(Boolean).join(" · ") || "Sin documento";
-            document.getElementById("modalDeudaTotal").textContent = `$${c.total_deuda_usd.toFixed(4)}`;
-            document.getElementById("modalAbonado").textContent = `$${c.total_abonado_usd.toFixed(4)}`;
-            document.getElementById("modalSaldo").textContent = `$${c.saldo_pendiente_usd.toFixed(4)}`;
+            document.getElementById("modalDeudaTotal").textContent = fmtBase(c.total_deuda_usd);
+            document.getElementById("modalAbonado").textContent = fmtBase(c.total_abonado_usd);
+            document.getElementById("modalSaldo").textContent = fmtBase(c.saldo_pendiente_usd);
 
             const tbVentas = document.getElementById("modalListaVentas");
             tbVentas.innerHTML = "";
             abonoCreditoId.innerHTML = `<option value="">Aplicar automáticamente (más antiguas primero)</option>`;
 
             c.ventas.forEach((v) => {
+                const docMon = v.moneda_doc || monedaBase;
                 const docLabel = v.tipo_documento === "nota_entrega"
                     ? `Nota #${v.nro_nota_entrega || ""}`
                     : `Factura #${v.nro_factura || ""}`;
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
                     <td><strong>${docLabel}</strong><br/><small>${formatearFecha(v.fecha)}</small></td>
-                    <td>$${v.total.toFixed(4)}</td>
-                    <td>$${v.abonado.toFixed(4)}</td>
-                    <td><strong style="color:${v.saldo_pendiente > 0.01 ? "#dc2626" : "#15803d"};">$${v.saldo_pendiente.toFixed(4)}</strong></td>
+                    <td>${formatearMoneda(v.total, docMon)}</td>
+                    <td>${formatearMoneda(v.abonado, docMon)}</td>
+                    <td><strong style="color:${v.saldo_pendiente > 0.01 ? "#dc2626" : "#15803d"};">${formatearMoneda(v.saldo_pendiente, docMon)}</strong></td>
                     <td><a href="/ventas/${v.id_venta}" style="color:var(--accent-brand); font-weight:700;">Ver</a></td>
                 `;
                 tbVentas.appendChild(tr);
@@ -347,7 +358,7 @@ const fechaHoy = new Date()
                 if (v.saldo_pendiente > 0.01) {
                     const opt = document.createElement("option");
                     opt.value = v.id_credito;
-                    opt.textContent = `${docLabel} (${formatearFecha(v.fecha)}) — Debe $${v.saldo_pendiente.toFixed(4)}`;
+                    opt.textContent = `${docLabel} (${formatearFecha(v.fecha)}) — Debe ${formatearMoneda(v.saldo_pendiente, docMon)}`;
                     abonoCreditoId.appendChild(opt);
                 }
             });
@@ -361,19 +372,20 @@ const fechaHoy = new Date()
                     const doc = a.tipo_documento === "nota_entrega"
                         ? `Nota #${a.nro_nota_entrega || ""}`
                         : `Fact. #${a.nro_factura || ""}`;
+                    const abMon = a.moneda_base || (a.tipo_documento === "factura" && monedaBase === "COP" ? "BS" : monedaBase);
                     const tr = document.createElement("tr");
                     tr.innerHTML = `
                         <td>${formatearFecha(a.fecha)}</td>
                         <td>${doc}</td>
                         <td>${etiquetaMetodo(a.moneda, a.metodo) || "—"}</td>
-                        <td><strong>$${a.monto.toFixed(4)}</strong></td>
-                        <td>${a.monto_recibido > 0 ? `${a.monto_recibido.toFixed(4)} ${a.moneda}` : "—"}</td>
+                        <td><strong>${formatearMoneda(a.monto, abMon)}</strong></td>
+                        <td>${a.monto_recibido > 0 ? formatearMoneda(a.monto_recibido, a.moneda || abMon) : "—"}</td>
                     `;
                     tbAbonos.appendChild(tr);
                 });
             }
 
-            const tienePendiente = c.saldo_pendiente_usd > 0.01;
+            const tienePendiente = c.saldo_pendiente_usd > tolerancia;
             btnGuardarAbono.disabled = !tienePendiente;
             abonoMonto.value = "";
             actualizarEquivAbono();

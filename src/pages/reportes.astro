@@ -542,6 +542,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         tasa_bcv?: number;
         tasa_cop?: number;
         total_usd: number;
+        saldo_pendiente?: number;
         tipo_pago: string;
         estado: string;
         facturada_en_venta_id?: string | null;
@@ -776,6 +777,12 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             const ventas = await response.json();
             const tasa = await cambioUSDaCOP();
             const meta = getButtonMeta(button);
+            const r = ventas.resumen;
+            const monedaBase = obtenerMonedaBase();
+            const fmtPrincipal = (val: number) => formatearMoneda(Number(val) || 0, monedaBase);
+            const fmtRefUsd = (val: number) => monedaBase === 'COP' && tasa > 0
+                ? formatearMoneda((Number(val) || 0) / tasa, 'USD')
+                : formatearMoneda(Number(val) || 0, 'USD');
 
             mostrarResultados(meta.titulo, `Resumen financiero del ${desde} al ${hasta}.`);
 
@@ -783,48 +790,48 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                 <div class="grid-reportes">
                     <div class="card">
                         <h3>Facturado Fiscal (BCV + IVA)</h3>
-                        <p>${Number(ventas.resumen.total_facturado_bs || 0).toFixed(4)} Bs</p>
-                        <small>${ventas.resumen.facturas_bs_count || 0} factura(s) · Equiv. $${Number(ventas.resumen.total_facturado_bcv_usd || 0).toFixed(4)} USD BCV</small>
+                        <p>${formatearMoneda(r.total_facturado_bs || 0, 'BS')}</p>
+                        <small>${r.facturas_bs_count || 0} factura(s) · Equiv. ${formatearMoneda(r.total_facturado_bcv_usd || 0, 'USD')} BCV</small>
                     </div>
                     <div class="card">
                         <h3>IVA Facturado (SENIAT)</h3>
-                        <p>${Number(ventas.resumen.iva_bs || 0).toFixed(4)} Bs</p>
-                        <small>Base: ${Number(ventas.resumen.base_imponible_bs || 0).toFixed(4)} Bs · Exento: ${Number(ventas.resumen.exento_bs || 0).toFixed(4)} Bs</small>
+                        <p>${formatearMoneda(r.iva_bs || 0, 'BS')}</p>
+                        <small>Base: ${formatearMoneda(r.base_imponible_bs || 0, 'BS')} · Exento: ${formatearMoneda(r.exento_bs || 0, 'BS')}</small>
                     </div>
                     <div class="card">
                         <h3>Notas de Entrega (Divisas / Sin IVA)</h3>
-                        <p>$${Number(ventas.resumen.total_notas_entrega_usd || 0).toFixed(4)} USD</p>
-                        <small>${ventas.resumen.notas_entrega_count || 0} nota(s) · ${Math.ceil(Number(ventas.resumen.total_notas_entrega_cop || 0)).toLocaleString('es-CO')} COP</small>
+                        <p>${formatearMoneda(r.total_notas_entrega_cop || 0, 'COP')}</p>
+                        <small>${r.notas_entrega_count || 0} nota(s) · Equiv. ${formatearMoneda(r.total_notas_entrega_usd || 0, 'USD')}</small>
                     </div>
                     <div class="card highlight">
-                        <h3>Total Neto en Caja (Ref. USD)</h3>
-                        <p>$${ventas.resumen.total_en_caja.toFixed(4)} USD</p>
-                        <small>Contado (${ventas.resumen.ventas_contado}) + Abonos (${ventas.resumen.abonos_realizados}) - Salidas</small>
+                        <h3>Total Neto en Caja</h3>
+                        <p>${fmtPrincipal(r.total_en_caja)}</p>
+                        <small>Contado (${r.ventas_contado}) + Abonos (${r.abonos_realizados}) - Salidas · Ref. ${fmtRefUsd(r.total_en_caja)}</small>
                     </div>
                     <div class="card">
                         <h3>Abonos Recibidos</h3>
-                        <p>$${ventas.resumen.total_abonos_realizados.toFixed(4)} USD</p>
-                        <small>${ventas.resumen.abonos_realizados} abono(s) · ${Math.ceil(ventas.resumen.total_abonos_realizados * tasa).toLocaleString('es-CO')} COP</small>
+                        <p>${fmtPrincipal(r.total_abonos_realizados)}</p>
+                        <small>${r.abonos_realizados} abono(s) · Ref. ${fmtRefUsd(r.total_abonos_realizados)}</small>
                     </div>
                     <div class="card">
                         <h3>Pagado con Nota de Crédito</h3>
-                        <p>$${(ventas.resumen.notas_usadas || 0).toFixed(4)} USD</p>
-                        <small>No representa ingreso en efectivo</small>
+                        <p>${fmtPrincipal(r.notas_usadas || 0)}</p>
+                        <small>No representa ingreso en efectivo · Ref. ${fmtRefUsd(r.notas_usadas || 0)}</small>
                     </div>
                     <div class="card">
                         <h3>Salidas (Devoluciones)</h3>
-                        <p style="color: #ef4444;">-$${ventas.resumen.salidas_efectivo.toFixed(4)} USD</p>
-                        <small>${Math.ceil(ventas.resumen.salidas_efectivo * tasa).toLocaleString('es-CO')} COP</small>
+                        <p style="color: #ef4444;">-${fmtPrincipal(r.salidas_efectivo)}</p>
+                        <small>Ref. ${fmtRefUsd(r.salidas_efectivo)}</small>
                     </div>
                     <div class="card">
                         <h3>Gastos de Flete (Descontados)</h3>
-                        <p style="color: #b45309;">-$${(ventas.resumen.total_fletes || 0).toFixed(4)} USD</p>
-                        <small>Descontado de caja y utilidades</small>
+                        <p style="color: #b45309;">-${fmtPrincipal(r.total_fletes || 0)}</p>
+                        <small>Descontado de caja y utilidades · Ref. ${fmtRefUsd(r.total_fletes || 0)}</small>
                     </div>
                     <div class="card">
                         <h3>Ganancia Neta de Contado</h3>
-                        <p>$${ventas.resumen.margen_ganancia.toFixed(4)} USD</p>
-                        <small>${Math.ceil(ventas.resumen.margen_ganancia * tasa).toLocaleString('es-CO')} COP</small>
+                        <p>${fmtPrincipal(r.margen_ganancia)}</p>
+                        <small>Ref. ${fmtRefUsd(r.margen_ganancia)}</small>
                     </div>
                 </div>
             `;
@@ -1033,6 +1040,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
             const tasa = await cambioUSDaCOP();
             const meta = getButtonMeta(button);
+            const esBaseCop = obtenerMonedaBase() === 'COP';
 
             let cantFacturas = 0;
             let totalFacturasBs = 0;
@@ -1044,20 +1052,31 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
             for (const v of ventas) {
                 const esNota = v.tipo_documento === 'nota_entrega';
-                const totalUsd = Number(v.total_usd) || 0;
+                const totalVal = Number(v.total_usd) || 0;
                 const tBcv = Number(v.tasa_bcv) || 0;
                 const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasa;
-                const ivaUsd = Number(v.iva_monto) || 0;
+                const ivaVal = Number(v.iva_monto) || 0;
 
                 if (esNota) {
                     cantNotas += 1;
-                    totalNotasUsd += totalUsd;
-                    totalNotasCop += Math.ceil(totalUsd * tCop);
+                    if (esBaseCop) {
+                        totalNotasCop += totalVal;
+                        totalNotasUsd += tCop > 0 ? totalVal / tCop : 0;
+                    } else {
+                        totalNotasUsd += totalVal;
+                        totalNotasCop += Math.ceil(totalVal * tCop);
+                    }
                 } else {
                     cantFacturas += 1;
-                    totalFacturasBcvUsd += totalUsd;
-                    totalFacturasBs += totalUsd * tBcv;
-                    totalFacturasIvaBs += ivaUsd * tBcv;
+                    if (esBaseCop) {
+                        totalFacturasBs += totalVal;
+                        totalFacturasIvaBs += ivaVal;
+                        totalFacturasBcvUsd += tBcv > 0 ? totalVal / tBcv : 0;
+                    } else {
+                        totalFacturasBcvUsd += totalVal;
+                        totalFacturasBs += totalVal * tBcv;
+                        totalFacturasIvaBs += ivaVal * tBcv;
+                    }
                 }
             }
 
@@ -1068,13 +1087,13 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             resumenCards.innerHTML = `
                 <div class="card">
                     <h3>Facturas Fiscales (BCV + IVA)</h3>
-                    <p>${totalFacturasBs.toFixed(4)} Bs</p>
-                    <small>${cantFacturas} factura(s) · IVA: ${totalFacturasIvaBs.toFixed(4)} Bs · Equiv. $${totalFacturasBcvUsd.toFixed(4)} BCV</small>
+                    <p>${formatearMoneda(totalFacturasBs, 'BS')}</p>
+                    <small>${cantFacturas} factura(s) · IVA: ${formatearMoneda(totalFacturasIvaBs, 'BS')} · Equiv. ${formatearMoneda(totalFacturasBcvUsd, 'USD')} BCV</small>
                 </div>
                 <div class="card">
                     <h3>Notas de Entrega (Divisas / Sin IVA)</h3>
-                    <p>$${totalNotasUsd.toFixed(4)} USD</p>
-                    <small>${cantNotas} nota(s) · ${totalNotasCop.toLocaleString('es-CO')} COP</small>
+                    <p>${formatearMoneda(totalNotasCop, 'COP')}</p>
+                    <small>${cantNotas} nota(s) · Equiv. ${formatearMoneda(totalNotasUsd, 'USD')}</small>
                 </div>
             `;
             reportesContainer.appendChild(resumenCards);
@@ -1111,8 +1130,12 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                 : (esNota ? `<br/><small style="color:#b45309; font-weight:700;">Sin facturar</small>` : '');
 
                             const montoHtml = esNota
-                                ? `<strong>$${totalUsd.toFixed(4)} USD</strong><br/><small>${Math.ceil(totalUsd * tCop).toLocaleString('es-CO')} COP</small>`
-                                : `<strong>${(totalUsd * tBcv).toFixed(4)} Bs</strong><br/><small>IVA: ${(ivaUsd * tBcv).toFixed(4)} Bs · $${totalUsd.toFixed(4)} BCV</small>`;
+                                ? (esBaseCop
+                                    ? `<strong>${formatearMoneda(totalUsd, 'COP')}</strong><br/><small>${tCop > 0 ? formatearMoneda(totalUsd / tCop, 'USD') : '—'}</small>`
+                                    : `<strong>$${totalUsd.toFixed(2)} USD</strong><br/><small>${Math.ceil(totalUsd * tCop).toLocaleString('es-CO')} COP</small>`)
+                                : (esBaseCop
+                                    ? `<strong>${formatearMoneda(totalUsd, 'BS')}</strong><br/><small>IVA: ${formatearMoneda(ivaUsd, 'BS')} · ${tBcv > 0 ? formatearMoneda(totalUsd / tBcv, 'USD') : '—'} BCV</small>`
+                                    : `<strong>${(totalUsd * tBcv).toFixed(2)} Bs</strong><br/><small>IVA: ${(ivaUsd * tBcv).toFixed(2)} Bs · $${totalUsd.toFixed(2)} BCV</small>`);
 
                             return `
                                 <tr>
@@ -1542,7 +1565,28 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                         </tr>
                     </thead>
                     <tbody>
-                        ${ventas.map(v => `
+                        ${ventas.map(v => {
+                            const esNota = v.tipo_documento === 'nota_entrega';
+                            const totalVal = Number(v.total_usd) || 0;
+                            const saldoVal = Number(v.saldo_pendiente) || 0;
+                            const tBcv = Number(v.tasa_bcv) || 0;
+                            const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasa;
+                            const esBaseCop = obtenerMonedaBase() === 'COP';
+
+                            let montoHtml = '';
+                            if (esNota) {
+                                const usdRef = tCop > 0 ? formatearMoneda(totalVal / tCop, 'USD') : '—';
+                                const saldoStr = saldoVal > 0 ? ` · Saldo: ${formatearMoneda(saldoVal, 'COP')}` : '';
+                                montoHtml = `<strong>${formatearMoneda(totalVal, 'COP')}</strong><br /><small>${usdRef}${saldoStr}</small>`;
+                            } else if (esBaseCop) {
+                                const usdRef = tBcv > 0 ? `${formatearMoneda(totalVal / tBcv, 'USD')} BCV` : '—';
+                                const saldoStr = saldoVal > 0 ? ` · Saldo: ${formatearMoneda(saldoVal, 'BS')}` : '';
+                                montoHtml = `<strong>${formatearMoneda(totalVal, 'BS')}</strong><br /><small>${usdRef}${saldoStr}</small>`;
+                            } else {
+                                montoHtml = `<strong>${formatearMoneda(totalVal, 'USD')}</strong><br /><small>${formatearMoneda(Math.ceil(totalVal * tCop), 'COP')}</small>`;
+                            }
+
+                            return `
                             <tr>
                                 <td data-label="Fecha">${formatearFecha(v.fecha_venta)}</td>
                                 <td data-label="Cliente">
@@ -1550,15 +1594,12 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                     <br />
                                     C.I. ${v.cedula_cliente}
                                 </td>
-                                <td data-label="Monto">
-                                    ${v.total_usd.toFixed(4)} USD
-                                    <br />
-                                    ${Math.ceil(v.total_usd * tasa)} COP
-                                </td>
+                                <td data-label="Monto">${montoHtml}</td>
                                 <td data-label="Tipo de Pago">${v.tipo_pago.toUpperCase()}</td>
                                 <td data-label="Estado">${v.estado.toUpperCase()}</td>
                             </tr>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;

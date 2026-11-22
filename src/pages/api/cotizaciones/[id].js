@@ -18,6 +18,7 @@ export async function GET({ request, params }) {
                 cliente_cedula_rif,
                 cliente_telefono,
                 cliente_direccion,
+                COALESCE(moneda, 'DIVISAS') AS moneda,
                 total
              FROM cotizaciones
              WHERE id = ?`,
@@ -63,6 +64,7 @@ export async function GET({ request, params }) {
             cotizacion: {
                 id: cotizacionData.id,
                 fecha: cotizacionData.fecha,
+                moneda: cotizacionData.moneda || 'DIVISAS',
                 monto_total: parseFloat(cotizacionData.total),
             },
             productos: productosResult.rows.map((producto) => ({

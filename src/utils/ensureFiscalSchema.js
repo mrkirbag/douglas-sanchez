@@ -251,6 +251,7 @@ export async function runFiscalMigration(client = db) {
         )
     `);
     await addColumnSafe(client, 'compras', 'proveedor_id', 'TEXT');
+    await addColumnSafe(client, 'cotizaciones', 'moneda', "TEXT NOT NULL DEFAULT 'DIVISAS'");
 
     // Migrar proveedores desde compras existentes que aún no tengan proveedor_id
     try {

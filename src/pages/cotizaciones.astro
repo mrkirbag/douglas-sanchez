@@ -256,6 +256,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 <script>
     import { noRegistros } from "@/utils/helpers/mensajes.js";
     import { cambioUSDaCOP } from "@/utils/helpers/cambioMoneda.js";
+    import { convertirPrecioDivisas, formatearMoneda } from "@/utils/helpers/tasas.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
     import { imprimir } from '@/utils/helpers/imprimir.js';
 
@@ -266,6 +267,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         cliente_cedula_rif: string;
         cliente_telefono: string;
         cliente_direccion?: string;
+        moneda?: string;
         total: number;
     }
 
@@ -344,8 +346,20 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
         lista.forEach((cotizacion) => {
             const fechaFormateada = formatearFecha(cotizacion.fecha);
-            const totalUsd = Number(cotizacion.total);
-            const totalCOP = Math.ceil(totalUsd * tasaActual);
+            const totalMonto = Number(cotizacion.total);
+            const moneda = String(cotizacion.moneda || 'DIVISAS').toUpperCase();
+            let totalHtml = '';
+
+            if (moneda === 'BS') {
+                totalHtml = `<span class="monto-usd">${formatearMoneda(totalMonto, 'BS')}</span>`;
+            } else {
+                const { usd, cop } = convertirPrecioDivisas(totalMonto, { tasa_cop: tasaActual });
+                totalHtml = `
+                    <span class="monto-cop">${formatearMoneda(cop, 'COP')}</span>
+                    <br />
+                    <span class="monto-usd">${formatearMoneda(usd, 'USD')}</span>
+                `;
+            }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -354,11 +368,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     <strong>${cotizacion.cliente_nombre.toUpperCase()}</strong><br />
                     <span class="monto-cop">${cotizacion.cliente_cedula_rif.toUpperCase()} · ${cotizacion.cliente_telefono}</span>
                 </td>
-                <td data-label="Total">
-                    <span class="monto-usd">${totalUsd.toFixed(4)} USD</span>
-                    <br />
-                    <span class="monto-cop">${totalCOP} COP</span>
-                </td>
+                <td data-label="Total">${totalHtml}</td>
             `;
 
             const tdAcciones = document.createElement('td');

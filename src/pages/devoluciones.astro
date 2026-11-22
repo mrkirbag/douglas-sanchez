@@ -238,7 +238,8 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
 <script>
     import { noRegistros } from "@/utils/helpers/mensajes.js";
-    import { cambioUSDaCOP } from "@/utils/helpers/cambioMoneda.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { convertirPrecioDivisas, formatearMoneda } from "@/utils/helpers/tasas.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
 
     interface Devolucion {
@@ -246,6 +247,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         id_venta: number;
         monto_total: number;
         tipo_resolucion: string;
+        tipo_documento?: string;
         saldo_disponible: number;
         motivo: string;
         fecha_creacion: string;
@@ -298,20 +300,29 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             tablaHead.style.display = 'table-header-group';
             actualizarResumen(devoluciones.length, fechaFormateadaResumen);
 
-            const tasa = await cambioUSDaCOP();
+            const tasas = await obtenerTasas();
 
             devoluciones.forEach(dev => {
                 const fechaCreacion = dev.fecha_creacion
                     ? new Date(dev.fecha_creacion).toLocaleString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                     : '—';
 
-                const totalCOP = Math.ceil(dev.monto_total * tasa);
+                const esDivisas = dev.tipo_documento === 'nota_entrega';
+                const monedaDev = esDivisas ? 'COP' : 'BS';
                 const esCredito = dev.tipo_resolucion === 'NOTA_CREDITO';
                 const tipoClase = esCredito ? 'tipo-badge--credito' : 'tipo-badge--efectivo';
                 const tipoTexto = esCredito ? 'NOTA DE CRÉDITO' : 'EFECTIVO';
 
                 const saldoClase = dev.saldo_disponible > 0 ? 'saldo-activo' : 'saldo-agotado';
-                const saldoTexto = esCredito ? `$${dev.saldo_disponible.toFixed(4)}` : '—';
+                const saldoTexto = esCredito ? formatearMoneda(dev.saldo_disponible, monedaDev) : '—';
+
+                let montoHtml = '';
+                if (esDivisas) {
+                    const { usd, cop } = convertirPrecioDivisas(dev.monto_total, tasas);
+                    montoHtml = `<span class="monto-cop">${formatearMoneda(cop, 'COP')}</span><br /><span class="monto-usd">${formatearMoneda(usd, 'USD')}</span>`;
+                } else {
+                    montoHtml = `<span class="monto-usd">${formatearMoneda(dev.monto_total, 'BS')}</span>`;
+                }
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -321,10 +332,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                         <strong>${dev.cliente_nombre.toUpperCase()}</strong><br />
                         <span class="monto-cop">C.I. ${dev.cliente_cedula}</span>
                     </td>
-                    <td data-label="Monto">
-                        <span class="monto-usd">${dev.monto_total.toFixed(4)} USD</span><br />
-                        <span class="monto-cop">${totalCOP} COP</span>
-                    </td>
+                    <td data-label="Monto">${montoHtml}</td>
                     <td data-label="Tipo">
                         <span class="tipo-badge ${tipoClase}">${tipoTexto}</span>
                     </td>
