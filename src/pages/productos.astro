@@ -272,7 +272,7 @@ if (usuario.rol !== 'admin') {
 
         async function cargarProductos() {
             try {
-                const res = await fetch('/api/productos?limit=500');
+                const res = await fetch('/api/productos');
                 const data = await res.json();
 
                 if (data.message) {

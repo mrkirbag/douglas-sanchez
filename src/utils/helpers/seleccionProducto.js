@@ -1,6 +1,5 @@
 import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
-const LIMITE_MAXIMO = 500;
 const pickers = new WeakMap();
 const pickersActivos = new Set();
 
@@ -40,7 +39,7 @@ function claseStock(producto) {
 }
 
 async function cargarTodosLosProductos() {
-    const response = await fetch(`/api/productos?limit=${LIMITE_MAXIMO}`);
+    const response = await fetch('/api/productos');
 
     if (!response.ok) throw new Error('Error al cargar productos');
 

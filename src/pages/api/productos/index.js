@@ -6,7 +6,6 @@ import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
 
 const LIMITE_BUSQUEDA = 50;
 const LIMITE_LISTA = 80;
-const LIMITE_MAXIMO = 500;
 
 function normalizarFilaProducto(row) {
     const ventaBase = Number(row.venta) || 0;
@@ -34,34 +33,54 @@ export async function GET({ request }) {
         const url = new URL(request.url);
         const page = parseInt(url.searchParams.get('page')) || 1;
         const search = url.searchParams.get('search') || '';
-
-        const limit = Math.min(
-            parseInt(url.searchParams.get('limit')) || (search ? LIMITE_BUSQUEDA : LIMITE_LISTA),
-            LIMITE_MAXIMO
-        );
-        const offset = (page - 1) * limit;
+        const limitParam = url.searchParams.get('limit');
+        const limitNum = limitParam ? parseInt(limitParam) : 0;
+        const usarLimite = Number.isFinite(limitNum) && limitNum > 0;
+        const offset = (page - 1) * (usarLimite ? limitNum : 0);
         const columnasLista = 'id, codigo, nombre, descripcion, stock, costo, venta, precio_divisas, precio_bcv, exento_iva, unidad_medida';
 
-        const query = search
-            ? {
-                  sql: `
-                      SELECT ${columnasLista} FROM productos 
-                      WHERE (nombre LIKE ? OR codigo LIKE ?)
-                      AND estatus = 'activo' 
-                      ORDER BY nombre ASC
-                      LIMIT ? OFFSET ?
-                  `,
-                  args: [`%${search}%`, `%${search}%`, limit, offset],
-              }
-            : {
-                  sql: `
-                      SELECT ${columnasLista} FROM productos 
-                      WHERE estatus = 'activo'
-                      ORDER BY nombre ASC
-                      LIMIT ? OFFSET ?
-                  `,
-                  args: [limit, offset],
-              };
+        let query;
+        if (search) {
+            query = usarLimite
+                ? {
+                      sql: `
+                          SELECT ${columnasLista} FROM productos 
+                          WHERE (nombre LIKE ? OR codigo LIKE ?)
+                          AND estatus = 'activo' 
+                          ORDER BY nombre ASC
+                          LIMIT ? OFFSET ?
+                      `,
+                      args: [`%${search}%`, `%${search}%`, limitNum, offset],
+                  }
+                : {
+                      sql: `
+                          SELECT ${columnasLista} FROM productos 
+                          WHERE (nombre LIKE ? OR codigo LIKE ?)
+                          AND estatus = 'activo' 
+                          ORDER BY nombre ASC
+                      `,
+                      args: [`%${search}%`, `%${search}%`],
+                  };
+        } else {
+            query = usarLimite
+                ? {
+                      sql: `
+                          SELECT ${columnasLista} FROM productos 
+                          WHERE estatus = 'activo'
+                          ORDER BY nombre ASC
+                          LIMIT ? OFFSET ?
+                      `,
+                      args: [limitNum, offset],
+                  }
+                : {
+                      sql: `
+                          SELECT ${columnasLista} FROM productos 
+                          WHERE estatus = 'activo'
+                          ORDER BY nombre ASC
+                      `,
+                      args: [],
+                  };
+        }
 
         const result = await db.execute(query);
 
