@@ -1,7 +1,7 @@
 import empresa from '@/data/empresa.json';
 import { imprimir } from '@/utils/helpers/imprimir.js';
 import { formatearFecha } from '@/utils/helpers/formateoFecha.js';
-import { formatearDecimal, formatearMoneda, redondearBS, redondearCOP } from '@/utils/helpers/tasas.js';
+import { formatearDecimal, formatearMoneda, obtenerMonedaBase, redondearBS, redondearCOP, redondearUSD } from '@/utils/helpers/tasas.js';
 import { etiquetaPago } from '@/utils/helpers/metodosPago.js';
 
 function esc(valor) {
@@ -29,28 +29,59 @@ function obtenerMetadatosDocumento(data) {
 
 function calcularMontos(data, tasaBcv, tasaCop) {
     const venta = data?.venta || {};
-    const subtotalBaseUsd = Number(venta.subtotal_base) || 0;
-    const subtotalExentoUsd = Number(venta.subtotal_exento) || 0;
+    const esNotaEntrega = venta.tipo_documento === 'nota_entrega';
+    const esBaseCop = obtenerMonedaBase() === 'COP';
+    const subtotalBaseVal = Number(venta.subtotal_base) || 0;
+    const subtotalExentoVal = Number(venta.subtotal_exento) || 0;
     const ivaPorc = Number(venta.iva_porcentaje ?? 16);
-    const ivaUsd = Number(venta.iva_monto) || 0;
+    const ivaVal = Number(venta.iva_monto) || 0;
     const retPorc = Number(venta.retencion_iva_porcentaje) || 0;
-    const retUsd = Number(venta.retencion_iva_monto) || 0;
-    const montoTotalUsd = Number(venta.monto_total) || 0;
-    const totalDivisasUsd = Number(venta.total_divisas) || montoTotalUsd;
+    const retVal = Number(venta.retencion_iva_monto) || 0;
+    const montoTotalVal = Number(venta.monto_total) || 0;
+    const totalDivisasVal = Number(venta.total_divisas) || montoTotalVal;
+
+    const baseBs = esBaseCop ? redondearBS(subtotalBaseVal) : redondearBS(subtotalBaseVal * tasaBcv);
+    const exentoBs = esBaseCop ? redondearBS(subtotalExentoVal) : redondearBS(subtotalExentoVal * tasaBcv);
+    const ivaBs = esBaseCop ? redondearBS(ivaVal) : redondearBS(ivaVal * tasaBcv);
+    const retBs = esBaseCop ? redondearBS(retVal) : redondearBS(retVal * tasaBcv);
+    const totalLegalBs = esBaseCop ? redondearBS(montoTotalVal) : redondearBS(montoTotalVal * tasaBcv);
+
+    let totalRefCop = 0;
+    let totalDivisasUsd = 0;
+    if (esBaseCop) {
+        if (esNotaEntrega) {
+            totalRefCop = redondearCOP(totalDivisasVal);
+            totalDivisasUsd = tasaCop > 0 ? redondearUSD(totalRefCop / tasaCop) : 0;
+        } else if (Number(venta.total_divisas) > 0) {
+            if (totalDivisasVal >= totalLegalBs || (totalDivisasVal > 1000 && totalLegalBs > 0 && (totalDivisasVal / totalLegalBs) > 0.5)) {
+                totalRefCop = redondearCOP(totalDivisasVal);
+                totalDivisasUsd = tasaCop > 0 ? redondearUSD(totalRefCop / tasaCop) : 0;
+            } else {
+                totalDivisasUsd = redondearUSD(totalDivisasVal);
+                totalRefCop = redondearCOP(totalDivisasUsd * tasaCop);
+            }
+        } else {
+            totalRefCop = redondearCOP(totalLegalBs * 3);
+            totalDivisasUsd = tasaCop > 0 ? redondearUSD(totalRefCop / tasaCop) : 0;
+        }
+    } else {
+        totalDivisasUsd = redondearUSD(totalDivisasVal);
+        totalRefCop = redondearCOP(totalDivisasUsd * tasaCop);
+    }
 
     return {
         ivaPorc,
         retPorc,
-        retUsd,
-        subtotalExentoUsd,
+        retUsd: retVal,
+        subtotalExentoUsd: subtotalExentoVal,
         comprobanteRet: venta.comprobante_retencion || '',
-        baseBs: redondearBS(subtotalBaseUsd * tasaBcv),
-        exentoBs: redondearBS(subtotalExentoUsd * tasaBcv),
-        ivaBs: redondearBS(ivaUsd * tasaBcv),
-        retBs: redondearBS(retUsd * tasaBcv),
-        totalLegalBs: redondearBS(montoTotalUsd * tasaBcv),
+        baseBs,
+        exentoBs,
+        ivaBs,
+        retBs,
+        totalLegalBs,
         totalDivisasUsd,
-        totalRefCop: redondearCOP(totalDivisasUsd * tasaCop),
+        totalRefCop,
     };
 }
 
@@ -62,16 +93,21 @@ function renderizarCarta({ data, tasaBcv, tasaCop }) {
     const pagos = Array.isArray(data?.pagos) ? data.pagos : [];
     const montos = calcularMontos(data, tasaBcv, tasaCop);
 
+    const esBaseCop = obtenerMonedaBase() === 'COP';
+
     const filasProductos = productos
         .map((p) => {
-            const pUnitBcvUsd = Number(p.precio_unitario) || 0;
-            const pUnitBcvBs = redondearBS(pUnitBcvUsd * tasaBcv);
-            const pUnitDivUsd = Number(p.precio_divisas) > 0 ? Number(p.precio_divisas) : pUnitBcvUsd;
-            const pUnitCop = redondearCOP(pUnitDivUsd * tasaCop);
+            const pUnitVal = Number(p.precio_unitario) || 0;
+            const subVal = Number(p.subtotal) || 0;
+            const pUnitBcvBs = esBaseCop ? redondearBS(pUnitVal) : redondearBS(pUnitVal * tasaBcv);
+            const subBaseBs = esBaseCop ? redondearBS(subVal) : redondearBS(subVal * tasaBcv);
+
+            const pUnitDivRaw = Number(p.precio_divisas) > 0 ? Number(p.precio_divisas) : pUnitVal;
+            const pUnitCop = esBaseCop ? redondearCOP(pUnitDivRaw) : redondearCOP(pUnitDivRaw * tasaCop);
+            const pUnitDivUsd = esBaseCop ? (tasaCop > 0 ? redondearUSD(pUnitCop / tasaCop) : 0) : redondearUSD(pUnitDivRaw);
             const cant = Number(p.cantidad) || 0;
-            const subBaseBs = redondearBS((Number(p.subtotal) || 0) * tasaBcv);
-            const subDivUsd = pUnitDivUsd * cant;
-            const subDivCop = redondearCOP(subDivUsd * tasaCop);
+            const subDivCop = redondearCOP(pUnitCop * cant);
+            const subDivUsd = esBaseCop ? (tasaCop > 0 ? redondearUSD(subDivCop / tasaCop) : 0) : redondearUSD(pUnitDivRaw * cant);
             const esExento = Boolean(Number(p.exento_iva));
             const seriales = Array.isArray(p.seriales) && p.seriales.length > 0
                 ? `<div class="seriales">S/N: ${esc(p.seriales.join(', '))}</div>`
@@ -87,12 +123,12 @@ function renderizarCarta({ data, tasaBcv, tasaCop }) {
                         </td>
                         <td class="col-cant">${cant}</td>
                         <td class="col-num">
-                            <div>$${formatearDecimal(pUnitDivUsd, 2, 4)} USD</div>
-                            <div class="sub-ref">${pUnitCop.toLocaleString('es-CO')} COP</div>
+                            <div>${pUnitCop.toLocaleString('es-CO')} COP</div>
+                            <div class="sub-ref">$${formatearDecimal(pUnitDivUsd, 2, 2)} USD</div>
                         </td>
                         <td class="col-num strong">
-                            <div>$${formatearDecimal(subDivUsd, 2, 4)} USD</div>
-                            <div class="sub-ref">${subDivCop.toLocaleString('es-CO')} COP</div>
+                            <div>${subDivCop.toLocaleString('es-CO')} COP</div>
+                            <div class="sub-ref">$${formatearDecimal(subDivUsd, 2, 2)} USD</div>
                         </td>
                     </tr>
                 `;
@@ -107,8 +143,8 @@ function renderizarCarta({ data, tasaBcv, tasaCop }) {
                         ${seriales}
                     </td>
                     <td class="col-cant">${cant}</td>
-                    <td class="col-num">${formatearDecimal(pUnitBcvBs, 2, 4)} Bs</td>
-                    <td class="col-num strong">${formatearDecimal(subBaseBs, 2, 4)} Bs</td>
+                    <td class="col-num">${formatearDecimal(pUnitBcvBs, 2, 2)} Bs</td>
+                    <td class="col-num strong">${formatearDecimal(subBaseBs, 2, 2)} Bs</td>
                 </tr>
             `;
         })
@@ -138,12 +174,12 @@ function renderizarCarta({ data, tasaBcv, tasaCop }) {
         ? `
             <div class="totales-lista">
                 <div class="total-row total-final">
-                    <span>Total Divisas (USD)</span>
-                    <strong>$${formatearDecimal(montos.totalDivisasUsd, 2, 4)} USD</strong>
+                    <span>Total Pesos (COP)</span>
+                    <strong>${montos.totalRefCop.toLocaleString('es-CO')} COP</strong>
                 </div>
                 <div class="total-row total-secundario">
-                    <span>Referencia en Pesos (COP)</span>
-                    <strong>${montos.totalRefCop.toLocaleString('es-CO')} COP</strong>
+                    <span>Referencia en Dólares (USD)</span>
+                    <strong>$${formatearDecimal(montos.totalDivisasUsd, 2, 2)} USD</strong>
                 </div>
             </div>
         `
@@ -530,14 +566,19 @@ function renderizarTermica58({ data, tasaBcv, tasaCop }) {
     const pagos = Array.isArray(data?.pagos) ? data.pagos : [];
     const montos = calcularMontos(data, tasaBcv, tasaCop);
 
+    const esBaseCop = obtenerMonedaBase() === 'COP';
+
     const itemsHtml = productos
         .map((p) => {
-            const pUnitBcvUsd = Number(p.precio_unitario) || 0;
-            const pUnitBcvBs = redondearBS(pUnitBcvUsd * tasaBcv);
-            const pUnitDivUsd = Number(p.precio_divisas) > 0 ? Number(p.precio_divisas) : pUnitBcvUsd;
+            const pUnitVal = Number(p.precio_unitario) || 0;
+            const subVal = Number(p.subtotal) || 0;
+            const pUnitBcvBs = esBaseCop ? redondearBS(pUnitVal) : redondearBS(pUnitVal * tasaBcv);
+            const subBaseBs = esBaseCop ? redondearBS(subVal) : redondearBS(subVal * tasaBcv);
+
+            const pUnitDivRaw = Number(p.precio_divisas) > 0 ? Number(p.precio_divisas) : pUnitVal;
+            const pUnitCop = esBaseCop ? redondearCOP(pUnitDivRaw) : redondearCOP(pUnitDivRaw * tasaCop);
             const cant = Number(p.cantidad) || 0;
-            const subBaseBs = redondearBS((Number(p.subtotal) || 0) * tasaBcv);
-            const subDivUsd = pUnitDivUsd * cant;
+            const subDivCop = redondearCOP(pUnitCop * cant);
             const esExento = Boolean(Number(p.exento_iva));
             const seriales = Array.isArray(p.seriales) && p.seriales.length > 0
                 ? `<div class="tk-serial">S/N: ${esc(p.seriales.join(', '))}</div>`
@@ -549,8 +590,8 @@ function renderizarTermica58({ data, tasaBcv, tasaCop }) {
                         <div class="tk-item-nombre">${esc((p.nombre_producto || '').toUpperCase())}</div>
                         ${seriales}
                         <div class="tk-item-det">
-                            <span>${cant} x $${formatearDecimal(pUnitDivUsd, 2, 4)}</span>
-                            <strong>$${formatearDecimal(subDivUsd, 2, 4)} USD</strong>
+                            <span>${cant} x ${pUnitCop.toLocaleString('es-CO')} COP</span>
+                            <strong>${subDivCop.toLocaleString('es-CO')} COP</strong>
                         </div>
                     </div>
                 `;
@@ -561,8 +602,8 @@ function renderizarTermica58({ data, tasaBcv, tasaCop }) {
                     <div class="tk-item-nombre">${esc((p.nombre_producto || '').toUpperCase())} (${esExento ? 'E' : 'G'})</div>
                     ${seriales}
                     <div class="tk-item-det">
-                        <span>${cant} x ${formatearDecimal(pUnitBcvBs, 2, 4)} Bs</span>
-                        <strong>${formatearDecimal(subBaseBs, 2, 4)} Bs</strong>
+                        <span>${cant} x ${formatearDecimal(pUnitBcvBs, 2, 2)} Bs</span>
+                        <strong>${formatearDecimal(subBaseBs, 2, 2)} Bs</strong>
                     </div>
                 </div>
             `;
@@ -572,22 +613,22 @@ function renderizarTermica58({ data, tasaBcv, tasaCop }) {
     const totalesHtml = esNotaEntrega
         ? `
             <div class="tk-line tk-total">
-                <span>TOTAL USD</span>
-                <strong>$${formatearDecimal(montos.totalDivisasUsd, 2, 4)}</strong>
+                <span>TOTAL COP</span>
+                <strong>${montos.totalRefCop.toLocaleString('es-CO')} COP</strong>
             </div>
             <div class="tk-line">
-                <span>REF. COP</span>
-                <strong>${montos.totalRefCop.toLocaleString('es-CO')}</strong>
+                <span>REF. USD</span>
+                <strong>$${formatearDecimal(montos.totalDivisasUsd, 2, 2)} USD</strong>
             </div>
         `
         : `
-            <div class="tk-line"><span>BASE (G):</span><span>${formatearDecimal(montos.baseBs, 2, 4)} Bs</span></div>
-            ${montos.subtotalExentoUsd > 0 ? `<div class="tk-line"><span>EXENTO (E):</span><span>${formatearDecimal(montos.exentoBs, 2, 4)} Bs</span></div>` : ''}
-            <div class="tk-line"><span>IVA (${montos.ivaPorc}%):</span><span>${formatearDecimal(montos.ivaBs, 2, 4)} Bs</span></div>
-            ${montos.retUsd > 0 ? `<div class="tk-line"><span>RET IVA (${montos.retPorc}%):</span><span>-${formatearDecimal(montos.retBs, 2, 4)} Bs</span></div>` : ''}
+            <div class="tk-line"><span>BASE (G):</span><span>${formatearDecimal(montos.baseBs, 2, 2)} Bs</span></div>
+            ${montos.subtotalExentoUsd > 0 ? `<div class="tk-line"><span>EXENTO (E):</span><span>${formatearDecimal(montos.exentoBs, 2, 2)} Bs</span></div>` : ''}
+            <div class="tk-line"><span>IVA (${montos.ivaPorc}%):</span><span>${formatearDecimal(montos.ivaBs, 2, 2)} Bs</span></div>
+            ${montos.retUsd > 0 ? `<div class="tk-line"><span>RET IVA (${montos.retPorc}%):</span><span>-${formatearDecimal(montos.retBs, 2, 2)} Bs</span></div>` : ''}
             <div class="tk-line tk-total">
                 <span>TOTAL BS</span>
-                <strong>${formatearDecimal(montos.totalLegalBs, 2, 4)} Bs</strong>
+                <strong>${formatearDecimal(montos.totalLegalBs, 2, 2)} Bs</strong>
             </div>
         `;
 

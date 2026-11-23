@@ -448,12 +448,12 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 <script>
 
     import { mostrarError } from '@/utils/helpers/mensajes.js';
-    import { cambioUSDaCOP } from '@/utils/helpers/cambioMoneda.js';
+    import { cambioUSDaCOP, obtenerTasas } from '@/utils/helpers/cambioMoneda.js';
     import { formatearFecha } from '@/utils/helpers/formateoFecha';
     import { renderChart, destroyCharts } from '@/utils/helpers/chart.js';
     import { imprimir } from '@/utils/helpers/imprimir.js';
     import { toPng } from "html-to-image";
-    import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
+    import { convertirAMonedaBase, formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
     import { descargarExcel } from '@/utils/helpers/exportarExcel.js';
 
     const masVendidoBtn = document.querySelector('#masVendido');
@@ -1268,13 +1268,13 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                 </div>
                 <div class="card">
                     <h3>Total Facturado</h3>
-                    <p>${totalFacturadoBs.toFixed(4)} Bs</p>
-                    <small>$${totalFacturadoUsd.toFixed(4)} USD</small>
+                    <p>${totalFacturadoBs.toFixed(2)} Bs</p>
+                    <small>$${totalFacturadoUsd.toFixed(2)} USD</small>
                 </div>
                 <div class="card">
                     <h3>IVA Recaudado</h3>
-                    <p>${totalIvaBs.toFixed(4)} Bs</p>
-                    <small>$${totalIvaUsd.toFixed(4)} USD</small>
+                    <p>${totalIvaBs.toFixed(2)} Bs</p>
+                    <small>$${totalIvaUsd.toFixed(2)} USD</small>
                 </div>
             `;
             reportesContainer.appendChild(resumen);
@@ -1315,19 +1315,19 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                         ${rangoFacturas ? `<br />${rangoFacturas}` : ''}
                                     </td>
                                     <td data-label="Base + Exento">
-                                        ${(Number(c.base_imponible_bs || 0) + Number(c.exento_bs || 0)).toFixed(4)} Bs
+                                        ${(Number(c.base_imponible_bs || 0) + Number(c.exento_bs || 0)).toFixed(2)} Bs
                                         <br />
-                                        <small>$${(Number(c.base_imponible_usd || 0) + Number(c.exento_usd || 0)).toFixed(4)} USD</small>
+                                        <small>$${(Number(c.base_imponible_usd || 0) + Number(c.exento_usd || 0)).toFixed(2)} USD</small>
                                     </td>
                                     <td data-label="IVA">
-                                        ${Number(c.iva_bs || 0).toFixed(4)} Bs
+                                        ${Number(c.iva_bs || 0).toFixed(2)} Bs
                                         <br />
-                                        <small>$${Number(c.iva_usd || 0).toFixed(4)} USD</small>
+                                        <small>$${Number(c.iva_usd || 0).toFixed(2)} USD</small>
                                     </td>
                                     <td data-label="Total Fiscal">
-                                        <strong>${Number(c.total_facturado_bs || 0).toFixed(4)} Bs</strong>
+                                        <strong>${Number(c.total_facturado_bs || 0).toFixed(2)} Bs</strong>
                                         <br />
-                                        <small>$${Number(c.total_facturado_usd || 0).toFixed(4)} USD</small>
+                                        <small>$${Number(c.total_facturado_usd || 0).toFixed(2)} USD</small>
                                     </td>
                                 </tr>
                             `;
@@ -1370,31 +1370,37 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                 return;
             }
 
+            const monedaBase = obtenerMonedaBase();
+            const tasasActuales = await obtenerTasas();
+
             let facturasCount = 0;
             let baseTotalBs = 0;
             let exentoTotalBs = 0;
             let ivaCreditoBs = 0;
             let retencionTotalBs = 0;
             let totalComprasBs = 0;
+            let totalComprasPrincipal = 0;
             let totalComprasUsd = 0;
 
             for (const c of compras) {
                 const esNota = c.tipo_documento === 'nota_entrega';
                 const tBcv = Number(c.tasa_bcv) || 0;
+                const tasasC = { ...tasasActuales, bs: tBcv > 0 ? tBcv : tasasActuales.bs };
                 const base = Number(c.subtotal_base) || 0;
                 const exento = Number(c.subtotal_exento) || 0;
                 const iva = Number(c.iva_monto) || 0;
                 const ret = Number(c.retencion_iva_monto) || 0;
                 const tot = Number(c.monto_total) || 0;
 
-                totalComprasUsd += tot;
+                totalComprasPrincipal += tot;
+                totalComprasUsd += convertirAMonedaBase(tot, monedaBase, 'USD', tasasC);
                 if (!esNota) {
                     facturasCount += 1;
-                    baseTotalBs += base * tBcv;
-                    exentoTotalBs += exento * tBcv;
-                    ivaCreditoBs += iva * tBcv;
-                    retencionTotalBs += ret * tBcv;
-                    totalComprasBs += tot * tBcv;
+                    baseTotalBs += convertirAMonedaBase(base, monedaBase, 'BS', tasasC);
+                    exentoTotalBs += convertirAMonedaBase(exento, monedaBase, 'BS', tasasC);
+                    ivaCreditoBs += convertirAMonedaBase(iva, monedaBase, 'BS', tasasC);
+                    retencionTotalBs += convertirAMonedaBase(ret, monedaBase, 'BS', tasasC);
+                    totalComprasBs += convertirAMonedaBase(tot, monedaBase, 'BS', tasasC);
                 }
             }
 
@@ -1406,17 +1412,17 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             resumen.innerHTML = `
                 <div class="card">
                     <h3>Total Compras Fiscales</h3>
-                    <p>${totalComprasBs.toFixed(4)} Bs</p>
-                    <small>${facturasCount} factura(s) · Ref. $${totalComprasUsd.toFixed(4)} USD</small>
+                    <p>${totalComprasBs.toFixed(2)} Bs</p>
+                    <small>${facturasCount} factura(s) · Total reg.: ${formatearMoneda(totalComprasPrincipal, monedaBase)} ($${totalComprasUsd.toFixed(2)} USD)</small>
                 </div>
                 <div class="card">
                     <h3>IVA Crédito Fiscal</h3>
-                    <p>${ivaCreditoBs.toFixed(4)} Bs</p>
-                    <small>Base: ${baseTotalBs.toFixed(4)} Bs · Exento: ${exentoTotalBs.toFixed(4)} Bs</small>
+                    <p>${ivaCreditoBs.toFixed(2)} Bs</p>
+                    <small>Base: ${baseTotalBs.toFixed(2)} Bs · Exento: ${exentoTotalBs.toFixed(2)} Bs</small>
                 </div>
                 <div class="card">
                     <h3>Retenciones de IVA</h3>
-                    <p>${retencionTotalBs.toFixed(4)} Bs</p>
+                    <p>${retencionTotalBs.toFixed(2)} Bs</p>
                     <small>Practicadas a proveedores</small>
                 </div>
             `;
@@ -1440,11 +1446,17 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                         ${compras.map((c) => {
                             const esNota = c.tipo_documento === 'nota_entrega';
                             const tBcv = Number(c.tasa_bcv) || 0;
+                            const tasasC = { ...tasasActuales, bs: tBcv > 0 ? tBcv : tasasActuales.bs };
                             const base = Number(c.subtotal_base) || 0;
                             const exento = Number(c.subtotal_exento) || 0;
                             const iva = Number(c.iva_monto) || 0;
                             const ret = Number(c.retencion_iva_monto) || 0;
                             const tot = Number(c.monto_total) || 0;
+                            const baseExBs = convertirAMonedaBase(base + exento, monedaBase, 'BS', tasasC);
+                            const ivaBs = convertirAMonedaBase(iva, monedaBase, 'BS', tasasC);
+                            const retBs = convertirAMonedaBase(ret, monedaBase, 'BS', tasasC);
+                            const totBs = convertirAMonedaBase(tot, monedaBase, 'BS', tasasC);
+                            const totUsd = convertirAMonedaBase(tot, monedaBase, 'USD', tasasC);
                             const docTxt = esNota
                                 ? `Nota Entrega${c.nro_factura ? ` #${c.nro_factura}` : ''}`
                                 : `Fact: ${c.nro_factura || 'S/N'}${c.nro_control ? `<br/><small>Ctrl: ${c.nro_control}</small>` : ''}`;
@@ -1461,16 +1473,16 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                         <small>${c.proveedor_rif || 'Sin RIF'}</small>
                                     </td>
                                     <td data-label="Base + Exento">
-                                        ${esNota ? 'N/A (No fiscal)' : `${((base + exento) * tBcv).toFixed(4)} Bs<br/><small>$${(base + exento).toFixed(4)} USD</small>`}
+                                        ${esNota ? 'N/A (No fiscal)' : `${baseExBs.toFixed(2)} Bs<br/><small>${formatearMoneda(base + exento, monedaBase)}</small>`}
                                     </td>
                                     <td data-label="IVA Crédito">
-                                        ${esNota ? '0.00' : `${(iva * tBcv).toFixed(4)} Bs<br/><small>$${iva.toFixed(4)} (${c.iva_porcentaje ?? 16}%)</small>`}
+                                        ${esNota ? '0.00' : `${ivaBs.toFixed(2)} Bs<br/><small>${formatearMoneda(iva, monedaBase)} (${c.iva_porcentaje ?? 16}%)</small>`}
                                     </td>
                                     <td data-label="Retención">
-                                        ${ret > 0 ? `-${(ret * tBcv).toFixed(4)} Bs<br/><small>${c.comprobante_retencion || ''}</small>` : '0.00'}
+                                        ${ret > 0 ? `-${retBs.toFixed(2)} Bs<br/><small>${c.comprobante_retencion || ''}</small>` : '0.00'}
                                     </td>
                                     <td data-label="Total">
-                                        ${!esNota && tBcv > 0 ? `<strong>${(tot * tBcv).toFixed(4)} Bs</strong><br/><small>$${tot.toFixed(4)} USD</small>` : `<strong>$${tot.toFixed(4)} USD</strong>`}
+                                        ${!esNota && totBs > 0 ? `<strong>${totBs.toFixed(2)} Bs</strong><br/><small>${formatearMoneda(tot, monedaBase)} ($${totUsd.toFixed(2)} USD)</small>` : `<strong>${formatearMoneda(tot, monedaBase)}</strong><br/><small>$${totUsd.toFixed(2)} USD</small>`}
                                     </td>
                                 </tr>
                             `;
@@ -1488,6 +1500,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                         filas: compras.map((c) => {
                             const esNota = c.tipo_documento === 'nota_entrega';
                             const tBcv = Number(c.tasa_bcv) || 0;
+                            const tasasC = { ...tasasActuales, bs: tBcv > 0 ? tBcv : tasasActuales.bs };
                             const base = Number(c.subtotal_base) || 0;
                             const exento = Number(c.subtotal_exento) || 0;
                             const iva = Number(c.iva_monto) || 0;
@@ -1501,13 +1514,15 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                 Proveedor: String(c.proveedor || '').toUpperCase(),
                                 RIF: c.proveedor_rif || '',
                                 Tasa_BCV: tBcv,
-                                Base_Imponible_USD: Number(base.toFixed(4)),
-                                Exento_USD: Number(exento.toFixed(4)),
-                                IVA_Credito_USD: Number(iva.toFixed(4)),
-                                Retencion_IVA_USD: Number(ret.toFixed(4)),
+                                Base_Imponible: Number(base.toFixed(2)),
+                                Exento: Number(exento.toFixed(2)),
+                                IVA_Credito: Number(iva.toFixed(2)),
+                                Retencion_IVA: Number(ret.toFixed(2)),
                                 Comprobante_Retencion: c.comprobante_retencion || '',
-                                Total_USD: Number(tot.toFixed(4)),
-                                Total_Bs_BCV: tBcv > 0 ? Number((tot * tBcv).toFixed(4)) : 0,
+                                Total_Principal: Number(tot.toFixed(2)),
+                                Moneda: monedaBase,
+                                Total_Bs: Number(convertirAMonedaBase(tot, monedaBase, 'BS', tasasC).toFixed(2)),
+                                Ref_USD: Number(convertirAMonedaBase(tot, monedaBase, 'USD', tasasC).toFixed(2)),
                             };
                         }),
                     },
@@ -1737,6 +1752,11 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             const res = data.resumen || {};
             const movs = Array.isArray(data.movimientos) ? data.movimientos : [];
 
+            const monedaBase = obtenerMonedaBase();
+            const tasasActuales = await obtenerTasas();
+            const fmtFlete = (val: number) => formatearMoneda(val, monedaBase);
+            const fmtFleteUsd = (val: number) => `$${convertirAMonedaBase(val, monedaBase, 'USD', tasasActuales).toFixed(2)} USD`;
+
             const meta = getButtonMeta(button);
             mostrarResultados(meta.titulo, `Constancia de fletes en compras y ventas del ${desde} al ${hasta}.`);
 
@@ -1745,18 +1765,18 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             resumenDiv.innerHTML = `
                 <div class="card highlight">
                     <h3>Total Fletes (General)</h3>
-                    <p>$${Number(res.total_fletes_general || 0).toFixed(4)} USD</p>
-                    <small>${res.cantidad_total || 0} operaciones registradas</small>
+                    <p>${fmtFlete(res.total_fletes_general || 0)}</p>
+                    <small>${res.cantidad_total || 0} operaciones · Ref. ${fmtFleteUsd(res.total_fletes_general || 0)}</small>
                 </div>
                 <div class="card">
                     <h3>Fletes en Ventas</h3>
-                    <p>$${Number(res.total_fletes_ventas || 0).toFixed(4)} USD</p>
-                    <small>${res.cantidad_ventas || 0} ventas con flete</small>
+                    <p>${fmtFlete(res.total_fletes_ventas || 0)}</p>
+                    <small>${res.cantidad_ventas || 0} ventas · Ref. ${fmtFleteUsd(res.total_fletes_ventas || 0)}</small>
                 </div>
                 <div class="card">
                     <h3>Fletes en Compras</h3>
-                    <p>$${Number(res.total_fletes_compras || 0).toFixed(4)} USD</p>
-                    <small>${res.cantidad_compras || 0} compras con flete</small>
+                    <p>${fmtFlete(res.total_fletes_compras || 0)}</p>
+                    <small>${res.cantidad_compras || 0} compras · Ref. ${fmtFleteUsd(res.total_fletes_compras || 0)}</small>
                 </div>
             `;
             reportesContainer.appendChild(resumenDiv);
@@ -1772,8 +1792,8 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                             <th>Documento</th>
                             <th>Fecha</th>
                             <th>Cliente / Proveedor</th>
-                            <th>Monto Flete (USD)</th>
-                            <th>Total Operación (USD)</th>
+                            <th>Monto Flete (${monedaBase})</th>
+                            <th>Total Operación (${monedaBase})</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1789,8 +1809,8 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                                         <td>${m.documento || '-'}</td>
                                         <td>${formatearFecha(m.fecha)}</td>
                                         <td>${m.contraparte || '-'}${m.contraparte_doc ? ` <small style="color:var(--text-muted);">(${m.contraparte_doc})</small>` : ''}</td>
-                                        <td style="font-weight:700; color:#b45309;">$${Number(m.flete_monto || 0).toFixed(4)}</td>
-                                        <td>$${Number(m.total_operacion || 0).toFixed(4)}</td>
+                                        <td style="font-weight:700; color:#b45309;">${fmtFlete(m.flete_monto || 0)}<br/><small>${fmtFleteUsd(m.flete_monto || 0)}</small></td>
+                                        <td>${fmtFlete(m.total_operacion || 0)}<br/><small>${fmtFleteUsd(m.total_operacion || 0)}</small></td>
                                     </tr>
                                 `;
                             }).join('')}
@@ -1805,9 +1825,9 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     {
                         nombre: 'Resumen',
                         filas: [
-                            { Concepto: 'Total Fletes General (USD)', Monto: Number(res.total_fletes_general || 0), Cantidad: Number(res.cantidad_total || 0) },
-                            { Concepto: 'Fletes en Ventas (USD)', Monto: Number(res.total_fletes_ventas || 0), Cantidad: Number(res.cantidad_ventas || 0) },
-                            { Concepto: 'Fletes en Compras (USD)', Monto: Number(res.total_fletes_compras || 0), Cantidad: Number(res.cantidad_compras || 0) },
+                            { Concepto: `Total Fletes General (${monedaBase})`, Monto: Number((res.total_fletes_general || 0).toFixed(2)), Cantidad: Number(res.cantidad_total || 0) },
+                            { Concepto: `Fletes en Ventas (${monedaBase})`, Monto: Number((res.total_fletes_ventas || 0).toFixed(2)), Cantidad: Number(res.cantidad_ventas || 0) },
+                            { Concepto: `Fletes en Compras (${monedaBase})`, Monto: Number((res.total_fletes_compras || 0).toFixed(2)), Cantidad: Number(res.cantidad_compras || 0) },
                         ],
                     },
                     {
@@ -1819,8 +1839,8 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                             Fecha: m.fecha,
                             Contraparte: m.contraparte,
                             RIF_Cedula: m.contraparte_doc || '',
-                            Monto_Flete_USD: Number(m.flete_monto || 0),
-                            Total_Operacion_USD: Number(m.total_operacion || 0),
+                            [`Monto_Flete_${monedaBase}`]: Number((m.flete_monto || 0).toFixed(2)),
+                            [`Total_Operacion_${monedaBase}`]: Number((m.total_operacion || 0).toFixed(2)),
                         })),
                     },
                 ],

@@ -3,6 +3,7 @@ import { verificarToken } from '@/utils/auth';
 import { withTransaction, executeInTx } from '@/utils/dbTransaction';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
 import { fechaHoraVenezuela } from '@/utils/helpers/formateoFecha.js';
+import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -298,12 +299,13 @@ export async function POST({ request }) {
 
             // ── 9. Registrar en bitácora ─────────────────────────────────
             const tipoTexto = tipo_resolucion === 'NOTA_CREDITO' ? 'Nota de crédito' : 'Reembolso en efectivo';
+            const mBaseDev = (venta?.tipo_documento === 'factura' && obtenerMonedaBase() === 'COP') ? 'BS' : obtenerMonedaBase();
             await registrarBitacoraEnTx(tx, {
                 usuario,
                 accion: ACCIONES.DEVOLUCION,
                 entidad: 'devoluciones',
                 entidadId: null,
-                detalle: `Devolución de Venta #${id_venta} · ${tipoTexto} · $${montoTotal.toFixed(4)} · ID: ${devolucionId}`,
+                detalle: `Devolución de Venta #${id_venta} · ${tipoTexto} · ${formatearMoneda(montoTotal, mBaseDev)} · ID: ${devolucionId}`,
             });
         });
 

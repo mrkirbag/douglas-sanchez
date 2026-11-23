@@ -35,6 +35,9 @@ export async function GET({ request, params }) {
                 v.fecha,
                 v.tipo_pago,
                 v.estado,
+                v.tipo_documento,
+                v.tasa_bcv,
+                v.tasa_cop,
                 cli.nombre AS nombre_cliente,
                 cli.cedula AS cedula_cliente,
                 cli.telefono AS telefono_cliente
@@ -87,7 +90,10 @@ export async function GET({ request, params }) {
                 fecha: ventaData.fecha,
                 monto_total: ventaData.total_usd,
                 tipo_pago: ventaData.tipo_pago,
-                estado: ventaData.estado
+                estado: ventaData.estado,
+                tipo_documento: ventaData.tipo_documento || 'nota_entrega',
+                tasa_bcv: Number(ventaData.tasa_bcv) || 0,
+                tasa_cop: Number(ventaData.tasa_cop) || 0,
             },
             productos: productosResult.rows
         };

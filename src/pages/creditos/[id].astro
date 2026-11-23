@@ -57,25 +57,25 @@ const { id } = Astro.params;
                 <span class="kpi-label">Monto total</span>
                 <div class="kpi-values">
                     <strong id="total"></strong>
-                    <span>USD</span>
+                    <span id="totalMoneda"></span>
                 </div>
-                <p class="kpi-cop"><span id="totalCOP"></span> COP</p>
+                <p class="kpi-cop"><span id="totalCOP"></span></p>
             </article>
             <article class="kpi-card kpi-card--abonado">
                 <span class="kpi-label">Saldo abonado</span>
                 <div class="kpi-values">
                     <strong id="abonado">0.00</strong>
-                    <span>USD</span>
+                    <span id="abonadoMoneda"></span>
                 </div>
-                <p class="kpi-cop"><span id="abonadoCOP">0</span> COP</p>
+                <p class="kpi-cop"><span id="abonadoCOP"></span></p>
             </article>
             <article class="kpi-card kpi-card--pendiente">
                 <span class="kpi-label">Saldo pendiente</span>
                 <div class="kpi-values">
                     <strong id="pendiente"></strong>
-                    <span>USD</span>
+                    <span id="pendienteMoneda"></span>
                 </div>
-                <p class="kpi-cop"><span id="pendienteCOP"></span> COP</p>
+                <p class="kpi-cop"><span id="pendienteCOP"></span></p>
             </article>
             <article class="kpi-card kpi-card--abonos">
                 <span class="kpi-label">Abonos registrados</span>
@@ -109,8 +109,8 @@ const { id } = Astro.params;
                     <p class="eyebrow">Productos</p>
                     <h2>Detalle facturado</h2>
                 </div>
-                <p class="table-caption">
-                    Valores expresados en USD y referencia en COP.
+                <p class="table-caption" id="tableCaption">
+                    Valores expresados en moneda principal y referencias.
                 </p>
             </div>
 
@@ -402,8 +402,14 @@ const { id } = Astro.params;
 <script>
     import { noRegistros } from "@/utils/helpers/mensajes.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
-    import { cambioUSDaCOP } from "@/utils/helpers/cambioMoneda.js";
-    import { formatearMoneda } from "@/utils/helpers/tasas.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import {
+        desgloseMontos,
+        etiquetaMoneda,
+        formatearDecimal,
+        formatearMoneda,
+        obtenerMonedaBase,
+    } from "@/utils/helpers/tasas.js";
     import { etiquetaPago } from "@/utils/helpers/metodosPago.js";
 
     interface Producto {
@@ -470,20 +476,44 @@ const { id } = Astro.params;
             (document.querySelector("#estado") as HTMLElement).textContent =
                 data.venta.estado.toUpperCase();
 
-            const tasa = await cambioUSDaCOP();
-            const montoTotal = Number(data.venta.monto_total);
+            const tasasActuales = await obtenerTasas();
+            const monedaBaseSistema = obtenerMonedaBase();
+            const esFactura = data.venta.tipo_documento === "factura";
+            const monedaVenta =
+                monedaBaseSistema === "COP" &&
+                esFactura &&
+                Number(data.venta.tasa_bcv) > 0
+                    ? "BS"
+                    : monedaBaseSistema;
+            const tasasVenta = {
+                cop: Number(data.venta.tasa_cop) || tasasActuales.cop || 0,
+                bs: Number(data.venta.tasa_bcv) || tasasActuales.bs || 0,
+                cop_a_bs: tasasActuales.cop_a_bs || 3,
+            };
+            const etiquetaMon = etiquetaMoneda(monedaVenta);
+            const tableCaption = document.querySelector("#tableCaption") as HTMLElement | null;
+            if (tableCaption) {
+                tableCaption.textContent = `Valores expresados en ${etiquetaMon} y referencias.`;
+            }
+
+            const montoTotal = Number(data.venta.monto_total) || 0;
+            const totalDesglose = desgloseMontos(montoTotal, monedaVenta, tasasVenta);
 
             (document.querySelector("#total") as HTMLElement).textContent =
-                montoTotal.toFixed(4);
+                formatearDecimal(montoTotal, 2, 2);
+            (document.querySelector("#totalMoneda") as HTMLElement).textContent =
+                etiquetaMon;
             (document.querySelector("#totalCOP") as HTMLElement).textContent =
-                Math.ceil(tasa * montoTotal).toString();
+                totalDesglose.secundarias || "—";
 
-            const saldoPendiente = Number(data.credito.saldo_pendiente);
+            const saldoPendiente = Number(data.credito.saldo_pendiente) || 0;
+            const pendienteDesglose = desgloseMontos(saldoPendiente, monedaVenta, tasasVenta);
             (document.querySelector("#pendiente") as HTMLElement).textContent =
-                saldoPendiente.toFixed(4);
-            (
-                document.querySelector("#pendienteCOP") as HTMLElement
-            ).textContent = Math.ceil(tasa * saldoPendiente).toString();
+                formatearDecimal(saldoPendiente, 2, 2);
+            (document.querySelector("#pendienteMoneda") as HTMLElement).textContent =
+                etiquetaMon;
+            (document.querySelector("#pendienteCOP") as HTMLElement).textContent =
+                pendienteDesglose.secundarias || "—";
 
             const dataProductos: Producto[] = data.productos;
             const tbody = document.querySelector(
@@ -491,14 +521,14 @@ const { id } = Astro.params;
             ) as HTMLTableSectionElement;
             dataProductos.forEach((p) => {
                 const tr = document.createElement("tr");
-                const subtotalPesos = Math.ceil(tasa * p.subtotal);
+                const subDesglose = desgloseMontos(Number(p.subtotal) || 0, monedaVenta, tasasVenta);
                 tr.innerHTML = `
                     <td data-label="Código">${p.codigo_producto.toUpperCase()}</td>
                     <td data-label="Producto">${p.nombre_producto.toUpperCase()}</td>
                     <td data-label="Cantidad">${p.cantidad}</td>
                     <td data-label="Subtotal">
-                        <span class="monto-usd">${p.subtotal.toFixed(4)} USD</span><br />
-                        <span class="monto-cop">${subtotalPesos} COP</span>
+                        <span class="monto-usd">${subDesglose.principal}</span><br />
+                        <span class="monto-cop">${subDesglose.secundarias}</span>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -506,6 +536,9 @@ const { id } = Astro.params;
 
             const totalAbonadoText = document.querySelector(
                 "#abonado",
+            ) as HTMLElement;
+            const totalAbonadoMonedaText = document.querySelector(
+                "#abonadoMoneda",
             ) as HTMLElement;
             const totalAbonadoCopText = document.querySelector(
                 "#abonadoCOP",
@@ -523,7 +556,7 @@ const { id } = Astro.params;
             const resAbonos = await fetch(`/api/abonos/${id}`);
             const dataAbonos: Abono[] = await resAbonos.json();
 
-            let totalAbonadoUsd = 0;
+            let totalAbonado = 0;
 
             if (resAbonos.status === 202) {
                 listaAbonosTbody.innerHTML = "";
@@ -536,9 +569,10 @@ const { id } = Astro.params;
                 abonosThead.style.display = "table-header-group";
 
                 dataAbonos.forEach((abono) => {
-                    totalAbonadoUsd += abono.monto;
+                    const montoBaseAbono = Number(abono.monto) || 0;
+                    totalAbonado += montoBaseAbono;
                     const fechaAbono = formatearFecha(abono.fecha);
-                    const montoCop = Math.ceil(tasa * abono.monto);
+                    const abonoDesglose = desgloseMontos(montoBaseAbono, monedaVenta, tasasVenta);
 
                     const metodoTexto =
                         abono.moneda && abono.metodo
@@ -550,7 +584,7 @@ const { id } = Astro.params;
                                   abono.monto_recibido,
                                   abono.moneda,
                               )
-                            : `${abono.monto.toFixed(4)} USD`;
+                            : abonoDesglose.principal;
 
                     const tr = document.createElement("tr");
                     tr.innerHTML = `
@@ -558,20 +592,20 @@ const { id } = Astro.params;
                         <td data-label="Método">${metodoTexto}</td>
                         <td data-label="Monto">
                             <span class="monto-usd">${recibidoTexto}</span><br />
-                            <span class="monto-cop">${abono.monto.toFixed(4)} USD · ${montoCop} COP</span>
+                            <span class="monto-cop">${abonoDesglose.principal}${abonoDesglose.secundarias ? ` · ${abonoDesglose.secundarias}` : ""}</span>
                         </td>
                     `;
                     listaAbonosTbody.appendChild(tr);
                 });
             }
 
-            totalAbonadoText.textContent = totalAbonadoUsd.toFixed(4);
-            totalAbonadoCopText.textContent = Math.ceil(
-                totalAbonadoUsd * tasa,
-            ).toString();
+            const abonadoDesglose = desgloseMontos(totalAbonado, monedaVenta, tasasVenta);
+            totalAbonadoText.textContent = formatearDecimal(totalAbonado, 2, 2);
+            if (totalAbonadoMonedaText) totalAbonadoMonedaText.textContent = etiquetaMon;
+            totalAbonadoCopText.textContent = abonadoDesglose.secundarias || "—";
             nroAbonos.textContent =
                 resAbonos.status === 202 ? "0" : dataAbonos.length.toString();
-            actualizarProgreso(montoTotal, totalAbonadoUsd);
+            actualizarProgreso(montoTotal, totalAbonado);
         } catch (error) {
             console.error("Error al cargar crédito:", error);
         }

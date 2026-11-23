@@ -834,10 +834,10 @@ if (usuario.rol !== "admin") {
 
             const totalMonto = desgloseMontos(totalFiscal, monedaBase, tasas);
             lblTotalCalculado.dataset.valor = totalFiscal.toString();
-            const fleteNotaHtml = fleteCompra > 0 ? ` · Flete (Ref. visual): $${fleteCompra.toFixed(4)}` : "";
+            const fleteNotaHtml = fleteCompra > 0 ? ` · Flete (Ref. visual): ${formatearMoneda(fleteCompra, monedaBase)}` : "";
             const desgloseFiscalHtml = esNotaEntrega
                 ? `<span style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.35rem;">Nota de Entrega (Sin IVA)${fleteNotaHtml}</span>`
-                : `<span style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.45rem;">Base: $${subtotalBase.toFixed(4)} · Exento: $${subtotalExento.toFixed(4)} · IVA (${ivaPorc}%): $${ivaMonto.toFixed(4)}${retMonto > 0 ? ` · Ret: -$${retMonto.toFixed(4)}` : ""}${fleteNotaHtml}</span>`;
+                : `<span style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.45rem;">Base: ${formatearMoneda(subtotalBase, monedaBase)} · Exento: ${formatearMoneda(subtotalExento, monedaBase)} · IVA (${ivaPorc}%): ${formatearMoneda(ivaMonto, monedaBase)}${retMonto > 0 ? ` · Ret: -${formatearMoneda(retMonto, monedaBase)}` : ""}${fleteNotaHtml}</span>`;
             lblTotalCalculado.innerHTML = `
                 <strong style="font-size: 1.75rem; color: var(--primary-color); line-height: 1;">${totalMonto.principal}</strong>
                 <span style="font-size: 1.05rem; color: var(--text-muted); font-weight: 500; margin-top: 0.35rem;">${totalMonto.secundarias}</span>

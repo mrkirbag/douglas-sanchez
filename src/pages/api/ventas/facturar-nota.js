@@ -5,7 +5,7 @@ import { insertarDetalleVenta, normalizarId } from '@/utils/ventaValidaciones';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
 import { fechaHoraVenezuela } from '@/utils/helpers/formateoFecha.js';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
-import { obtenerMonedaBase } from '@/utils/helpers/tasas.js';
+import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -184,12 +184,13 @@ export async function POST({ request }) {
             const etiquetaNe = `NE-${String(nota.nro_nota_entrega || 1).padStart(6, '0')}`;
             const etiquetaFact = `#${String(nroFactura).padStart(6, '0')}`;
 
+            const monedaBitacora = obtenerMonedaBase() === 'COP' ? 'BS' : 'USD';
             await registrarBitacoraEnTx(tx, {
                 usuario,
                 accion: ACCIONES.VENTA_CREAR,
                 entidad: 'ventas',
                 entidadId: facturaId,
-                detalle: `Facturación de Nota de Entrega ${etiquetaNe} → Factura Fiscal ${etiquetaFact} · Total: $${totalCalculado.toFixed(4)} (sin descuento de stock)`,
+                detalle: `Facturación de Nota de Entrega ${etiquetaNe} → Factura Fiscal ${etiquetaFact} · Total: ${formatearMoneda(totalCalculado, monedaBitacora)} (sin descuento de stock)`,
             });
 
             return {

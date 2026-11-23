@@ -375,7 +375,7 @@ export async function POST({ request }) {
                 accion: ACCIONES.CAJA_APERTURA,
                 entidad: 'cajas',
                 entidadId: nuevaCaja.id,
-                detalle: `Apertura de caja · Fondo USD $${montoUsd.toFixed(4)} · COP ${montoCop} · Bs ${montoBs.toFixed(4)}`,
+                detalle: `Apertura de caja · Fondo USD $${montoUsd.toFixed(2)} · COP ${montoCop} · Bs ${montoBs.toFixed(2)}`,
             });
 
             return new Response(
@@ -475,7 +475,7 @@ export async function POST({ request }) {
                 accion: ACCIONES.CAJA_CIERRE,
                 entidad: 'cajas',
                 entidadId: cajaActual.id,
-                detalle: `Cierre de caja · Reporte Z #${String(nroReporteZ).padStart(4, '0')} · Facturas: ${metricas.cantidad_facturas} · Total Bs ${metricas.total_facturado_bs.toFixed(4)} ($${metricas.total_facturado_usd.toFixed(4)})`,
+                detalle: `Cierre de caja · Reporte Z #${String(nroReporteZ).padStart(4, '0')} · Facturas: ${metricas.cantidad_facturas} · Total Bs ${metricas.total_facturado_bs.toFixed(2)} ($${metricas.total_facturado_usd.toFixed(2)})`,
             });
 
             return new Response(

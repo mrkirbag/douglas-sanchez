@@ -213,8 +213,9 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
     ) as HTMLSelectElement;
     const formulario = document.getElementById("formulario") as HTMLFormElement;
 
-    const monedaBase = obtenerMonedaBase();
-    let tasasActuales = { cop: 0, bs: 0 };
+    const monedaBaseSistema = obtenerMonedaBase();
+    let monedaBase = monedaBaseSistema;
+    let tasasActuales = { cop: 0, bs: 0, cop_a_bs: 3 };
     let saldoMaximo = 0;
 
     function rellenarMetodos() {
@@ -260,7 +261,7 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
         montoAbonoInput.placeholder =
             pagoMonedaSelect.value === "COP"
                 ? String(Math.round(sugerido) || 0)
-                : (sugerido || 0).toFixed(4);
+                : (sugerido || 0).toFixed(2);
 
         const linea = parsearLineaPago(
             {
@@ -289,6 +290,13 @@ const fechaCompleta = `${ano}-${mes}-${dia}`;
             const response = await fetch(`/api/creditos/${id}`);
             const data = await response.json();
             tasasActuales = await obtenerTasas();
+            const esFactura = data?.venta?.tipo_documento === "factura";
+            monedaBase =
+                monedaBaseSistema === "COP" &&
+                esFactura &&
+                Number(data?.venta?.tasa_bcv) > 0
+                    ? "BS"
+                    : monedaBaseSistema;
             saldoMaximo = Number(data.credito.saldo_pendiente);
             saldoPendiente.textContent = formatearMoneda(
                 saldoMaximo,

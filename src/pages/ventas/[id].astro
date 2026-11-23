@@ -13,7 +13,9 @@ const { id } = Astro.params;
 
 <Layout>
     <div class="btn-add_container actions-top">
-        <a class="btn-add" href="/ventas">Regresar</a>
+        <a class="btn-add" href="/ventas">
+            Regresar
+        </a>
     </div>
 
     <EmpresaEncabezado id="headerImp" documento="FACTURA DE VENTA" />
@@ -26,7 +28,9 @@ const { id } = Astro.params;
         ></div>
         <section class="datos-cliente" id="datosClienteImp">
             <article class="detail-card">
-                <span class="detail-label" id="lblNroDocumento">N° Factura</span>
+                <span class="detail-label" id="lblNroDocumento">
+                    N° Factura
+                </span>
                 <strong id="nroFactura">—</strong>
             </article>
             <article class="detail-card detail-card--wide">
@@ -58,7 +62,9 @@ const { id } = Astro.params;
         <section class="invoice-table-card">
             <div class="table-heading">
                 <div>
-                    <p class="eyebrow" id="eyebrowDetalleTabla">Productos</p>
+                    <p class="eyebrow" id="eyebrowDetalleTabla">
+                        Productos
+                    </p>
                     <h2 id="tituloDetalleTabla">Detalle de productos</h2>
                 </div>
             </div>
@@ -101,7 +107,9 @@ const { id } = Astro.params;
         </section>
 
         <section class="total-box" id="totalImp">
-            <p class="total-box_label" id="lblTituloTotalBox">Resumen de Factura</p>
+            <p class="total-box_label" id="lblTituloTotalBox">
+                Resumen de Factura
+            </p>
             <div class="fiscal-summary" id="fiscalSummaryBox">
                 <div class="fiscal-line">
                     <span>Base Imponible (G):</span>
@@ -112,7 +120,9 @@ const { id } = Astro.params;
                     <strong id="exentoTexto">0.00 Bs</strong>
                 </div>
                 <div class="fiscal-line">
-                    <span>IVA (<span id="ivaAlicuotaTexto">16</span>%):</span>
+                    <span>
+                        IVA (<span id="ivaAlicuotaTexto">16</span>%):
+                    </span>
                     <strong id="ivaMontoTexto">0.00 Bs</strong>
                 </div>
                 <div
@@ -120,32 +130,64 @@ const { id } = Astro.params;
                     id="lineaRetencion"
                     style="display:none; color:#b45309;"
                 >
-                    <span>(-) Retención IVA (<span id="retAlicuotaTexto">75</span>%):</span>
+                    <span>
+                        (-) Retención IVA (<span id="retAlicuotaTexto">75</span>
+                        %):
+                    </span>
                     <strong id="retMontoTexto">-0.00 Bs</strong>
                 </div>
             </div>
 
             <div class="total-box_values" id="totalBoxValues">
                 <div id="cardTotalBs" style="grid-column: 1 / -1;">
-                    <span class="total-box_caption" id="lblCardTotalBs">Total Factura</span>
+                    <span class="total-box_caption" id="lblCardTotalBs">
+                        Total Factura
+                    </span>
                     <strong id="totalBs">0.00 Bs</strong>
                 </div>
                 <div id="cardTotalDivisas" style="display: none;">
-                    <span class="total-box_caption" id="lblCardDivisas">Total Divisas (USD)</span>
+                    <span class="total-box_caption" id="lblCardDivisas">
+                        Total Divisas (USD)
+                    </span>
                     <strong id="totalDivisas">0.00 USD</strong>
                 </div>
                 <div id="cardTotalCop" style="display: none;">
-                    <span class="total-box_caption" id="lblCardCop">Total Pesos (COP)</span>
+                    <span class="total-box_caption" id="lblCardCop">
+                        Total Pesos (COP)
+                    </span>
                     <strong id="totalCOP">0 COP</strong>
                 </div>
-                <div id="cardFleteVenta" style="display: none; grid-column: 1 / -1; padding-top: 0.4rem; border-top: 1px dashed rgba(var(--secondary-rgb), 0.2);">
-                    <span class="total-box_caption">Flete (Referencia visual)</span>
-                    <strong id="lblFleteVenta" style="font-size: 0.98rem; color: #b45309;">$0.0000 USD</strong>
+                <div
+                    id="cardFleteVenta"
+                    style="display: none; grid-column: 1 / -1; padding-top: 0.4rem; border-top: 1px dashed rgba(var(--secondary-rgb), 0.2);"
+                >
+                    <span class="total-box_caption">
+                        Flete (Referencia visual)
+                    </span>
+                    <strong
+                        id="lblFleteVenta"
+                        style="font-size: 0.98rem; color: #b45309;"
+                    >
+                        $0.0000 USD
+                    </strong>
                 </div>
-                <div id="cardGananciaAprox" style="grid-column: 1 / -1; padding-top: 0.4rem; border-top: 1px dashed rgba(var(--secondary-rgb), 0.2);">
+                <div
+                    id="cardGananciaAprox"
+                    style="grid-column: 1 / -1; padding-top: 0.4rem; border-top: 1px dashed rgba(var(--secondary-rgb), 0.2);"
+                >
                     <span class="total-box_caption">Ganancia Aproximada</span>
-                    <strong id="lblGananciaAproxUsd" style="font-size: 1rem; color: #047857;">≈ $0.0000 USD</strong>
-                    <span id="lblGananciaAproxRef" style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">0.0000 Bs · 0 COP</span>
+                    <strong
+                        id="lblGananciaAproxUsd"
+                        style="font-size: 1rem; color: #047857;"
+                    >
+                        ≈ $0.0000 USD
+                    </strong>
+                    <span
+                        id="lblGananciaAproxRef"
+                        style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;"
+                    >
+                        0.0000 Bs · 0 COP
+                    </span>
                 </div>
             </div>
         </section>
@@ -153,10 +195,14 @@ const { id } = Astro.params;
 
     <div class="actions-bottom">
         <div class="btn-add_container">
-            <a class="btn-add" id="imprimir">Imprimir Factura (Carta)</a>
+            <a class="btn-add" id="imprimir">
+                Imprimir Factura (Carta)
+            </a>
         </div>
         <div class="btn-add_container btn-termica">
-            <a class="btn-add" id="imprimirTermica">Ticket 58mm</a>
+            <a class="btn-add" id="imprimirTermica">
+                Ticket 58mm
+            </a>
         </div>
     </div>
 
@@ -370,8 +416,10 @@ const { id } = Astro.params;
     import { imprimirDocumentoVenta } from "@/utils/helpers/imprimirVenta.js";
     import {
         formatearMoneda,
+        obtenerMonedaBase,
         redondearBS,
         redondearCOP,
+        redondearUSD,
     } from "@/utils/helpers/tasas.js";
     import { etiquetaPago } from "@/utils/helpers/metodosPago.js";
 
@@ -511,7 +559,9 @@ const { id } = Astro.params;
             ) as HTMLElement;
             const btnImpEl = document.querySelector("#imprimir") as HTMLElement;
 
-            const avisoNoFiscal = document.querySelector("#avisoNoFiscal") as HTMLElement | null;
+            const avisoNoFiscal = document.querySelector(
+                "#avisoNoFiscal",
+            ) as HTMLElement | null;
 
             if (esNotaEntrega) {
                 if (avisoNoFiscal) {
@@ -531,30 +581,26 @@ const { id } = Astro.params;
                     const docTitle = headerImp.querySelector(
                         ".empresa-documento, h2, strong",
                     );
-                    if (docTitle)
-                        docTitle.textContent = "NOTA DE ENTREGA";
+                    if (docTitle) docTitle.textContent = "NOTA DE ENTREGA";
                 }
                 if (eyebrowDetalleTabla)
                     eyebrowDetalleTabla.textContent = "Nota de Entrega";
                 if (tituloDetalleTabla)
-                    tituloDetalleTabla.textContent =
-                        "Detalle de Productos";
+                    tituloDetalleTabla.textContent = "Detalle de Productos";
                 if (thDetalleUnit)
                     thDetalleUnit.textContent = "Precio Unitario";
-                if (thDetalleSub)
-                    thDetalleSub.textContent = "Subtotal";
+                if (thDetalleSub) thDetalleSub.textContent = "Subtotal";
                 if (lblTituloTotalBox)
-                    lblTituloTotalBox.textContent =
-                        "Total Nota de Entrega";
+                    lblTituloTotalBox.textContent = "Total Nota de Entrega";
                 if (fiscalSummaryBox) fiscalSummaryBox.style.display = "none";
                 if (cardTotalBs) cardTotalBs.style.display = "none";
                 if (cardTotalDivisas) cardTotalDivisas.style.display = "block";
                 if (cardTotalCop) cardTotalCop.style.display = "block";
                 if (lblCardDivisas)
                     lblCardDivisas.textContent = "Total Divisas (USD)";
-                if (lblCardCop)
-                    lblCardCop.textContent = "Total Pesos (COP)";
-                if (btnImpEl) btnImpEl.textContent = "Imprimir Nota de Entrega (Carta)";
+                if (lblCardCop) lblCardCop.textContent = "Total Pesos (COP)";
+                if (btnImpEl)
+                    btnImpEl.textContent = "Imprimir Nota de Entrega (Carta)";
             } else {
                 if (avisoNoFiscal && data.venta.nota_entrega_origen_id) {
                     avisoNoFiscal.hidden = false;
@@ -563,8 +609,7 @@ const { id } = Astro.params;
                     avisoNoFiscal.style.color = "#1e40af";
                     avisoNoFiscal.innerHTML = `FACTURA FISCAL GENERADA DESDE NOTA DE ENTREGA · <a href="/ventas/${data.venta.nota_entrega_origen_id}" style="color:#1d4ed8; text-decoration:underline;">Ver Nota de Entrega de origen ↗</a>`;
                 }
-                if (lblNroDocumento)
-                    lblNroDocumento.textContent = "N° Factura";
+                if (lblNroDocumento) lblNroDocumento.textContent = "N° Factura";
                 nroFacturaEl.textContent = data.venta.nro_factura
                     ? `#${String(data.venta.nro_factura).padStart(6, "0")}`
                     : `#${String(id).slice(0, 8).toUpperCase()}`;
@@ -589,39 +634,84 @@ const { id } = Astro.params;
                 estado.style.color = "#9f1f1f";
             }
 
-            const subtotalBaseUsd = Number(data.venta.subtotal_base) || 0;
-            const subtotalExentoUsd = Number(data.venta.subtotal_exento) || 0;
-            const ivaPorc = Number(data.venta.iva_porcentaje ?? 16);
-            const ivaUsd = Number(data.venta.iva_monto) || 0;
-            const retPorc = Number(data.venta.retencion_iva_porcentaje) || 0;
-            const retUsd = Number(data.venta.retencion_iva_monto) || 0;
-            const montoTotalUsd = Number(data.venta.monto_total) || 0;
-            const totalDivisasUsd =
-                Number(data.venta.total_divisas) || montoTotalUsd;
+            const esBaseCop = obtenerMonedaBase() === "COP";
+            const copABs = 3;
 
-            const baseBs = redondearBS(subtotalBaseUsd * tasaBcv);
-            const exentoBs = redondearBS(subtotalExentoUsd * tasaBcv);
-            const ivaBs = redondearBS(ivaUsd * tasaBcv);
-            const retBs = redondearBS(retUsd * tasaBcv);
-            const totalLegalBs = redondearBS(montoTotalUsd * tasaBcv);
-            const totalRefCop = redondearCOP(totalDivisasUsd * tasaCop);
+            const subtotalBaseVal = Number(data.venta.subtotal_base) || 0;
+            const subtotalExentoVal = Number(data.venta.subtotal_exento) || 0;
+            const ivaPorc = Number(data.venta.iva_porcentaje ?? 16);
+            const ivaVal = Number(data.venta.iva_monto) || 0;
+            const retPorc = Number(data.venta.retencion_iva_porcentaje) || 0;
+            const retVal = Number(data.venta.retencion_iva_monto) || 0;
+            const montoTotalVal = Number(data.venta.monto_total) || 0;
+            const totalDivisasVal =
+                Number(data.venta.total_divisas) || montoTotalVal;
+
+            const baseBs = esBaseCop
+                ? redondearBS(subtotalBaseVal)
+                : redondearBS(subtotalBaseVal * tasaBcv);
+            const exentoBs = esBaseCop
+                ? redondearBS(subtotalExentoVal)
+                : redondearBS(subtotalExentoVal * tasaBcv);
+            const ivaBs = esBaseCop
+                ? redondearBS(ivaVal)
+                : redondearBS(ivaVal * tasaBcv);
+            const retBs = esBaseCop
+                ? redondearBS(retVal)
+                : redondearBS(retVal * tasaBcv);
+            const totalLegalBs = esBaseCop
+                ? redondearBS(montoTotalVal)
+                : redondearBS(montoTotalVal * tasaBcv);
+
+            let totalRefCop = 0;
+            let totalDivisasUsd = 0;
+            if (esBaseCop) {
+                if (esNotaEntrega) {
+                    totalRefCop = redondearCOP(totalDivisasVal);
+                    totalDivisasUsd =
+                        tasaCop > 0 ? redondearUSD(totalRefCop / tasaCop) : 0;
+                } else if (Number(data.venta.total_divisas) > 0) {
+                    if (
+                        totalDivisasVal >= totalLegalBs ||
+                        (totalDivisasVal > 1000 &&
+                            totalLegalBs > 0 &&
+                            totalDivisasVal / totalLegalBs > 0.5)
+                    ) {
+                        totalRefCop = redondearCOP(totalDivisasVal);
+                        totalDivisasUsd =
+                            tasaCop > 0
+                                ? redondearUSD(totalRefCop / tasaCop)
+                                : 0;
+                    } else {
+                        totalDivisasUsd = redondearUSD(totalDivisasVal);
+                        totalRefCop = redondearCOP(totalDivisasUsd * tasaCop);
+                    }
+                } else {
+                    totalRefCop = redondearCOP(totalLegalBs * copABs);
+                    totalDivisasUsd =
+                        tasaCop > 0 ? redondearUSD(totalRefCop / tasaCop) : 0;
+                }
+            } else {
+                totalDivisasUsd = redondearUSD(totalDivisasVal);
+                totalRefCop = redondearCOP(totalDivisasUsd * tasaCop);
+            }
 
             if (!esNotaEntrega) {
-                baseImponibleTexto.textContent = `${baseBs.toFixed(4)} Bs`;
-                if (subtotalExentoUsd > 0) {
+                baseImponibleTexto.textContent = formatearMoneda(baseBs, "BS");
+                if (subtotalExentoVal > 0) {
                     lineaExento.style.display = "flex";
-                    exentoTexto.textContent = `${exentoBs.toFixed(4)} Bs`;
+                    exentoTexto.textContent = formatearMoneda(exentoBs, "BS");
                 }
                 ivaAlicuotaTexto.textContent = String(ivaPorc);
-                ivaMontoTexto.textContent = `${ivaBs.toFixed(4)} Bs`;
+                ivaMontoTexto.textContent = formatearMoneda(ivaBs, "BS");
 
-                if (retUsd > 0) {
+                if (retVal > 0) {
                     lineaRetencion.style.display = "flex";
                     retAlicuotaTexto.textContent = String(retPorc);
                     const compTxt = data.venta.comprobante_retencion
                         ? ` [Comp: ${data.venta.comprobante_retencion}]`
                         : "";
-                    retMontoTexto.textContent = `-${retBs.toFixed(4)} Bs${compTxt}`;
+                    retMontoTexto.textContent = `-${formatearMoneda(retBs, "BS")}${compTxt}`;
                 }
             }
 
@@ -630,25 +720,43 @@ const { id } = Astro.params;
             const lblFleteVenta = document.getElementById("lblFleteVenta");
             if (fleteVentaVal > 0 && cardFleteVenta && lblFleteVenta) {
                 cardFleteVenta.style.display = "grid";
-                lblFleteVenta.textContent = `$${fleteVentaVal.toFixed(4)} USD`;
+                lblFleteVenta.textContent = esBaseCop
+                    ? formatearMoneda(fleteVentaVal, "COP")
+                    : formatearMoneda(fleteVentaVal, "USD");
             }
 
-            const gananciaUsd = Number(data.venta.ganancia_aproximada) || 0;
-            const gananciaBs = redondearBS(gananciaUsd * tasaBcv);
-            const gananciaCop = Math.round(gananciaUsd * tasaCop);
-            const lblGananciaUsd = document.getElementById("lblGananciaAproxUsd");
-            const lblGananciaRef = document.getElementById("lblGananciaAproxRef");
+            const ganRaw = Number(data.venta.ganancia_aproximada) || 0;
+            const gananciaCop = esBaseCop
+                ? Math.round(esNotaEntrega ? ganRaw : ganRaw * copABs)
+                : Math.round(ganRaw * tasaCop);
+            const gananciaUsd =
+                tasaCop > 0 ? redondearUSD(gananciaCop / tasaCop) : 0;
+            const gananciaBs = esBaseCop
+                ? redondearBS(esNotaEntrega ? ganRaw / copABs : ganRaw)
+                : redondearBS(ganRaw * tasaBcv);
+            const lblGananciaUsd = document.getElementById(
+                "lblGananciaAproxUsd",
+            );
+            const lblGananciaRef = document.getElementById(
+                "lblGananciaAproxRef",
+            );
             if (lblGananciaUsd) {
-                lblGananciaUsd.textContent = `≈ $${gananciaUsd.toFixed(4)} USD`;
-                lblGananciaUsd.style.color = gananciaUsd < 0 ? "#b91c1c" : "#047857";
+                lblGananciaUsd.textContent = esBaseCop
+                    ? `≈ ${formatearMoneda(gananciaCop, "COP")}`
+                    : `≈ ${formatearMoneda(gananciaUsd, "USD")}`;
+                lblGananciaUsd.style.color =
+                    gananciaCop < 0 ? "#b91c1c" : "#047857";
             }
             if (lblGananciaRef) {
-                lblGananciaRef.textContent = `${gananciaBs.toFixed(4)} Bs · ${gananciaCop.toLocaleString("es-CO")} COP`;
+                lblGananciaRef.textContent = `${formatearMoneda(gananciaUsd, "USD")} · ${formatearMoneda(gananciaBs, "BS")}`;
             }
 
-            totalBsEl.textContent = `${totalLegalBs.toFixed(4)} Bs`;
-            totalDivisasEl.textContent = `$${totalDivisasUsd.toFixed(4)} USD`;
-            totalCOP.textContent = `${totalRefCop.toLocaleString("es-CO")} COP`;
+            totalBsEl.textContent = formatearMoneda(totalLegalBs, "BS");
+            totalDivisasEl.textContent = formatearMoneda(
+                totalDivisasUsd,
+                "USD",
+            );
+            totalCOP.textContent = formatearMoneda(totalRefCop, "COP");
 
             listaProductos.innerHTML = "";
 
@@ -656,19 +764,33 @@ const { id } = Astro.params;
 
             dataProductos.forEach((p) => {
                 const row = document.createElement("tr");
-                const pUnitBcvUsd = Number(p.precio_unitario) || 0;
-                const pUnitBcvBs = redondearBS(pUnitBcvUsd * tasaBcv);
-                const pUnitDivUsd =
+                const pUnitVal = Number(p.precio_unitario) || 0;
+                const subVal = Number(p.subtotal) || 0;
+                const pUnitBcvBs = esBaseCop
+                    ? redondearBS(pUnitVal)
+                    : redondearBS(pUnitVal * tasaBcv);
+                const subBaseBs = esBaseCop
+                    ? redondearBS(subVal)
+                    : redondearBS(subVal * tasaBcv);
+
+                const pUnitDivRaw =
                     Number(p.precio_divisas) > 0
                         ? Number(p.precio_divisas)
-                        : pUnitBcvUsd;
-                const pUnitCop = redondearCOP(pUnitDivUsd * tasaCop);
-
-                const subBaseUsd = Number(p.subtotal) || 0;
-                const subBaseBs = redondearBS(subBaseUsd * tasaBcv);
-                const subDivCop = redondearCOP(
-                    pUnitDivUsd * Number(p.cantidad) * tasaCop,
-                );
+                        : pUnitVal;
+                const pUnitCop = esBaseCop
+                    ? redondearCOP(pUnitDivRaw)
+                    : redondearCOP(pUnitDivRaw * tasaCop);
+                const pUnitDivUsd = esBaseCop
+                    ? tasaCop > 0
+                        ? redondearUSD(pUnitCop / tasaCop)
+                        : 0
+                    : redondearUSD(pUnitDivRaw);
+                const subDivCop = redondearCOP(pUnitCop * Number(p.cantidad));
+                const subDivUsd = esBaseCop
+                    ? tasaCop > 0
+                        ? redondearUSD(subDivCop / tasaCop)
+                        : 0
+                    : redondearUSD(pUnitDivRaw * Number(p.cantidad));
                 const esExento = Boolean(Number(p.exento_iva));
 
                 let serialesHTML = "";
@@ -688,15 +810,15 @@ const { id } = Astro.params;
                             ${serialesHTML}
                         </td>
                         <td data-label="Precio Unitario">
-                            <strong>$${pUnitDivUsd.toFixed(4)} USD</strong>
+                            <strong>${formatearMoneda(pUnitCop, "COP")}</strong>
                             <br />
-                            <span style="font-size:0.78rem; color:var(--text-muted);">${pUnitCop.toLocaleString("es-CO")} COP</span>
+                            <span style="font-size:0.78rem; color:var(--text-muted);">${formatearMoneda(pUnitDivUsd, "USD")}</span>
                         </td>
                         <td data-label="Cantidad">${p.cantidad}</td>
                         <td data-label="Subtotal">
-                            <strong>$${(pUnitDivUsd * Number(p.cantidad)).toFixed(4)} USD</strong>
+                            <strong>${formatearMoneda(subDivCop, "COP")}</strong>
                             <br />
-                            <span style="font-size:0.78rem; color:var(--text-muted);">${subDivCop.toLocaleString("es-CO")} COP</span>
+                            <span style="font-size:0.78rem; color:var(--text-muted);">${formatearMoneda(subDivUsd, "USD")}</span>
                         </td>
                     `;
                 } else {
@@ -707,11 +829,11 @@ const { id } = Astro.params;
                             ${serialesHTML}
                         </td>
                         <td data-label="Precio Unitario">
-                            <strong>${pUnitBcvBs.toFixed(4)} Bs</strong>
+                            <strong>${formatearMoneda(pUnitBcvBs, "BS")}</strong>
                         </td>
                         <td data-label="Cantidad">${p.cantidad}</td>
                         <td data-label="Subtotal">
-                            <strong>${subBaseBs.toFixed(4)} Bs</strong>
+                            <strong>${formatearMoneda(subBaseBs, "BS")}</strong>
                         </td>
                     `;
                 }
@@ -770,6 +892,8 @@ const { id } = Astro.params;
         };
 
         btnImprimir?.addEventListener("click", () => lanzarImpresion("carta"));
-        btnImprimirTermica?.addEventListener("click", () => lanzarImpresion("termica58"));
+        btnImprimirTermica?.addEventListener("click", () =>
+            lanzarImpresion("termica58"),
+        );
     });
 </script>

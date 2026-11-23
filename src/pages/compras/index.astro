@@ -107,11 +107,14 @@ if (usuario.rol !== "admin") {
 <script>
     // @ts-nocheck
     import { noRegistros, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
-    import { cambioUSDaCOP } from "@/utils/helpers/cambioMoneda.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { convertirAMonedaBase, desgloseMontos, formatearMoneda, obtenerMonedaBase } from "@/utils/helpers/tasas.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
     import { descargarExcel } from "@/utils/helpers/exportarExcel.js";
 
     let comprasCargadas = [];
+    let tasasActuales = { cop: 0, bs: 0, cop_a_bs: 3 };
+    const monedaBase = obtenerMonedaBase();
 
     document.addEventListener("DOMContentLoaded", () => {
         const thead = document.getElementById("thead");
@@ -133,7 +136,7 @@ if (usuario.rol !== "admin") {
 
                 const datos = await respuesta.json();
                 comprasCargadas = Array.isArray(datos) ? datos : [];
-                const tasaCambio = await cambioUSDaCOP();
+                tasasActuales = await obtenerTasas();
 
                 thead.style.display = "table-header-group";
 
@@ -153,25 +156,27 @@ if (usuario.rol !== "admin") {
                         ? `<br/><strong>Fact: ${compra.nro_factura}</strong>${compra.nro_control ? ` <small>(Ctrl: ${compra.nro_control})</small>` : ""}`
                         : "";
                     const rifInfo = compra.proveedor_rif ? `<br/><small>RIF: ${compra.proveedor_rif}</small>` : "";
-                    const ivaUsd = Number(compra.iva_monto) || 0;
-                    const retUsd = Number(compra.retencion_iva_monto) || 0;
+                    const ivaVal = Number(compra.iva_monto) || 0;
+                    const retVal = Number(compra.retencion_iva_monto) || 0;
                     const ivaHtml = esNota
                         ? `<small>Sin IVA</small>`
-                        : `<strong>$${ivaUsd.toFixed(4)}</strong>${retUsd > 0 ? `<br/><small style="color:#b45309;">Ret: -$${retUsd.toFixed(4)}</small>` : ""}`;
-                    const totalUsd = Number(compra.monto_total) || 0;
+                        : `<strong>${formatearMoneda(ivaVal, monedaBase)}</strong>${retVal > 0 ? `<br/><small style="color:#b45309;">Ret: -${formatearMoneda(retVal, monedaBase)}</small>` : ""}`;
+                    const totalVal = Number(compra.monto_total) || 0;
                     const tasaBcv = Number(compra.tasa_bcv) || 0;
-                    const totalSecHtml = (!esNota && tasaBcv > 0)
-                        ? `${(totalUsd * tasaBcv).toFixed(4)} Bs (BCV)`
-                        : `${Math.ceil(totalUsd * tasaCambio).toLocaleString("es-CO")} COP`;
+                    const tasasCompra = {
+                        ...tasasActuales,
+                        bs: tasaBcv > 0 ? tasaBcv : tasasActuales.bs,
+                    };
+                    const totalDesglose = desgloseMontos(totalVal, monedaBase, tasasCompra);
 
                     fila.innerHTML = `
                         <td data-label="Fecha / Doc">${badge}${creditoBadge}<br/>${formatearFecha(compra.fecha)}${docInfo}</td>
                         <td data-label="Proveedor"><strong>${compra.proveedor.toUpperCase()}</strong>${rifInfo}</td>
                         <td data-label="IVA Crédito">${ivaHtml}</td>
                         <td data-label="Monto Total">
-                            <strong>$${totalUsd.toFixed(4)} USD</strong>
+                            <strong>${totalDesglose.principal}</strong>
                             <br />
-                            <small>${totalSecHtml}</small>
+                            <small>${totalDesglose.secundarias}</small>
                         </td>
                     `;
 
@@ -328,7 +333,10 @@ if (usuario.rol !== "admin") {
                             filas: comprasCargadas.map((c) => {
                                 const esNota = c.tipo_documento === "nota_entrega";
                                 const tBcv = Number(c.tasa_bcv) || 0;
+                                const tasasC = { ...tasasActuales, bs: tBcv > 0 ? tBcv : tasasActuales.bs };
                                 const total = Number(c.monto_total) || 0;
+                                const totalUsd = convertirAMonedaBase(total, monedaBase, "USD", tasasC);
+                                const totalBs = convertirAMonedaBase(total, monedaBase, "BS", tasasC);
                                 return {
                                     Fecha: c.fecha,
                                     Tipo_Documento: esNota ? "NOTA ENTREGA" : "FACTURA FISCAL",
@@ -337,12 +345,14 @@ if (usuario.rol !== "admin") {
                                     Proveedor: String(c.proveedor || "").toUpperCase(),
                                     RIF: c.proveedor_rif || "",
                                     Tasa_BCV: tBcv,
-                                    Base_Imponible_USD: Number((Number(c.subtotal_base) || 0).toFixed(4)),
-                                    Exento_USD: Number((Number(c.subtotal_exento) || 0).toFixed(4)),
-                                    IVA_Credito_USD: Number((Number(c.iva_monto) || 0).toFixed(4)),
-                                    Retencion_IVA_USD: Number((Number(c.retencion_iva_monto) || 0).toFixed(4)),
-                                    Total_USD: Number(total.toFixed(4)),
-                                    Total_Bs_BCV: tBcv > 0 ? Number((total * tBcv).toFixed(4)) : 0,
+                                    Base_Imponible: Number((Number(c.subtotal_base) || 0).toFixed(2)),
+                                    Exento: Number((Number(c.subtotal_exento) || 0).toFixed(2)),
+                                    IVA_Credito: Number((Number(c.iva_monto) || 0).toFixed(2)),
+                                    Retencion_IVA: Number((Number(c.retencion_iva_monto) || 0).toFixed(2)),
+                                    Total_Principal: Number(total.toFixed(2)),
+                                    Moneda: monedaBase,
+                                    Ref_USD: Number(totalUsd.toFixed(2)),
+                                    Ref_Bs: Number(totalBs.toFixed(2)),
                                 };
                             }),
                         },

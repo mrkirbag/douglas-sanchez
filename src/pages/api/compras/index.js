@@ -3,6 +3,7 @@ import { verificarToken } from '@/utils/auth';
 import { withTransaction, executeInTx } from '@/utils/dbTransaction';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
+import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -299,12 +300,13 @@ export async function POST({ request }) {
             }
 
             // Bitacora
+            const mBaseCompra = obtenerMonedaBase();
             await registrarBitacoraEnTx(tx, {
                 usuario,
                 accion: 'REGISTRAR',
                 entidad: 'compras',
                 entidadId: idCompra,
-                detalle: `${esNotaEntrega ? 'Nota de Entrega' : `Factura #${nro_factura}`} · Proveedor: ${proveedor}${proveedor_rif ? ` (${proveedor_rif})` : ''} · Total: $${monto_total.toFixed(4)} · IVA: $${ivaMonto.toFixed(4)}`
+                detalle: `${esNotaEntrega ? 'Nota de Entrega' : `Factura #${nro_factura}`} · Proveedor: ${proveedor}${proveedor_rif ? ` (${proveedor_rif})` : ''} · Total: ${formatearMoneda(monto_total, mBaseCompra)} · IVA: ${formatearMoneda(ivaMonto, mBaseCompra)}`
             });
 
         });

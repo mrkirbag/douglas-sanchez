@@ -4,6 +4,7 @@ import { withTransaction, executeInTx } from '@/utils/dbTransaction';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
 import { fechaHoraVenezuela } from '@/utils/helpers/formateoFecha.js';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
+import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 import xlsx from 'xlsx';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
@@ -335,7 +336,7 @@ export async function POST({ request }) {
                 accion: ACCIONES.CARGA_MASIVA,
                 entidad: 'compras',
                 entidadId: idCompra,
-                detalle: `Excel ${esNotaEntrega ? 'Nota Entrega' : `Factura #${nroFactura}`} · ${proveedor} · ${itemsParseados.length} ítems (${productosNuevos} nuevos, ${productosActualizados} act.) · Total $${montoTotal.toFixed(4)}`,
+                detalle: `Excel ${esNotaEntrega ? 'Nota Entrega' : `Factura #${nroFactura}`} · ${proveedor} · ${itemsParseados.length} ítems (${productosNuevos} nuevos, ${productosActualizados} act.) · Total ${formatearMoneda(montoTotal, obtenerMonedaBase())}`,
             });
 
             return {

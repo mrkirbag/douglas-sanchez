@@ -173,6 +173,11 @@ const { id } = Astro.params;
 <script>
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
     import { noRegistros, mostrarError, mostrarMensaje } from "@/utils/helpers/mensajes.js";
+    import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
+    import { desgloseMontos, formatearMoneda, obtenerMonedaBase } from "@/utils/helpers/tasas.js";
+
+    const monedaBase = obtenerMonedaBase();
+    let tasasActuales = { cop: 0, bs: 0, cop_a_bs: 3 };
 
     document.addEventListener("DOMContentLoaded", async () => {
         const idCompra = window.location.pathname.split("/").pop() as string;
@@ -225,7 +230,14 @@ const { id } = Astro.params;
             compraActual = compra;
             const esNota = compra.tipo_documento === "nota_entrega";
             const tasaBcv = Number(compra.tasa_bcv) || 0;
-            const fmtBcv = (usd: number) => tasaBcv > 0 ? `$${usd.toFixed(4)} USD (${(usd * tasaBcv).toFixed(4)} Bs)` : `$${usd.toFixed(4)} USD`;
+            const tasasCompra = {
+                ...tasasActuales,
+                bs: tasaBcv > 0 ? tasaBcv : tasasActuales.bs,
+            };
+            const fmtMonto = (val: number) => {
+                const d = desgloseMontos(val, monedaBase, tasasCompra);
+                return d.secundarias ? `${d.principal} (${d.secundarias})` : d.principal;
+            };
 
             document.getElementById("infoCompra")!.style.display = "block";
             btnAbrirEditar.style.display = "inline-flex";
@@ -236,23 +248,23 @@ const { id } = Astro.params;
             document.getElementById("lblProveedor")!.textContent = compra.proveedor;
             document.getElementById("lblRif")!.textContent = compra.proveedor_rif || "—";
             document.getElementById("lblControl")!.textContent = compra.nro_control || "—";
-            document.getElementById("lblBase")!.textContent = fmtBcv(Number(compra.subtotal_base) || 0);
-            document.getElementById("lblExento")!.textContent = fmtBcv(Number(compra.subtotal_exento) || 0);
+            document.getElementById("lblBase")!.textContent = fmtMonto(Number(compra.subtotal_base) || 0);
+            document.getElementById("lblExento")!.textContent = fmtMonto(Number(compra.subtotal_exento) || 0);
             document.getElementById("lblIva")!.textContent = esNota
                 ? "0.00 (Sin IVA)"
-                : `${fmtBcv(Number(compra.iva_monto) || 0)} (${compra.iva_porcentaje ?? 16}%)`;
+                : `${fmtMonto(Number(compra.iva_monto) || 0)} (${compra.iva_porcentaje ?? 16}%)`;
             document.getElementById("lblRetencion")!.textContent = Number(compra.retencion_iva_monto) > 0
-                ? `-${fmtBcv(Number(compra.retencion_iva_monto))}${compra.comprobante_retencion ? ` [Comp: ${compra.comprobante_retencion}]` : ""}`
+                ? `-${fmtMonto(Number(compra.retencion_iva_monto))}${compra.comprobante_retencion ? ` [Comp: ${compra.comprobante_retencion}]` : ""}`
                 : "0.00";
             document.getElementById("lblFlete")!.textContent = Number(compra.flete_monto) > 0
-                ? `$${Number(compra.flete_monto).toFixed(4)} USD`
+                ? formatearMoneda(Number(compra.flete_monto), monedaBase)
                 : "0.00";
             document.getElementById("lblCondicion")!.textContent = compra.tipo_pago === "credito"
                 ? (compra.estado_pago === "pendiente"
-                    ? `A Crédito (Pendiente: $${Math.max(0, Number(compra.monto_total) - Number(compra.monto_abonado)).toFixed(4)})`
+                    ? `A Crédito (Pendiente: ${formatearMoneda(Math.max(0, Number(compra.monto_total) - Number(compra.monto_abonado)), monedaBase)})`
                     : "A Crédito (Pagada)")
                 : "Contado (Pagada)";
-            document.getElementById("lblMonto")!.textContent = fmtBcv(Number(compra.monto_total) || 0);
+            document.getElementById("lblMonto")!.textContent = fmtMonto(Number(compra.monto_total) || 0);
         }
 
         btnAbrirEditar.addEventListener("click", () => {
@@ -307,7 +319,11 @@ const { id } = Astro.params;
         });
 
         try {
-            const respuesta = await fetch(`/api/compras/${idCompra}`);
+            const [respuesta, tasasRes] = await Promise.all([
+                fetch(`/api/compras/${idCompra}`),
+                obtenerTasas(),
+            ]);
+            tasasActuales = tasasRes;
 
             if (respuesta.status === 204) {
                 noRegistros("Compra no encontrada");
@@ -339,9 +355,9 @@ const { id } = Astro.params;
                     tr.innerHTML = `
                         <td>${d.codigo_producto}</td>
                         <td>${d.nombre_producto}</td>
-                        <td>${Number(d.costo).toFixed(4)}</td>
+                        <td>${formatearMoneda(Number(d.costo) || 0, monedaBase)}</td>
                         <td>${d.cantidad}</td>
-                        <td>${Number(d.subtotal).toFixed(4)}</td>
+                        <td>${formatearMoneda(Number(d.subtotal) || 0, monedaBase)}</td>
                         <td>${serialesHtml}</td>
                     `;
                     lista.appendChild(tr);

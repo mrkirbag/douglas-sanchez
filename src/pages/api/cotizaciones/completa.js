@@ -11,6 +11,7 @@ import {
 } from '@/utils/cotizacionValidaciones';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
+import { formatearMoneda } from '@/utils/helpers/tasas.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -106,7 +107,7 @@ export async function POST({ request }) {
                 accion: ACCIONES.COTIZACION,
                 entidad: 'cotizaciones',
                 entidadId: idCotizacion,
-                detalle: `Cotización #${idCotizacion} · ${nombre} · total ${totalCalculado}`,
+                detalle: `Cotización #${idCotizacion} · ${nombre} · total ${formatearMoneda(totalCalculado, moneda)}`,
             });
 
             return idCotizacion;

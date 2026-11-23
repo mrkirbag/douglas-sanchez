@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { verificarToken } from '@/utils/auth';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
+import { obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -27,7 +28,8 @@ export async function GET({ request }) {
     try {
         await ensureFiscalSchema(db);
 
-        const [ventasRes, comprasRes] = await Promise.all([
+        const [tasaRes, ventasRes, comprasRes] = await Promise.all([
+            db.execute('SELECT cop_a_bs FROM tasa WHERE id = 1'),
             db.execute({
                 sql: `
                     SELECT
@@ -74,11 +76,15 @@ export async function GET({ request }) {
             }),
         ]);
 
+        const copABs = Number(tasaRes.rows?.[0]?.cop_a_bs) || 3;
+        const esBaseCop = obtenerMonedaBase() === 'COP';
+
         const ventasMovs = (ventasRes.rows || []).map((r) => {
             const esNota = r.tipo_documento === 'nota_entrega';
             const nroDoc = esNota
                 ? (r.nro_nota_entrega ? `NE-${String(r.nro_nota_entrega).padStart(6, '0')}` : 'Nota Entrega')
                 : (r.nro_factura ? `FAC-${String(r.nro_factura).padStart(6, '0')}` : 'Factura');
+            const factor = esBaseCop && !esNota ? copABs : 1;
             return {
                 origen: 'Venta',
                 id_transaccion: r.id,
@@ -88,8 +94,8 @@ export async function GET({ request }) {
                 contraparte_doc: r.contraparte_doc,
                 tipo_pago: r.tipo_pago || 'contado',
                 estado: r.estado || 'completado',
-                flete_monto: +(Number(r.flete_monto || 0).toFixed(4)),
-                total_operacion: +(Number(r.total_operacion || 0).toFixed(4)),
+                flete_monto: +((Number(r.flete_monto || 0) * factor).toFixed(2)),
+                total_operacion: +((Number(r.total_operacion || 0) * factor).toFixed(2)),
                 url_detalle: `/ventas/${r.id}`,
             };
         });

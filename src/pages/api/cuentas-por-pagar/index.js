@@ -4,7 +4,7 @@ import { withTransaction, executeInTx } from '@/utils/dbTransaction';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
 import { registrarBitacoraEnTx } from '@/utils/bitacora';
 import { fechaHoraVenezuela } from '@/utils/helpers/formateoFecha.js';
-import { convertirAMonedaBase, obtenerMonedaBase, toleranciaPago } from '@/utils/helpers/tasas.js';
+import { convertirAMonedaBase, formatearMoneda, obtenerMonedaBase, toleranciaPago } from '@/utils/helpers/tasas.js';
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
@@ -258,7 +258,7 @@ export async function POST({ request }) {
                 accion: 'COMPRA_ABONO',
                 entidad: 'compras',
                 entidadId: comprasAfectadas[0]?.id || '',
-                detalle: `Abono $${montoUsd.toFixed(4)} USD (${monedaNorm} - ${metodo}) a proveedor ${nombreProv}`,
+                detalle: `Abono ${formatearMoneda(montoUsd, obtenerMonedaBase())} (${monedaNorm} - ${metodo}) a proveedor ${nombreProv}`,
             });
 
             return { montoUsd, comprasAfectadas };

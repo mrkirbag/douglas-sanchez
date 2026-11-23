@@ -74,9 +74,9 @@ if (usuario.rol !== 'admin') {
                     <td data-label="Fecha">${formatearFecha(carga.fecha)}</td>
                     <td data-label="Proveedor">${carga.proveedor.toUpperCase()}</td>
                     <td data-label="Monto Factura">
-                        ${carga.monto_total} COP
+                        ${Number(carga.monto_total).toFixed(2)} COP
                         <br />
-                        ${carga.monto_total / tasaCambio} USD
+                        ${(Number(carga.monto_total) / tasaCambio).toFixed(2)} USD
                     </td>
                     <td data-label="Productos Agregados">${carga.productos_agregados}</td>
                 `;

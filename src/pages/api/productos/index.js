@@ -3,6 +3,7 @@ import { verificarToken } from '@/utils/auth';
 import { ACCIONES, registrarBitacora, registrarBitacoraEnTx } from '@/utils/bitacora.js';
 import { withTransaction, executeInTx } from '@/utils/dbTransaction.js';
 import { ensureFiscalSchema } from '@/utils/ensureFiscalSchema.js';
+import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 
 const LIMITE_BUSQUEDA = 50;
 const LIMITE_LISTA = 80;
@@ -209,12 +210,14 @@ export async function POST({ request }) {
                 );
             }
 
+            const mBase = obtenerMonedaBase();
+            const mBcv = mBase === 'COP' ? 'BS' : 'USD';
             await registrarBitacoraEnTx(tx, {
                 usuario,
                 accion: ACCIONES.PRODUCTO_NUEVO,
                 entidad: 'productos',
                 entidadId: productoId,
-                detalle: `${codigo} — ${nombre} · stock ${stockFinal} · divisas $${precioDivisasFinal} · BCV $${precioBcvFinal}`,
+                detalle: `${codigo} — ${nombre} · stock ${stockFinal} · divisas ${formatearMoneda(precioDivisasFinal, mBase)} · BCV ${formatearMoneda(precioBcvFinal, mBcv)}`,
             });
         });
 
@@ -411,12 +414,14 @@ export async function PUT({ request }) {
                 }
             }
 
+            const mBase = obtenerMonedaBase();
+            const mBcv = mBase === 'COP' ? 'BS' : 'USD';
             await registrarBitacoraEnTx(tx, {
                 usuario,
                 accion: ACCIONES.PRODUCTO_EDITAR,
                 entidad: 'productos',
                 entidadId: id,
-                detalle: `${codigo} — ${nombre} · stock ${stockFinal} · costo $${costoFinal} · divisas $${precioDivisasFinal} · BCV $${precioBcvFinal}`,
+                detalle: `${codigo} — ${nombre} · stock ${stockFinal} · costo ${formatearMoneda(costoFinal, mBase)} · divisas ${formatearMoneda(precioDivisasFinal, mBase)} · BCV ${formatearMoneda(precioBcvFinal, mBcv)}`,
             });
         });
 

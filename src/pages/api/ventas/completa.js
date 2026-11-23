@@ -8,7 +8,7 @@ import {
     insertarDetalleVenta,
     normalizarId,
 } from '@/utils/ventaValidaciones';
-import { obtenerMonedaBase } from '@/utils/helpers/tasas.js';
+import { formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
 import { validarPagosVenta } from '@/utils/helpers/metodosPago.js';
 import { ACCIONES, registrarBitacoraEnTx } from '@/utils/bitacora.js';
 import { fechaHoraVenezuela } from '@/utils/helpers/formateoFecha.js';
@@ -356,14 +356,17 @@ export async function POST({ request }) {
                 }
             }
 
+            const monedaBitacora = esNotaEntrega
+                ? obtenerMonedaBase()
+                : (obtenerMonedaBase() === 'COP' ? 'BS' : 'USD');
             await registrarBitacoraEnTx(tx, {
                 usuario,
                 accion: tipoPago === 'credito' ? ACCIONES.CREDITO : ACCIONES.VENTA,
                 entidad: 'ventas',
                 entidadId: idVenta,
                 detalle: esNotaEntrega
-                    ? `${etiquetaDoc} (Divisas sin IVA) · ${tipoPago} · Total $${totalCalculado} USD`
-                    : `${etiquetaDoc} (Bs BCV) · ${tipoPago} · Base $${subtotalBase} · IVA $${ivaMonto} · Total $${totalCalculado}`,
+                    ? `${etiquetaDoc} (Sin IVA) · ${tipoPago} · Total ${formatearMoneda(totalCalculado, monedaBitacora)}`
+                    : `${etiquetaDoc} (Fiscal) · ${tipoPago} · Base ${formatearMoneda(subtotalBase, monedaBitacora)} · IVA ${formatearMoneda(ivaMonto, monedaBitacora)} · Total ${formatearMoneda(totalCalculado, monedaBitacora)}`,
             });
 
             return { ventaId: idVenta, nroFactura, nroNotaEntrega, tipoDocumento };

@@ -115,7 +115,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     <th>Cliente</th>
                     <th>Modalidad / Impuesto</th>
                     <th>Total Factura (Bs / BCV)</th>
-                    <th>Total Divisas (USD / COP)</th>
+                    <th>Total Divisas (COP / USD)</th>
                     <th>Ganancia Aproximada</th>
                     <th>Tipo pago</th>
                     <th>Estado</th>
@@ -535,7 +535,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
     import { obtenerTasas } from "@/utils/helpers/cambioMoneda.js";
     import { formatearFecha } from "@/utils/helpers/formateoFecha.js";
     import { imprimir } from '@/utils/helpers/imprimir.js';
-    import { redondearCOP, redondearBS, formatearMoneda } from '@/utils/helpers/tasas.js';
+    import { redondearCOP, redondearBS, redondearUSD, formatearMoneda, obtenerMonedaBase } from '@/utils/helpers/tasas.js';
     import { descargarExcel } from '@/utils/helpers/exportarExcel.js';
 
     const esAdmin = document.querySelector('.ventas-summary-card')?.getAttribute('data-es-admin') === 'true';
@@ -1020,26 +1020,69 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
             ventasDelDiaActuales = Array.isArray(ventas) ? ventas : [];
             tasasDelDiaActuales = tasas;
 
+            const esBaseCop = obtenerMonedaBase() === 'COP';
+            const copABs = Number((tasas as any).cop_a_bs) > 0 ? Number((tasas as any).cop_a_bs) : 3;
+
             ventas.forEach(venta => {
                 const esNotaEntrega = venta.tipo_documento === 'nota_entrega';
                 const fechaFormateada = formatearFecha(venta.fecha);
                 const tasaCop = Number(venta.tasa_cop) > 0 ? Number(venta.tasa_cop) : tasas.cop;
                 const tasaBcv = Number(venta.tasa_bcv) > 0 ? Number(venta.tasa_bcv) : tasas.bs;
 
-                const totalUsd = Number(venta.total) || 0;
-                const totalBs = redondearBS(totalUsd * tasaBcv);
+                const totalVal = Number(venta.total) || 0;
+                const baseVal = (Number(venta.subtotal_base) || 0) + (Number(venta.subtotal_exento) || 0) || totalVal;
+                const ivaVal = Number(venta.iva_monto) || 0;
+                const divVal = Number(venta.total_divisas) || 0;
 
-                const baseUsd = (Number(venta.subtotal_base) || 0) + (Number(venta.subtotal_exento) || 0) || totalUsd;
-                const baseBs = redondearBS(baseUsd * tasaBcv);
-                const ivaUsd = Number(venta.iva_monto) || 0;
-                const ivaBs = redondearBS(ivaUsd * tasaBcv);
+                let totalBs = 0;
+                let totalBcvUsd = 0;
+                let baseBs = 0;
+                let ivaBs = 0;
+                let ivaUsd = 0;
+                let totalCOP = 0;
+                let refDivisasUsd = 0;
 
-                const refDivisasUsd = Number(venta.total_divisas) > 0 ? Number(venta.total_divisas) : totalUsd;
-                const totalCOP = redondearCOP(refDivisasUsd * tasaCop);
-                const gananciaUsd = Number(venta.ganancia_aproximada) || 0;
-                const gananciaBs = redondearBS(gananciaUsd * tasaBcv);
-                const gananciaCop = Math.round(gananciaUsd * tasaCop);
-                const gananciaColor = gananciaUsd < 0 ? '#b91c1c' : '#047857';
+                if (esBaseCop) {
+                    if (esNotaEntrega) {
+                        const copRaw = divVal > 0 ? divVal : totalVal;
+                        totalCOP = redondearCOP(copRaw);
+                        refDivisasUsd = tasaCop > 0 ? redondearUSD(totalCOP / tasaCop) : 0;
+                    } else {
+                        totalBs = redondearBS(totalVal);
+                        totalBcvUsd = tasaBcv > 0 ? redondearUSD(totalBs / tasaBcv) : 0;
+                        baseBs = redondearBS(baseVal);
+                        ivaBs = redondearBS(ivaVal);
+                        ivaUsd = tasaBcv > 0 ? redondearUSD(ivaBs / tasaBcv) : 0;
+                        if (divVal > 0) {
+                            if (divVal >= totalBs || divVal > 1000 && totalBs > 0 && (divVal / totalBs) > 0.5) {
+                                totalCOP = redondearCOP(divVal);
+                                refDivisasUsd = tasaCop > 0 ? redondearUSD(totalCOP / tasaCop) : 0;
+                            } else {
+                                refDivisasUsd = redondearUSD(divVal);
+                                totalCOP = redondearCOP(refDivisasUsd * tasaCop);
+                            }
+                        } else {
+                            totalCOP = redondearCOP(totalBs * copABs);
+                            refDivisasUsd = tasaCop > 0 ? redondearUSD(totalCOP / tasaCop) : 0;
+                        }
+                    }
+                } else {
+                    totalBcvUsd = totalVal;
+                    totalBs = redondearBS(totalVal * tasaBcv);
+                    baseBs = redondearBS(baseVal * tasaBcv);
+                    ivaUsd = ivaVal;
+                    ivaBs = redondearBS(ivaVal * tasaBcv);
+                    refDivisasUsd = divVal > 0 ? divVal : totalVal;
+                    totalCOP = redondearCOP(refDivisasUsd * tasaCop);
+                }
+
+                const ganRaw = Number(venta.ganancia_aproximada) || 0;
+                const gananciaCop = esBaseCop
+                    ? Math.round(esNotaEntrega ? ganRaw : (ganRaw * copABs))
+                    : Math.round(ganRaw * tasaCop);
+                const gananciaUsd = tasaCop > 0 ? redondearUSD(gananciaCop / tasaCop) : 0;
+                const gananciaBs = esBaseCop ? redondearBS(esNotaEntrega ? (ganRaw / copABs) : ganRaw) : redondearBS(ganRaw * tasaBcv);
+                const gananciaColor = gananciaCop < 0 ? '#b91c1c' : '#047857';
 
                 const estadoClase = obtenerClaseEstado(venta.estado);
 
@@ -1063,11 +1106,11 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
 
                 const colImpuestoHtml = esNotaEntrega
                     ? `<span class="monto-usd" style="color:#047857;">En Divisas (Sin IVA)</span><br/><span class="monto-cop">Nota de Entrega</span>`
-                    : `<span class="monto-usd">Base: ${baseBs.toFixed(4)} Bs</span><br/><span class="monto-cop">IVA: ${ivaBs.toFixed(4)} Bs ($${ivaUsd.toFixed(4)})</span>`;
+                    : `<span class="monto-usd">Base: ${formatearMoneda(baseBs, 'BS')}</span><br/><span class="monto-cop">IVA: ${formatearMoneda(ivaBs, 'BS')} (${formatearMoneda(ivaUsd, 'USD')})</span>`;
 
                 const colBsHtml = esNotaEntrega
                     ? `<span class="monto-cop">N/A (Facturado en Divisas)</span>`
-                    : `<span class="monto-usd">${totalBs.toFixed(4)} Bs</span><br/><span class="monto-cop">$${totalUsd.toFixed(4)} USD (BCV)</span>`;
+                    : `<span class="monto-usd">${formatearMoneda(totalBs, 'BS')}</span><br/><span class="monto-cop">${formatearMoneda(totalBcvUsd, 'USD')} (BCV)</span>`;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `    
@@ -1078,15 +1121,15 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     </td>
                     <td data-label="Modalidad / Impuesto">${colImpuestoHtml}</td>
                     <td data-label="Total Factura (Bs / BCV)">${colBsHtml}</td>
-                    <td data-label="Total Divisas (USD / COP)">
-                        <span class="monto-usd">$${refDivisasUsd.toFixed(4)} USD</span>
+                    <td data-label="Total Divisas (COP / USD)">
+                        <span class="monto-cop"><strong>${formatearMoneda(totalCOP, 'COP')}</strong></span>
                         <br />
-                        <span class="monto-cop">${totalCOP.toLocaleString('es-CO')} COP</span>
+                        <span class="monto-usd">${formatearMoneda(refDivisasUsd, 'USD')}</span>
                     </td>
                     <td data-label="Ganancia Aproximada">
-                        <span class="monto-usd" style="color:${gananciaColor};">≈ $${gananciaUsd.toFixed(4)} USD</span>
+                        <span class="monto-usd" style="color:${gananciaColor};">≈ ${formatearMoneda(gananciaCop, 'COP')}</span>
                         <br />
-                        <span class="monto-cop">${gananciaBs.toFixed(4)} Bs · ${gananciaCop.toLocaleString('es-CO')} COP</span>
+                        <span class="monto-cop">${formatearMoneda(gananciaUsd, 'USD')} · ${formatearMoneda(gananciaBs, 'BS')}</span>
                     </td>
                     <td data-label="Tipo Pago">
                         <span class="pago-badge">${venta.tipo_pago.toUpperCase()}</span>
