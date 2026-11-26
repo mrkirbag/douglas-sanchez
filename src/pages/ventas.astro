@@ -581,14 +581,14 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                 const x = data.corteX || {};
                 estadoLabel.textContent = 'Turno Fiscal Activo';
                 titulo.textContent = `Caja Abierta (${formatearFecha(c.fecha_apertura)} · ${c.hora_apertura})`;
-                meta.textContent = `Responsable: ${c.usuario_apertura_nombre} · Fondo Inicial: $${Number(c.monto_apertura_usd || 0).toFixed(4)} USD / ${Number(c.monto_apertura_bs || 0).toFixed(4)} Bs`;
+                meta.textContent = `Responsable: ${c.usuario_apertura_nombre} · Fondo Inicial: ${formatearMoneda(Number(c.monto_apertura_cop || 0), 'COP')} / $${Number(c.monto_apertura_usd || 0).toFixed(2)} USD / ${Number(c.monto_apertura_bs || 0).toFixed(2)} Bs`;
 
                 metricasBox.hidden = false;
                 (document.getElementById('cajaFacturasCount') as HTMLElement).textContent = String(x.cantidad_facturas || 0);
-                (document.getElementById('cajaBaseBs') as HTMLElement).textContent = `${Number(x.base_imponible_bs || 0).toFixed(4)} Bs`;
-                (document.getElementById('cajaIvaBs') as HTMLElement).textContent = `${Number(x.iva_bs || 0).toFixed(4)} Bs`;
-                (document.getElementById('cajaTotalBs') as HTMLElement).textContent = `${Number(x.total_facturado_bs || 0).toFixed(4)} Bs`;
-                (document.getElementById('cajaTotalUsd') as HTMLElement).textContent = `$${Number(x.total_facturado_usd || 0).toFixed(4)} USD (BCV)`;
+                (document.getElementById('cajaBaseBs') as HTMLElement).textContent = `${Number(x.base_imponible_bs || 0).toFixed(2)} Bs`;
+                (document.getElementById('cajaIvaBs') as HTMLElement).textContent = `${Number(x.iva_bs || 0).toFixed(2)} Bs`;
+                (document.getElementById('cajaTotalBs') as HTMLElement).textContent = `${Number(x.total_facturado_bs || 0).toFixed(2)} Bs`;
+                (document.getElementById('cajaTotalUsd') as HTMLElement).textContent = `$${Number(x.total_facturado_usd || 0).toFixed(2)} USD (BCV)`;
 
                 btnAbrir.hidden = true;
                 btnCorteX.hidden = false;
@@ -693,7 +693,11 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     <td>${p.etiqueta}</td>
                     <td style="text-align:center;">${p.operaciones}</td>
                     <td style="text-align:right;">${formatearMoneda(p.total_moneda, p.moneda)}</td>
-                    <td style="text-align:right;">$${Number(p.total_usd).toFixed(4)}</td>
+                    <td style="text-align:right;">
+                        <strong>${formatearMoneda(p.total_cop ?? 0, 'COP')}</strong>
+                        <br />
+                        <small style="color:#64748b;">$${Number(p.total_usd || 0).toFixed(2)} USD</small>
+                    </td>
                 </tr>
             `).join('')
             : `<tr><td colspan="4" style="text-align:center; color:#64748b;">Sin pagos de contado registrados en este turno</td></tr>`;
@@ -715,8 +719,8 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     <div><strong>Cajero Apertura:</strong> ${caja.usuario_apertura_nombre}</div>
                     <div><strong>Cajero Cierre:</strong> ${caja.usuario_cierre_nombre || '—'}</div>
                     <div><strong>Facturas Fiscales (Bs):</strong> ${metricas.cantidad_facturas} (${rangoFacturas})</div>
-                    <div><strong>Notas de Entrega (No Fiscales):</strong> ${metricas.cantidad_notas_entrega || 0} ($${Number(metricas.total_notas_entrega_usd || 0).toFixed(4)} USD)${Number(metricas.notas_entrega_pendientes_facturar || 0) > 0 ? ` · <span style="color:#b45309; font-weight:700;">${metricas.notas_entrega_pendientes_facturar} sin facturar</span>` : ''}</div>
-                    <div style="grid-column: 1 / -1;"><strong>Tasas Aplicadas:</strong> BCV ${Number(metricas.tasa_bcv).toFixed(4)} Bs · COP ${Number(metricas.tasa_cop).toLocaleString('es-CO')}</div>
+                    <div><strong>Notas de Entrega (No Fiscales):</strong> ${metricas.cantidad_notas_entrega || 0} (${formatearMoneda(metricas.total_notas_entrega_cop || 0, 'COP')} · Ref. $${Number(metricas.total_notas_entrega_usd || 0).toFixed(2)} USD)${Number(metricas.notas_entrega_pendientes_facturar || 0) > 0 ? ` · <span style="color:#b45309; font-weight:700;">${metricas.notas_entrega_pendientes_facturar} sin facturar</span>` : ''}</div>
+                    <div style="grid-column: 1 / -1;"><strong>Tasas Aplicadas:</strong> BCV ${Number(metricas.tasa_bcv).toFixed(2)} Bs · COP ${Number(metricas.tasa_cop).toLocaleString('es-CO')}</div>
                 </div>
 
                 <h4 style="margin: 0.8rem 0 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #334155;">1. Resumen Fiscal SENIAT (Base Imponible BCV e IVA)</h4>
@@ -724,40 +728,40 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     <thead>
                         <tr style="background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
                             <th style="text-align:left; padding:6px 8px;">Concepto Fiscal</th>
-                            <th style="text-align:right; padding:6px 8px;">Monto Legal (Bs)</th>
-                            <th style="text-align:right; padding:6px 8px;">Equiv. BCV (USD)</th>
+                            <th style="text-align:right; padding:6px 8px;">Monto Legal (Bs BCV)</th>
+                            <th style="text-align:right; padding:6px 8px;">Ref. USD (BCV)</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="border-bottom:1px solid #e2e8f0;">
                             <td style="padding:6px 8px;">Ventas Exentas / No Sujetas (E)</td>
-                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.exento_bs).toFixed(4)} Bs</td>
-                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.exento_usd).toFixed(4)}</td>
+                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.exento_bs).toFixed(2)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.exento_usd).toFixed(2)}</td>
                         </tr>
                         <tr style="border-bottom:1px solid #e2e8f0;">
                             <td style="padding:6px 8px;">Base Imponible Alícuota General (G)</td>
-                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.base_imponible_bs).toFixed(4)} Bs</td>
-                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.base_imponible_usd).toFixed(4)}</td>
+                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.base_imponible_bs).toFixed(2)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.base_imponible_usd).toFixed(2)}</td>
                         </tr>
                         <tr style="border-bottom:1px solid #e2e8f0;">
                             <td style="padding:6px 8px;">Débito Fiscal IVA</td>
-                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.iva_bs).toFixed(4)} Bs</td>
-                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.iva_usd).toFixed(4)}</td>
+                            <td style="text-align:right; padding:6px 8px;">${Number(metricas.iva_bs).toFixed(2)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">$${Number(metricas.iva_usd).toFixed(2)}</td>
                         </tr>
                         <tr style="border-bottom:1px solid #e2e8f0; color:#b45309;">
                             <td style="padding:6px 8px;">(-) Retenciones de IVA Practicadas</td>
-                            <td style="text-align:right; padding:6px 8px;">-${Number(metricas.retencion_iva_bs).toFixed(4)} Bs</td>
-                            <td style="text-align:right; padding:6px 8px;">-$${Number(metricas.retencion_iva_usd).toFixed(4)}</td>
+                            <td style="text-align:right; padding:6px 8px;">-${Number(metricas.retencion_iva_bs).toFixed(2)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">-$${Number(metricas.retencion_iva_usd).toFixed(2)}</td>
                         </tr>
                         <tr style="border-bottom:1px solid #e2e8f0; color:#dc2626;">
                             <td style="padding:6px 8px;">(-) Devoluciones / Notas de Crédito</td>
-                            <td style="text-align:right; padding:6px 8px;">-${Number(metricas.total_devoluciones_bs).toFixed(4)} Bs</td>
-                            <td style="text-align:right; padding:6px 8px;">-$${Number(metricas.total_devoluciones_usd).toFixed(4)}</td>
+                            <td style="text-align:right; padding:6px 8px;">-${Number(metricas.total_devoluciones_bs).toFixed(2)} Bs</td>
+                            <td style="text-align:right; padding:6px 8px;">-$${Number(metricas.total_devoluciones_usd).toFixed(2)}</td>
                         </tr>
                         <tr style="background:#dbeafe; font-weight:800;">
                             <td style="padding:8px;">TOTAL FACTURADO DEL DÍA (Z)</td>
-                            <td style="text-align:right; padding:8px;">${Number(metricas.total_facturado_bs).toFixed(4)} Bs</td>
-                            <td style="text-align:right; padding:8px;">$${Number(metricas.total_facturado_usd).toFixed(4)}</td>
+                            <td style="text-align:right; padding:8px;">${Number(metricas.total_facturado_bs).toFixed(2)} Bs</td>
+                            <td style="text-align:right; padding:8px;">$${Number(metricas.total_facturado_usd).toFixed(2)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -769,7 +773,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                             <th style="text-align:left; padding:6px 8px;">Método / Moneda</th>
                             <th style="text-align:center; padding:6px 8px;">Operaciones</th>
                             <th style="text-align:right; padding:6px 8px;">Monto Recibido</th>
-                            <th style="text-align:right; padding:6px 8px;">Equiv. USD</th>
+                            <th style="text-align:right; padding:6px 8px;">Equiv. COP / Ref. USD</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -778,10 +782,10 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                 </table>
 
                 <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; font-size: 0.82rem; background:#f8fafc; padding:0.75rem; border-radius:8px; border:1px solid #e2e8f0;">
-                    <div><strong>Facturas Contado (Z):</strong> $${Number(metricas.total_ventas_contado).toFixed(4)}</div>
-                    <div><strong>Facturas Crédito (Z):</strong> $${Number(metricas.total_ventas_credito).toFixed(4)}</div>
-                    <div><strong>Notas de Entrega (Interno):</strong> $${Number(metricas.total_notas_entrega_usd || 0).toFixed(4)}</div>
-                    <div><strong>Abonos Recibidos (${metricas.abonos_cantidad || 0}):</strong> $${Number(metricas.abonos_total_usd || 0).toFixed(4)}</div>
+                    <div><strong>Facturas Contado (Z):</strong> ${Number(metricas.total_ventas_contado_bs ?? 0).toFixed(2)} Bs (Ref. $${Number(metricas.total_ventas_contado || 0).toFixed(2)} USD)</div>
+                    <div><strong>Facturas Crédito (Z):</strong> ${Number(metricas.total_ventas_credito_bs ?? 0).toFixed(2)} Bs (Ref. $${Number(metricas.total_ventas_credito || 0).toFixed(2)} USD)</div>
+                    <div><strong>Notas de Entrega (Divisas):</strong> ${formatearMoneda(metricas.total_notas_entrega_cop || 0, 'COP')} (Ref. $${Number(metricas.total_notas_entrega_usd || 0).toFixed(2)} USD)</div>
+                    <div><strong>Abonos Recibidos (${metricas.abonos_cantidad || 0}):</strong> ${formatearMoneda(metricas.abonos_total_cop ?? 0, 'COP')} (Ref. $${Number(metricas.abonos_total_usd || 0).toFixed(2)} USD)</div>
                 </div>
             </div>
         `;
@@ -833,7 +837,7 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
                     <td>${formatearFecha(c.fecha_cierre || c.fecha_apertura)}<br/><small>${c.hora_cierre || ''}</small></td>
                     <td>${c.usuario_cierre_nombre || c.usuario_apertura_nombre}</td>
                     <td>${c.cantidad_facturas || 0}</td>
-                    <td><strong>${Number(c.total_facturado_bs || 0).toFixed(4)} Bs</strong><br/><small>$${Number(c.total_facturado_usd || 0).toFixed(4)} USD</small></td>
+                    <td><strong>${Number(c.total_facturado_bs || 0).toFixed(2)} Bs</strong><br/><small>$${Number(c.total_facturado_usd || 0).toFixed(2)} USD</small></td>
                     <td>
                         <button type="button" class="btn-caja btn-caja--history btn-ver-z" data-id="${c.id}">VER / IMPRIMIR Z</button>
                     </td>
@@ -1244,27 +1248,34 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         }
 
         const fechaSel = inputBusqueda.value || 'ventas';
+        const esBaseCop = obtenerMonedaBase() === 'COP';
         const filasFacturas = ventasDelDiaActuales
             .filter((v) => v.tipo_documento !== 'nota_entrega')
             .map((v) => {
                 const tBcv = Number(v.tasa_bcv) > 0 ? Number(v.tasa_bcv) : tasasDelDiaActuales.bs;
-                const baseUsd = Number(v.subtotal_base) || 0;
-                const exentoUsd = Number(v.subtotal_exento) || 0;
-                const ivaUsd = Number(v.iva_monto) || 0;
-                const retUsd = Number(v.retencion_iva_monto) || 0;
-                const totUsd = Number(v.total) || 0;
+                const baseVal = Number(v.subtotal_base) || 0;
+                const exentoVal = Number(v.subtotal_exento) || 0;
+                const ivaVal = Number(v.iva_monto) || 0;
+                const retVal = Number(v.retencion_iva_monto) || 0;
+                const totVal = Number(v.total) || 0;
+                const baseBs = esBaseCop ? baseVal : baseVal * tBcv;
+                const exentoBs = esBaseCop ? exentoVal : exentoVal * tBcv;
+                const ivaBs = esBaseCop ? ivaVal : ivaVal * tBcv;
+                const retBs = esBaseCop ? retVal : retVal * tBcv;
+                const totBs = esBaseCop ? totVal : totVal * tBcv;
+                const totUsd = esBaseCop ? (tBcv > 0 ? totVal / tBcv : 0) : totVal;
                 return {
                     Fecha: v.fecha,
                     Nro_Factura: v.nro_factura || '',
                     Cliente: String(v.cliente || '').toUpperCase(),
                     Cedula_RIF: v.cedula_cliente || '',
                     Tasa_BCV: tBcv,
-                    Base_Imponible_Bs: Number((baseUsd * tBcv).toFixed(4)),
-                    Exento_Bs: Number((exentoUsd * tBcv).toFixed(4)),
-                    IVA_Bs: Number((ivaUsd * tBcv).toFixed(4)),
-                    Retencion_IVA_Bs: Number((retUsd * tBcv).toFixed(4)),
-                    Total_Bs: Number((totUsd * tBcv).toFixed(4)),
-                    Equiv_BCV_USD: Number(totUsd.toFixed(4)),
+                    Base_Imponible_Bs: Number(baseBs.toFixed(2)),
+                    Exento_Bs: Number(exentoBs.toFixed(2)),
+                    IVA_Bs: Number(ivaBs.toFixed(2)),
+                    Retencion_IVA_Bs: Number(retBs.toFixed(2)),
+                    Total_Bs: Number(totBs.toFixed(2)),
+                    Equiv_BCV_USD: Number(totUsd.toFixed(2)),
                     Tipo_Pago: String(v.tipo_pago || '').toUpperCase(),
                     Estado: String(v.estado || '').toUpperCase(),
                 };
@@ -1273,15 +1284,17 @@ const fechaActual = new Date().toLocaleDateString("es-VE", {
         const filasNotas = ventasDelDiaActuales
             .filter((v) => v.tipo_documento === 'nota_entrega')
             .map((v) => {
-                const totUsd = Number(v.total_divisas) > 0 ? Number(v.total_divisas) : Number(v.total) || 0;
+                const totVal = Number(v.total) || 0;
                 const tCop = Number(v.tasa_cop) > 0 ? Number(v.tasa_cop) : tasasDelDiaActuales.cop;
+                const totCop = esBaseCop ? totVal : Math.ceil(totVal * tCop);
+                const totUsd = esBaseCop ? (tCop > 0 ? totVal / tCop : 0) : (Number(v.total_divisas) > 0 ? Number(v.total_divisas) : totVal);
                 return {
                     Fecha: v.fecha,
                     Nro_Nota_Entrega: v.nro_nota_entrega ? `NE-${String(v.nro_nota_entrega).padStart(6, '0')}` : '',
                     Cliente: String(v.cliente || '').toUpperCase(),
                     Cedula_RIF: v.cedula_cliente || '',
-                    Total_USD: Number(totUsd.toFixed(4)),
-                    Total_COP: Math.ceil(totUsd * tCop),
+                    Total_COP: Number(totCop.toFixed(2)),
+                    Ref_USD: Number(totUsd.toFixed(2)),
                     Facturada: v.facturada_en_venta_id ? 'SI' : 'NO',
                     Tipo_Pago: String(v.tipo_pago || '').toUpperCase(),
                     Estado: String(v.estado || '').toUpperCase(),

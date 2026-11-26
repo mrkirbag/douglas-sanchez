@@ -14,6 +14,7 @@ async function obtenerTasasActuales() {
     return {
         cop: Number(row.valor) || 0,
         bs: Number(row.bs) || 0,
+        cop_a_bs: Number(row.cop_a_bs) || 3,
         iva_porcentaje: row.iva_porcentaje !== undefined ? Number(row.iva_porcentaje) : 16,
         retencion_iva_porcentaje: row.retencion_iva_porcentaje !== undefined ? Number(row.retencion_iva_porcentaje) : 75,
     };
@@ -59,6 +60,8 @@ export async function calcularMetricasCaja(caja, tasas) {
 
     let totalVentasContado = 0;
     let totalVentasCredito = 0;
+    let totalVentasContadoBs = 0;
+    let totalVentasCreditoBs = 0;
     let baseImponibleUsd = 0;
     let baseImponibleBs = 0;
     let exentoUsd = 0;
@@ -109,10 +112,13 @@ export async function calcularMetricasCaja(caja, tasas) {
         }
 
         const totalVentaUsd = esBaseCop ? (tBcvVenta > 0 ? totalVenta / tBcvVenta : 0) : totalVenta;
+        const totalVentaBs = esBaseCop ? totalVenta : totalVenta * tBcvVenta;
         if (String(v.tipo_pago).toLowerCase() === 'credito') {
             totalVentasCredito += totalVentaUsd;
+            totalVentasCreditoBs += totalVentaBs;
         } else {
             totalVentasContado += totalVentaUsd;
+            totalVentasContadoBs += totalVentaBs;
         }
 
         cantidadFacturas += 1;
@@ -200,41 +206,100 @@ export async function calcularMetricasCaja(caja, tasas) {
     // Desglose por métodos de pago de las ventas de la sesión
     const pagosRes = await db.execute({
         sql: `
-            SELECT pv.moneda, pv.metodo,
-                   COUNT(*) AS operaciones,
-                   SUM(pv.monto) AS total_moneda,
-                   SUM(pv.monto_base) AS total_usd
+            SELECT pv.moneda, pv.metodo, pv.monto, pv.monto_base, v.tasa_cop, v.tasa_bcv
             FROM pagos_venta pv
             JOIN ventas v ON pv.id_venta = v.id
             WHERE (v.caja_id = ? OR (v.caja_id IS NULL AND v.fecha = ?))
               AND LOWER(v.estado) NOT IN ('anulado', 'anulada', 'cancelado')
-            GROUP BY pv.moneda, pv.metodo
             ORDER BY pv.moneda ASC, pv.metodo ASC
         `,
         args: [cajaId, fechaApertura],
     });
 
-    const desglosePagos = (pagosRes.rows || []).map((p) => ({
-        moneda: p.moneda,
-        metodo: p.metodo,
-        etiqueta: etiquetaPago(p.moneda, p.metodo),
-        operaciones: Number(p.operaciones) || 0,
-        total_moneda: Number(p.total_moneda) || 0,
-        total_usd: Number(p.total_usd) || 0,
+    const copABs = Number(tasas?.cop_a_bs) || 3;
+    const mapaPagos = new Map();
+    for (const p of (pagosRes.rows || [])) {
+        const moneda = String(p.moneda || 'COP').toUpperCase();
+        const metodo = String(p.metodo || 'efectivo');
+        const key = `${moneda}::${metodo}`;
+        const monto = Number(p.monto) || 0;
+        const tCop = Number(p.tasa_cop) > 0 ? Number(p.tasa_cop) : tasaCop;
+        const tBcv = Number(p.tasa_bcv) > 0 ? Number(p.tasa_bcv) : tasaBcv;
+
+        let usd = 0;
+        let cop = 0;
+        if (moneda === 'USD') {
+            usd = monto;
+            cop = tCop > 0 ? monto * tCop : 0;
+        } else if (moneda === 'COP') {
+            cop = monto;
+            usd = tCop > 0 ? monto / tCop : 0;
+        } else if (moneda === 'BS') {
+            usd = tBcv > 0 ? monto / tBcv : 0;
+            cop = copABs > 0 ? monto * copABs : (tCop > 0 ? usd * tCop : 0);
+        }
+
+        const actual = mapaPagos.get(key) || {
+            moneda,
+            metodo,
+            etiqueta: etiquetaPago(moneda, metodo),
+            operaciones: 0,
+            total_moneda: 0,
+            total_usd: 0,
+            total_cop: 0,
+        };
+        actual.operaciones += 1;
+        actual.total_moneda += monto;
+        actual.total_usd += usd;
+        actual.total_cop += cop;
+        mapaPagos.set(key, actual);
+    }
+
+    const desglosePagos = Array.from(mapaPagos.values()).map((p) => ({
+        ...p,
+        total_moneda: +(p.total_moneda.toFixed(2)),
+        total_usd: +(p.total_usd.toFixed(2)),
+        total_cop: Math.round(p.total_cop),
     }));
 
     // Abonos de créditos recibidos en la fecha de la caja
     const abonosRes = await db.execute({
         sql: `
-            SELECT COUNT(*) AS cantidad, COALESCE(SUM(monto), 0) AS total_usd
+            SELECT monto, moneda, monto_recibido, moneda_base, tasa_cop, tasa_bs
             FROM abonos_credito
             WHERE fecha = ?
         `,
         args: [fechaApertura],
     });
 
-    const abonosCantidad = Number(abonosRes.rows?.[0]?.cantidad) || 0;
-    const abonosTotalUsd = Number(abonosRes.rows?.[0]?.total_usd) || 0;
+    const abonosRows = abonosRes.rows || [];
+    const abonosCantidad = abonosRows.length;
+    let abonosTotalUsd = 0;
+    let abonosTotalCop = 0;
+    for (const a of abonosRows) {
+        const mon = String(a.moneda || a.moneda_base || (esBaseCop ? 'COP' : 'USD')).toUpperCase();
+        const monBase = String(a.moneda_base || (esBaseCop ? 'COP' : 'USD')).toUpperCase();
+        const mRec = Number(a.monto_recibido) > 0 ? Number(a.monto_recibido) : (Number(a.monto) || 0);
+        const tCop = Number(a.tasa_cop) > 0 ? Number(a.tasa_cop) : tasaCop;
+        const tBs = Number(a.tasa_bs) > 0 ? Number(a.tasa_bs) : tasaBcv;
+        if (mon === 'USD') {
+            abonosTotalUsd += mRec;
+            abonosTotalCop += tCop > 0 ? mRec * tCop : 0;
+        } else if (mon === 'COP') {
+            abonosTotalCop += mRec;
+            abonosTotalUsd += tCop > 0 ? mRec / tCop : 0;
+        } else if (mon === 'BS') {
+            const usdA = tBs > 0 ? mRec / tBs : 0;
+            abonosTotalUsd += usdA;
+            abonosTotalCop += copABs > 0 ? mRec * copABs : (tCop > 0 ? usdA * tCop : 0);
+        } else if (monBase === 'COP') {
+            abonosTotalCop += Number(a.monto) || 0;
+            abonosTotalUsd += tCop > 0 ? (Number(a.monto) || 0) / tCop : 0;
+        } else {
+            abonosTotalUsd += Number(a.monto) || 0;
+            abonosTotalCop += tCop > 0 ? (Number(a.monto) || 0) * tCop : 0;
+        }
+    }
 
     return {
         cantidad_facturas: cantidadFacturas,
@@ -244,28 +309,31 @@ export async function calcularMetricasCaja(caja, tasas) {
         notas_entrega_pendientes_facturar: notasEntregaPendientes,
         primera_nota_entrega: primeraNotaEntrega,
         ultima_nota_entrega: ultimaNotaEntrega,
-        total_notas_entrega_usd: +(totalNotasEntregaUsd.toFixed(4)),
-        total_notas_entrega_cop: totalNotasEntregaCop,
-        total_ventas_contado: +(totalVentasContado.toFixed(4)),
-        total_ventas_credito: +(totalVentasCredito.toFixed(4)),
-        base_imponible_usd: +(baseImponibleUsd.toFixed(4)),
-        base_imponible_bs: +(baseImponibleBs.toFixed(4)),
-        exento_usd: +(exentoUsd.toFixed(4)),
-        exento_bs: +(exentoBs.toFixed(4)),
-        iva_usd: +(ivaUsd.toFixed(4)),
-        iva_bs: +(ivaBs.toFixed(4)),
-        retencion_iva_usd: +(retencionIvaUsd.toFixed(4)),
-        retencion_iva_bs: +(retencionIvaBs.toFixed(4)),
-        total_facturado_usd: +(totalFacturadoUsd.toFixed(4)),
-        total_facturado_bs: +(totalFacturadoBs.toFixed(4)),
-        total_divisas_referencia: +(totalDivisasReferencia.toFixed(4)),
-        total_fletes_usd: +(totalFletesUsd.toFixed(4)),
-        total_devoluciones_usd: +(totalDevolucionesUsd.toFixed(4)),
-        total_devoluciones_bs: +(totalDevolucionesBs.toFixed(4)),
-        salidas_efectivo_usd: +(salidasEfectivoUsd.toFixed(4)),
-        notas_credito_emitidas_usd: +(notasCreditoEmitidasUsd.toFixed(4)),
+        total_notas_entrega_usd: +(totalNotasEntregaUsd.toFixed(2)),
+        total_notas_entrega_cop: Math.round(totalNotasEntregaCop),
+        total_ventas_contado: +(totalVentasContado.toFixed(2)),
+        total_ventas_credito: +(totalVentasCredito.toFixed(2)),
+        total_ventas_contado_bs: +(totalVentasContadoBs.toFixed(2)),
+        total_ventas_credito_bs: +(totalVentasCreditoBs.toFixed(2)),
+        base_imponible_usd: +(baseImponibleUsd.toFixed(2)),
+        base_imponible_bs: +(baseImponibleBs.toFixed(2)),
+        exento_usd: +(exentoUsd.toFixed(2)),
+        exento_bs: +(exentoBs.toFixed(2)),
+        iva_usd: +(ivaUsd.toFixed(2)),
+        iva_bs: +(ivaBs.toFixed(2)),
+        retencion_iva_usd: +(retencionIvaUsd.toFixed(2)),
+        retencion_iva_bs: +(retencionIvaBs.toFixed(2)),
+        total_facturado_usd: +(totalFacturadoUsd.toFixed(2)),
+        total_facturado_bs: +(totalFacturadoBs.toFixed(2)),
+        total_divisas_referencia: +(totalDivisasReferencia.toFixed(2)),
+        total_fletes_usd: +(totalFletesUsd.toFixed(2)),
+        total_devoluciones_usd: +(totalDevolucionesUsd.toFixed(2)),
+        total_devoluciones_bs: +(totalDevolucionesBs.toFixed(2)),
+        salidas_efectivo_usd: +(salidasEfectivoUsd.toFixed(2)),
+        notas_credito_emitidas_usd: +(notasCreditoEmitidasUsd.toFixed(2)),
         abonos_cantidad: abonosCantidad,
-        abonos_total_usd: +(abonosTotalUsd.toFixed(4)),
+        abonos_total_usd: +(abonosTotalUsd.toFixed(2)),
+        abonos_total_cop: Math.round(abonosTotalCop),
         tasa_bcv: tasaBcv,
         tasa_cop: tasaCop,
         desglose_pagos: desglosePagos,
